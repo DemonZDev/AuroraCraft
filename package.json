@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "framer-motion": "^12.23.24",
+    "react-split": "^2.0.14",
+    "recharts": "^3.4.1",
+    "socket.io-client": "^4.8.1"
+  }
+}
