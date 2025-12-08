@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+.next/
+out/
+build/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Data directories
+data/
+workspaces/
+
+# Prisma
+prisma/migrations/*_migration_lock.toml
+
+# Testing
+coverage/
+
+# Misc
+*.tgz
+.cache/
+
+# Gemini artifacts (agent notes)
+.gemini/
