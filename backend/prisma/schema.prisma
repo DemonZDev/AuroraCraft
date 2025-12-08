@@ -1,0 +1,349 @@
+// Prisma Schema for AuroraCraft
+// PostgreSQL database with full relations
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// AUTH & USERS
+// ============================================
+
+model User {
+  id            String   @id @default(cuid())
+  username      String   @unique
+  email         String   @unique
+  passwordHash  String
+  role          Role     @default(USER)
+  tokenBalance  Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sessions          Session[]
+  checkpoints       Checkpoint[]
+  chatMessages      ChatMessage[]
+  tokenTransactions TokenTransaction[]
+  logs              Log[]
+
+  @@index([email])
+  @@index([username])
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+// ============================================
+// SESSIONS (Projects)
+// ============================================
+
+model Session {
+  id             String   @id @default(cuid())
+  title          String
+  targetSoftware String   @default("paper") // paper, spigot, purpur, etc.
+  targetVersion  String   @default("1.20.4")
+  workspacePath  String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  files             FileIndex[]
+  checkpoints       Checkpoint[]
+  chatMessages      ChatMessage[]
+  plans             Plan[]
+  memoryEntries     MemoryEntry[]
+  compileJobs       CompileJob[]
+  tokenTransactions TokenTransaction[]
+  logs              Log[]
+
+  @@index([ownerId])
+  @@index([createdAt])
+}
+
+// ============================================
+// FILES
+// ============================================
+
+model FileIndex {
+  id             String   @id @default(cuid())
+  path           String
+  size           Int      @default(0)
+  checksum       String?
+  lastModifiedBy String?
+  lastModifiedAt DateTime @default(now())
+  isDeleted      Boolean  @default(false)
+  deletedAt      DateTime?
+
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, path])
+  @@index([sessionId])
+  @@index([path])
+}
+
+// ============================================
+// CHECKPOINTS (Version Control)
+// ============================================
+
+model Checkpoint {
+  id        String   @id @default(cuid())
+  name      String?
+  diffBlob  Json     // Stores file diffs
+  metadata  Json?    // Additional metadata
+  createdAt DateTime @default(now())
+
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id])
+
+  @@index([sessionId])
+  @@index([createdAt])
+}
+
+// ============================================
+// CHAT & AI
+// ============================================
+
+model ChatMessage {
+  id          String      @id @default(cuid())
+  role        MessageRole
+  content     String
+  mode        ChatMode    @default(AGENT)
+  modelId     String?
+  promptChars Int         @default(0)
+  responseChars Int       @default(0)
+  metadata    Json?
+  createdAt   DateTime    @default(now())
+
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  @@index([sessionId])
+  @@index([createdAt])
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum ChatMode {
+  AGENT
+  PLAN
+  QUESTION
+}
+
+// ============================================
+// PLANS (Agentic Planning)
+// ============================================
+
+model Plan {
+  id                String   @id @default(cuid())
+  planJson          Json     // Full plan structure
+  currentPhaseIndex Int      @default(0)
+  status            PlanStatus @default(PENDING)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+}
+
+enum PlanStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+// ============================================
+// MEMORY
+// ============================================
+
+model MemoryEntry {
+  id        String      @id @default(cuid())
+  key       String
+  value     Json
+  type      MemoryType  @default(CONTEXT)
+  createdAt DateTime    @default(now())
+  expiresAt DateTime?
+
+  sessionId String?
+  session   Session? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([key])
+}
+
+enum MemoryType {
+  CONTEXT
+  FACT
+  PREFERENCE
+  EMBEDDING
+}
+
+// ============================================
+// AI PROVIDERS & MODELS
+// ============================================
+
+model Provider {
+  id                   String   @id @default(cuid())
+  name                 String   @unique
+  displayName          String
+  baseUrl              String
+  authType             AuthType @default(BEARER)
+  credentialsEncrypted String   // AES-256-GCM encrypted
+  headersJson          Json?
+  healthCheckEndpoint  String?
+  defaultPayload       Json?
+  rateLimitRpm         Int?
+  isEnabled            Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  models            Model[]
+  tokenTransactions TokenTransaction[]
+
+  @@index([name])
+}
+
+enum AuthType {
+  BEARER
+  API_KEY
+  CUSTOM_HEADER
+}
+
+model Model {
+  id            String  @id @default(cuid())
+  modelId       String  // Provider's model ID
+  displayName   String
+  defaultParams Json?
+  perCharCost   Decimal @default(0.000001) @db.Decimal(20, 10)
+  isEnabled     Boolean @default(true)
+  tags          String[]
+  maxTokens     Int     @default(4096)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  providerId String
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  tokenTransactions TokenTransaction[]
+
+  @@unique([providerId, modelId])
+  @@index([providerId])
+  @@index([isEnabled])
+}
+
+// ============================================
+// TOKEN ACCOUNTING
+// ============================================
+
+model TokenTransaction {
+  id            String   @id @default(cuid())
+  promptChars   Int      @default(0)
+  responseChars Int      @default(0)
+  totalChars    Int      @default(0)
+  cost          Decimal  @db.Decimal(20, 10)
+  createdAt     DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  sessionId String?
+  session   Session? @relation(fields: [sessionId], references: [id])
+
+  providerId String?
+  provider   Provider? @relation(fields: [providerId], references: [id])
+
+  modelId String?
+  model   Model?  @relation(fields: [modelId], references: [id])
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([createdAt])
+}
+
+// ============================================
+// COMPILATION
+// ============================================
+
+model CompileJob {
+  id          String       @id @default(cuid())
+  status      CompileStatus @default(QUEUED)
+  mavenArgs   String[]
+  javaVersion String       @default("21")
+  logPath     String?
+  artifactPath String?
+  errorMessage String?
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  createdAt   DateTime     @default(now())
+
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum CompileStatus {
+  QUEUED
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+// ============================================
+// LOGS
+// ============================================
+
+model Log {
+  id        String   @id @default(cuid())
+  type      LogType
+  action    String
+  payload   Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  sessionId String?
+  session   Session? @relation(fields: [sessionId], references: [id])
+
+  @@index([type])
+  @@index([userId])
+  @@index([sessionId])
+  @@index([createdAt])
+}
+
+enum LogType {
+  AUTH
+  SESSION
+  FILE
+  CHAT
+  COMPILE
+  ADMIN
+  ERROR
+}

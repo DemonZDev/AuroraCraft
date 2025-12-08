@@ -1,0 +1,66 @@
+{
+    "plan_template": {
+        "description": "Template for generating implementation plans",
+        "variables": [
+            "user_request",
+            "target_platform",
+            "target_version"
+        ],
+        "template": "You are an AI planning assistant. Create a detailed implementation plan for the following request:\n\n## User Request\n{{user_request}}\n\n## Target Platform\n{{target_platform}} {{target_version}}\n\n## Required Output Format\n```json\n{\n  \"title\": \"Plan title\",\n  \"phases\": [\n    {\n      \"name\": \"Phase name\",\n      \"description\": \"What this phase accomplishes\",\n      \"tasks\": [\n        {\n          \"id\": \"task-1\",\n          \"description\": \"Task description\",\n          \"files\": [\"path/to/file.java\"],\n          \"dependencies\": []\n        }\n      ]\n    }\n  ],\n  \"estimatedComplexity\": \"low|medium|high\",\n  \"requiredDependencies\": [\"dependency:version\"]\n}\n```"
+    },
+    "phase_task_template": {
+        "description": "Template for executing a single task within a phase",
+        "variables": [
+            "task_description",
+            "file_path",
+            "existing_content",
+            "context"
+        ],
+        "template": "You are implementing a Minecraft plugin. Execute the following task:\n\n## Task\n{{task_description}}\n\n## Target File\n{{file_path}}\n\n## Existing Content\n```\n{{existing_content}}\n```\n\n## Context\n{{context}}\n\n## Instructions\n1. Generate or modify the code as needed\n2. Ensure code is complete and runnable\n3. Follow Java best practices\n4. Add appropriate comments\n5. Handle errors gracefully\n\nOutput the complete file content."
+    },
+    "verification_static_template": {
+        "description": "Template for static code verification",
+        "variables": [
+            "file_path",
+            "file_content",
+            "language"
+        ],
+        "template": "Perform static analysis on the following code:\n\n## File\n{{file_path}}\n\n## Language\n{{language}}\n\n## Content\n```{{language}}\n{{file_content}}\n```\n\n## Check For\n1. Syntax errors\n2. Missing imports\n3. Undefined references\n4. Resource leaks\n5. Thread safety issues\n6. Common antipatterns\n\n## Output Format\n```json\n{\n  \"valid\": true|false,\n  \"issues\": [\n    {\n      \"severity\": \"error|warning|info\",\n      \"line\": 10,\n      \"message\": \"Description\",\n      \"suggestion\": \"How to fix\"\n    }\n  ]\n}\n```"
+    },
+    "verification_semantic_template": {
+        "description": "Template for semantic/logical verification",
+        "variables": [
+            "file_path",
+            "file_content",
+            "requirements"
+        ],
+        "template": "Verify that the code meets the requirements:\n\n## Requirements\n{{requirements}}\n\n## Code\n```java\n{{file_content}}\n```\n\n## Verify\n1. All requirements are implemented\n2. Logic is correct\n3. Edge cases are handled\n4. User experience is good\n5. Performance is acceptable\n\n## Output Format\n```json\n{\n  \"meetsRequirements\": true|false,\n  \"coverage\": 0.95,\n  \"findings\": [\n    {\n      \"requirement\": \"Requirement text\",\n      \"status\": \"met|partial|missing\",\n      \"notes\": \"Details\"\n    }\n  ]\n}\n```"
+    },
+    "compile_failure_template": {
+        "description": "Template for fixing compilation errors",
+        "variables": [
+            "file_path",
+            "file_content",
+            "error_log",
+            "maven_output"
+        ],
+        "template": "Fix the compilation errors in this code:\n\n## File\n{{file_path}}\n\n## Current Content\n```java\n{{file_content}}\n```\n\n## Compilation Error\n```\n{{error_log}}\n```\n\n## Maven Output\n```\n{{maven_output}}\n```\n\n## Instructions\n1. Analyze the error messages\n2. Identify the root cause\n3. Fix all errors\n4. Ensure the code compiles\n5. Maintain existing functionality\n\nOutput the corrected complete file content."
+    },
+    "enhancer_template": {
+        "description": "Template for enhancing user prompts",
+        "variables": [
+            "user_prompt",
+            "context"
+        ],
+        "template": "Enhance this plugin development request into a detailed specification:\n\n## Original Request\n{{user_prompt}}\n\n## Context\n{{context}}\n\n## Enhancement Guidelines\n1. Expand vague requirements into specifics\n2. Add technical details\n3. Include configuration options\n4. Consider user experience\n5. Mention error handling needs\n6. Suggest additional useful features\n\nOutput only the enhanced prompt, formatted in markdown."
+    },
+    "code_review_template": {
+        "description": "Template for AI code review before applying changes",
+        "variables": [
+            "original_code",
+            "modified_code",
+            "change_description"
+        ],
+        "template": "Review this code change before applying:\n\n## Change Description\n{{change_description}}\n\n## Original Code\n```java\n{{original_code}}\n```\n\n## Modified Code\n```java\n{{modified_code}}\n```\n\n## Review Criteria\n1. Is the change safe?\n2. Does it introduce bugs?\n3. Does it break existing functionality?\n4. Is the code quality good?\n5. Are there edge cases missed?\n\n## Output Format\n```json\n{\n  \"approved\": true|false,\n  \"confidence\": 0.95,\n  \"concerns\": [\"List any concerns\"],\n  \"suggestions\": [\"List improvements\"]\n}\n```"
+    }
+}

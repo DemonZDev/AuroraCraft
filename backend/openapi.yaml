@@ -1,0 +1,481 @@
+openapi: 3.0.3
+info:
+  title: AuroraCraft API
+  description: AI-powered Minecraft plugin development platform
+  version: 1.0.0
+  contact:
+    name: AuroraCraft
+    url: https://auroracraft.xyz
+
+servers:
+  - url: http://localhost:4000
+    description: Development
+
+security:
+  - cookieAuth: []
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: token
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [USER, ADMIN]
+        tokenBalance:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    Session:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        targetSoftware:
+          type: string
+        targetVersion:
+          type: string
+        workspacePath:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Provider:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        displayName:
+          type: string
+        baseUrl:
+          type: string
+        authType:
+          type: string
+          enum: [BEARER, API_KEY, CUSTOM_HEADER]
+        isEnabled:
+          type: boolean
+
+    Model:
+      type: object
+      properties:
+        id:
+          type: string
+        modelId:
+          type: string
+        displayName:
+          type: string
+        perCharCost:
+          type: number
+        maxTokens:
+          type: integer
+        isEnabled:
+          type: boolean
+        tags:
+          type: array
+          items:
+            type: string
+
+    CompileJob:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [QUEUED, RUNNING, SUCCESS, FAILED, CANCELLED]
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+        errorMessage:
+          type: string
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, email, password]
+              properties:
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 30
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+          headers:
+            Set-Cookie:
+              description: JWT token cookie
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid credentials
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      responses:
+        '200':
+          description: Logged out
+
+  /sessions:
+    get:
+      tags: [Sessions]
+      summary: List sessions
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Session list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Session'
+
+    post:
+      tags: [Sessions]
+      summary: Create session
+      security:
+        - cookieAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                targetSoftware:
+                  type: string
+                  default: paper
+                targetVersion:
+                  type: string
+                  default: '1.20.4'
+      responses:
+        '201':
+          description: Session created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session:
+                    $ref: '#/components/schemas/Session'
+
+  /sessions/{id}:
+    get:
+      tags: [Sessions]
+      summary: Get session
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session details
+        '404':
+          description: Not found
+
+    patch:
+      tags: [Sessions]
+      summary: Update session
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+      responses:
+        '200':
+          description: Updated
+
+    delete:
+      tags: [Sessions]
+      summary: Delete session
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted
+
+  /sessions/{id}/files:
+    get:
+      tags: [Files]
+      summary: List files
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File tree
+
+  /sessions/{id}/chat:
+    post:
+      tags: [Chat]
+      summary: Send message (SSE)
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+                modelId:
+                  type: string
+                mode:
+                  type: string
+                  enum: [AGENT, PLAN, QUESTION]
+                promptEnhance:
+                  type: boolean
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /sessions/{id}/compile:
+    post:
+      tags: [Compile]
+      summary: Start compilation
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mavenArgs:
+                  type: array
+                  items:
+                    type: string
+                javaVersion:
+                  type: string
+      responses:
+        '202':
+          description: Job queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job:
+                    $ref: '#/components/schemas/CompileJob'
+
+  /providers:
+    get:
+      tags: [Providers]
+      summary: List providers
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Provider list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  providers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Provider'
+
+    post:
+      tags: [Providers]
+      summary: Create provider (admin)
+      security:
+        - cookieAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, displayName, baseUrl, credentials]
+              properties:
+                name:
+                  type: string
+                displayName:
+                  type: string
+                baseUrl:
+                  type: string
+                authType:
+                  type: string
+                credentials:
+                  type: string
+      responses:
+        '201':
+          description: Provider created
+
+  /admin/stats:
+    get:
+      tags: [Admin]
+      summary: Get admin statistics
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: integer
+                  sessions:
+                    type: integer
+                  messages:
+                    type: integer
+                  compileJobs:
+                    type: integer

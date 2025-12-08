@@ -1,0 +1,120 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: auroracraft-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: auroracraft
+      POSTGRES_PASSWORD: auroracraft_dev_password
+      POSTGRES_DB: auroracraft
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auroracraft"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: auroracraft-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO (S3-compatible storage)
+  minio:
+    image: minio/minio
+    container_name: auroracraft-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: auroracraft
+      MINIO_ROOT_PASSWORD: auroracraft_minio_password
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # Backend API
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: auroracraft-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://auroracraft:auroracraft_dev_password@postgres:5432/auroracraft
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: change-this-in-production-use-strong-secret
+      ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      PORT: 4000
+      HOST: 0.0.0.0
+      NODE_ENV: development
+      CORS_ORIGIN: http://localhost:3000
+      WORKSPACE_PATH: /data/workspaces
+    volumes:
+      - workspaces:/data/workspaces
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Frontend
+  frontend:
+    build:
+      context: ../app
+      dockerfile: Dockerfile
+    container_name: auroracraft-frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  # Optional: ClickHouse for analytics
+  # clickhouse:
+  #   image: clickhouse/clickhouse-server:latest
+  #   container_name: auroracraft-clickhouse
+  #   restart: unless-stopped
+  #   volumes:
+  #     - clickhouse_data:/var/lib/clickhouse
+  #   ports:
+  #     - "8123:8123"
+  #     - "9009:9009"
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  workspaces:
+  # clickhouse_data:
+
+networks:
+  default:
+    name: auroracraft-network

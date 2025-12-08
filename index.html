@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="AuroraCraft - Transform your ideas into Minecraft plugins, mods, Discord bots, and web apps without writing code. AI-powered development platform.">
+    <meta name="keywords"
+        content="AuroraCraft, Minecraft plugins, Minecraft mods, Discord bots, AI development, no-code platform">
+    <meta name="author" content="AuroraCraft">
+
+    <!-- Open Graph / Social -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://auroracraft.xyz/">
+    <meta property="og:title" content="AuroraCraft - Build Without Limits">
+    <meta property="og:description"
+        content="Transform your ideas into Minecraft plugins, mods, Discord bots, and web apps without writing code.">
+    <meta property="og:image" content="https://auroracraft.xyz/assets/og-image.png">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="AuroraCraft - Build Without Limits">
+    <meta name="twitter:description"
+        content="Transform your ideas into Minecraft plugins, mods, Discord bots, and web apps without writing code.">
+
+    <title>AuroraCraft - Build Without Limits</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/animations.css">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+</head>
+
+<body>
+
+
+    <!-- Navigation -->
+    <header class="navbar" id="navbar">
+        <div class="navbar-container">
+            <a href="/" class="navbar-logo" aria-label="AuroraCraft Home">
+                <svg class="logo-icon" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="logo-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#9333ea" />
+                            <stop offset="100%" style="stop-color:#06b6d4" />
+                        </linearGradient>
+                    </defs>
+                    <path d="M20 4L36 12V28L20 36L4 28V12L20 4Z" stroke="url(#logo-gradient)" stroke-width="2"
+                        fill="none" />
+                    <path d="M20 8L30 14V26L20 32L10 26V14L20 8Z" fill="url(#logo-gradient)" opacity="0.3" />
+                    <circle cx="20" cy="20" r="4" fill="url(#logo-gradient)" />
+                </svg>
+                <span class="logo-text">AuroraCraft</span>
+            </a>
+
+            <nav class="navbar-menu" id="navbar-menu" aria-label="Main navigation">
+                <ul class="navbar-links">
+                    <li><a href="#features">Features</a></li>
+                    <li><a href="#showcase">Products</a></li>
+                    <li><a href="#how-it-works">How It Works</a></li>
+                    <li><a href="#pricing">Pricing</a></li>
+                </ul>
+                <a href="#start" class="btn btn-primary btn-sm">Get Started</a>
+            </nav>
+
+            <button class="navbar-toggle" id="navbar-toggle" aria-label="Toggle menu" aria-expanded="false">
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+            </button>
+        </div>
+    </header>
+
+    <main>
+        <!-- Hero Section -->
+        <section class="hero" id="hero">
+            <div class="hero-bg">
+                <div class="hero-gradient"></div>
+                <div class="hero-grid"></div>
+                <div class="hero-orbs">
+                    <div class="orb orb-1"></div>
+                    <div class="orb orb-2"></div>
+                    <div class="orb orb-3"></div>
+                </div>
+            </div>
+
+            <div class="hero-content container">
+                <!-- Platform Tabs -->
+                <div class="platform-tabs" role="tablist" aria-label="Platform selection">
+                    <button class="tab-btn active" role="tab" aria-selected="true" data-tab="minecraft"
+                        id="tab-minecraft">
+                        <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M4 4h16v16H4V4zm2 2v12h12V6H6z" />
+                            <rect x="8" y="8" width="3" height="3" />
+                            <rect x="13" y="8" width="3" height="3" />
+                            <rect x="8" y="13" width="8" height="3" />
+                        </svg>
+                        Minecraft
+                    </button>
+                    <button class="tab-btn" role="tab" aria-selected="false" data-tab="discord" id="tab-discord">
+                        <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor">
+                            <path
+                                d="M20.317 4.492c-1.53-.69-3.17-1.2-4.885-1.49a.075.075 0 0 0-.079.036c-.21.369-.444.85-.608 1.23a18.565 18.565 0 0 0-5.487 0 12.36 12.36 0 0 0-.617-1.23A.077.077 0 0 0 8.562 3c-1.714.29-3.354.8-4.885 1.491a.07.07 0 0 0-.032.027C.533 9.093-.32 13.555.099 17.961a.08.08 0 0 0 .031.055 20.03 20.03 0 0 0 5.993 2.98.078.078 0 0 0 .084-.026 13.83 13.83 0 0 0 1.226-1.963.074.074 0 0 0-.041-.104 13.201 13.201 0 0 1-1.872-.878.075.075 0 0 1-.008-.125c.126-.093.252-.19.372-.287a.075.075 0 0 1 .078-.01c3.927 1.764 8.18 1.764 12.061 0a.075.075 0 0 1 .079.009c.12.098.245.195.372.288a.075.075 0 0 1-.006.125c-.598.344-1.22.635-1.873.877a.075.075 0 0 0-.041.105c.36.687.772 1.341 1.225 1.962a.077.077 0 0 0 .084.028 19.963 19.963 0 0 0 6.002-2.981.076.076 0 0 0 .032-.054c.5-5.094-.838-9.52-3.549-13.442a.06.06 0 0 0-.031-.028zM8.02 15.278c-1.182 0-2.157-1.069-2.157-2.38 0-1.312.956-2.38 2.157-2.38 1.21 0 2.176 1.077 2.157 2.38 0 1.312-.956 2.38-2.157 2.38zm7.975 0c-1.183 0-2.157-1.069-2.157-2.38 0-1.312.955-2.38 2.157-2.38 1.21 0 2.176 1.077 2.157 2.38 0 1.312-.946 2.38-2.157 2.38z" />
+                        </svg>
+                        Discord
+                    </button>
+                    <button class="tab-btn" role="tab" aria-selected="false" data-tab="webapps" id="tab-webapps">
+                        <svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor">
+                            <path
+                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
+                        </svg>
+                        Web Apps
+                    </button>
+                </div>
+
+                <!-- Dynamic Headlines -->
+                <div class="hero-headlines">
+                    <div class="headline-container active" data-headline="minecraft">
+                        <h1 class="hero-title">
+                            Build <span class="text-gradient">Minecraft Plugins</span> & Mods
+                        </h1>
+                        <p class="hero-subtitle">
+                            Without Writing Code. Your ideas become production-ready software in seconds.
+                        </p>
+                    </div>
+                    <div class="headline-container" data-headline="discord">
+                        <h1 class="hero-title">
+                            Create <span class="text-gradient">Discord Bots</span> Instantly
+                        </h1>
+                        <p class="hero-subtitle">
+                            Without Writing Code. Build powerful bots with AI assistance.
+                        </p>
+                    </div>
+                    <div class="headline-container" data-headline="webapps">
+                        <h1 class="hero-title">
+                            Launch <span class="text-gradient">Web Applications</span> Fast
+                        </h1>
+                        <p class="hero-subtitle">
+                            Without Writing Code. From idea to deployment in minutes.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- CTA Buttons -->
+                <div class="hero-cta">
+                    <a href="#start" class="btn btn-primary btn-lg">
+                        Start Building
+                        <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M5 12h14M12 5l7 7-7 7" />
+                        </svg>
+                    </a>
+                    <a href="#how-it-works" class="btn btn-secondary btn-lg">See How It Works</a>
+                </div>
+
+                <!-- Live Stats -->
+                <div class="hero-stats" id="hero-stats">
+                    <div class="stat-item">
+                        <span class="stat-value" data-target="12847" data-suffix="">0</span>
+                        <span class="stat-label">Projects Created</span>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-item">
+                        <span class="stat-value" data-target="8432" data-suffix="">0</span>
+                        <span class="stat-label">Active Users</span>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-item">
+                        <span class="stat-value" data-target="2.4" data-suffix="M">0</span>
+                        <span class="stat-label">Tokens Generated</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scroll Indicator -->
+            <div class="scroll-indicator" aria-hidden="true">
+                <div class="scroll-mouse">
+                    <div class="scroll-wheel"></div>
+                </div>
+                <span>Scroll to explore</span>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section class="features" id="features">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-tag">Powerful Features</span>
+                    <h2 class="section-title">Everything you need to <span class="text-gradient">succeed</span></h2>
+                    <p class="section-subtitle">Professional development tools without the complexity</p>
+                </div>
+
+                <div class="features-grid">
+                    <div class="feature-card feature-card-large">
+                        <div class="feature-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                            </svg>
+                        </div>
+                        <h3 class="feature-title">7+ AI Models at Your Command</h3>
+                        <p class="feature-desc">Access the world's most powerful AI models including GPT-4, Claude, and
+                            Gemini. Switch models instantly based on your task.</p>
+                        <div class="feature-models">
+                            <span class="model-badge">GPT-4</span>
+                            <span class="model-badge">Claude</span>
+                            <span class="model-badge">Gemini</span>
+                            <span class="model-badge">+4 more</span>
+                        </div>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                            </svg>
+                        </div>
+                        <h3 class="feature-title">Instant Compilation</h3>
+                        <p class="feature-desc">One-click build process with automatic error detection and fixing. Get
+                            production-ready code in seconds.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <h3 class="feature-title">Live Testing</h3>
+                        <p class="feature-desc">Test your creations instantly in isolated sandboxes. Real-time logs with
+                            &lt;100ms latency.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <h3 class="feature-title">Version Control</h3>
+                        <p class="feature-desc">Every AI generation creates automatic checkpoints. Rollback to any
+                            previous state with one click.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                            </svg>
+                        </div>
+                        <h3 class="feature-title">Professional IDE</h3>
+                        <p class="feature-desc">Full-featured code editor with syntax highlighting, file navigation, and
+                            keyboard shortcuts.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path
+                                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                        </div>
+                        <h3 class="feature-title">Multi-Platform</h3>
+                        <p class="feature-desc">Build for Minecraft, Discord, Web, and more. One platform, unlimited
+                            possibilities.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Showcase Section -->
+        <section class="showcase" id="showcase">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-tag">What You Can Build</span>
+                    <h2 class="section-title">Choose your <span class="text-gradient">creation</span></h2>
+                    <p class="section-subtitle">From plugins to full applications, we've got you covered</p>
+                </div>
+
+                <div class="showcase-grid">
+                    <article class="showcase-card" data-tilt>
+                        <div class="showcase-glow"></div>
+                        <div class="showcase-icon">
+                            <svg viewBox="0 0 48 48" fill="none">
+                                <rect x="8" y="8" width="32" height="32" rx="4" stroke="url(#card-gradient-1)"
+                                    stroke-width="2" />
+                                <rect x="14" y="14" width="8" height="8" fill="url(#card-gradient-1)" opacity="0.8" />
+                                <rect x="26" y="14" width="8" height="8" fill="url(#card-gradient-1)" opacity="0.6" />
+                                <rect x="14" y="26" width="20" height="8" fill="url(#card-gradient-1)" opacity="0.4" />
+                                <defs>
+                                    <linearGradient id="card-gradient-1" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" style="stop-color:#9333ea" />
+                                        <stop offset="100%" style="stop-color:#06b6d4" />
+                                    </linearGradient>
+                                </defs>
+                            </svg>
+                        </div>
+                        <h3 class="showcase-title">Minecraft Plugin Builder</h3>
+                        <p class="showcase-desc">Create Spigot, Paper, and Bukkit plugins with custom commands, events,
+                            and integrations.</p>
+                        <ul class="showcase-features">
+                            <li>Custom commands</li>
+                            <li>Event handlers</li>
+                            <li>Config files</li>
+                            <li>Auto-compile</li>
+                        </ul>
+                        <a href="#" class="showcase-link">
+                            Start Building
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M5 12h14M12 5l7 7-7 7" />
+                            </svg>
+                        </a>
+                    </article>
+
+                    <article class="showcase-card" data-tilt>
+                        <div class="showcase-glow"></div>
+                        <div class="showcase-icon">
+                            <svg viewBox="0 0 48 48" fill="none">
+                                <path d="M24 8L40 18V38L24 48L8 38V18L24 8Z" stroke="url(#card-gradient-2)"
+                                    stroke-width="2" fill="none" />
+                                <path d="M24 18L32 24V36L24 42L16 36V24L24 18Z" fill="url(#card-gradient-2)"
+                                    opacity="0.3" />
+                                <defs>
+                                    <linearGradient id="card-gradient-2" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" style="stop-color:#ec4899" />
+                                        <stop offset="100%" style="stop-color:#8b5cf6" />
+                                    </linearGradient>
+                                </defs>
+                            </svg>
+                        </div>
+                        <h3 class="showcase-title">Minecraft Mod Builder</h3>
+                        <p class="showcase-desc">Build Forge and Fabric mods with new items, blocks, mobs, and
+                            dimensions.</p>
+                        <ul class="showcase-features">
+                            <li>Custom items & blocks</li>
+                            <li>New entities</li>
+                            <li>World generation</li>
+                            <li>Client & server</li>
+                        </ul>
+                        <a href="#" class="showcase-link">
+                            Start Building
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M5 12h14M12 5l7 7-7 7" />
+                            </svg>
+                        </a>
+                    </article>
+
+                    <article class="showcase-card" data-tilt>
+                        <div class="showcase-glow"></div>
+                        <div class="showcase-icon">
+                            <svg viewBox="0 0 48 48" fill="none">
+                                <circle cx="24" cy="24" r="16" stroke="url(#card-gradient-3)" stroke-width="2" />
+                                <circle cx="18" cy="20" r="3" fill="url(#card-gradient-3)" />
+                                <circle cx="30" cy="20" r="3" fill="url(#card-gradient-3)" />
+                                <path d="M16 30c2 4 10 4 12 0" stroke="url(#card-gradient-3)" stroke-width="2"
+                                    stroke-linecap="round" />
+                                <defs>
+                                    <linearGradient id="card-gradient-3" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" style="stop-color:#5865f2" />
+                                        <stop offset="100%" style="stop-color:#57f287" />
+                                    </linearGradient>
+                                </defs>
+                            </svg>
+                        </div>
+                        <h3 class="showcase-title">Discord Bot Builder</h3>
+                        <p class="showcase-desc">Create powerful Discord bots with slash commands, moderation, and
+                            custom features.</p>
+                        <ul class="showcase-features">
+                            <li>Slash commands</li>
+                            <li>Moderation tools</li>
+                            <li>Music & games</li>
+                            <li>Auto-hosting</li>
+                        </ul>
+                        <a href="#" class="showcase-link">
+                            Start Building
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M5 12h14M12 5l7 7-7 7" />
+                            </svg>
+                        </a>
+                    </article>
+
+                    <article class="showcase-card" data-tilt>
+                        <div class="showcase-glow"></div>
+                        <div class="showcase-icon">
+                            <svg viewBox="0 0 48 48" fill="none">
+                                <rect x="6" y="10" width="36" height="28" rx="3" stroke="url(#card-gradient-4)"
+                                    stroke-width="2" />
+                                <path d="M6 18h36" stroke="url(#card-gradient-4)" stroke-width="2" />
+                                <circle cx="12" cy="14" r="1.5" fill="url(#card-gradient-4)" />
+                                <circle cx="18" cy="14" r="1.5" fill="url(#card-gradient-4)" />
+                                <circle cx="24" cy="14" r="1.5" fill="url(#card-gradient-4)" />
+                                <defs>
+                                    <linearGradient id="card-gradient-4" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" style="stop-color:#f59e0b" />
+                                        <stop offset="100%" style="stop-color:#ef4444" />
+                                    </linearGradient>
+                                </defs>
+                            </svg>
+                        </div>
+                        <h3 class="showcase-title">Web App Builder</h3>
+                        <p class="showcase-desc">Launch full-stack web applications with modern frameworks and instant
+                            deployment.</p>
+                        <ul class="showcase-features">
+                            <li>React & Next.js</li>
+                            <li>API integration</li>
+                            <li>Database setup</li>
+                            <li>One-click deploy</li>
+                        </ul>
+                        <a href="#" class="showcase-link">
+                            Coming Soon
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M5 12h14M12 5l7 7-7 7" />
+                            </svg>
+                        </a>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- How It Works Section -->
+        <section class="how-it-works" id="how-it-works">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-tag">Simple Process</span>
+                    <h2 class="section-title">How it <span class="text-gradient">works</span></h2>
+                    <p class="section-subtitle">From idea to production in four simple steps</p>
+                </div>
+
+                <div class="steps-container">
+                    <div class="steps-line" aria-hidden="true"></div>
+
+                    <div class="step">
+                        <div class="step-number">01</div>
+                        <div class="step-content">
+                            <div class="step-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <path
+                                        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                </svg>
+                            </div>
+                            <h3 class="step-title">Describe Your Idea</h3>
+                            <p class="step-desc">Tell the AI what you want to build. Be as detailed or simple as you
+                                like—the AI understands context.</p>
+                        </div>
+                    </div>
+
+                    <div class="step">
+                        <div class="step-number">02</div>
+                        <div class="step-content">
+                            <div class="step-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <path
+                                        d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                </svg>
+                            </div>
+                            <h3 class="step-title">AI Plans</h3>
+                            <p class="step-desc">Our AI analyzes your requirements and creates a comprehensive
+                                development plan with file structure and logic.</p>
+                        </div>
+                    </div>
+
+                    <div class="step">
+                        <div class="step-number">03</div>
+                        <div class="step-content">
+                            <div class="step-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                                </svg>
+                            </div>
+                            <h3 class="step-title">AI Builds</h3>
+                            <p class="step-desc">Watch as the AI writes production-quality code, handles dependencies,
+                                and structures everything properly.</p>
+                        </div>
+                    </div>
+
+                    <div class="step">
+                        <div class="step-number">04</div>
+                        <div class="step-content">
+                            <div class="step-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <path
+                                        d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                    <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
+                            <h3 class="step-title">Test & Deploy</h3>
+                            <p class="step-desc">Test your creation in our sandbox, make refinements, and compile to a
+                                production-ready file.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA Section -->
+        <section class="cta-section" id="start">
+            <div class="container">
+                <div class="cta-content">
+                    <h2 class="cta-title">Ready to build something <span class="text-gradient">amazing</span>?</h2>
+                    <p class="cta-subtitle">Join thousands of creators building without limits</p>
+                    <div class="cta-buttons">
+                        <a href="#" class="btn btn-primary btn-lg">
+                            Start Building Now
+                            <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M5 12h14M12 5l7 7-7 7" />
+                            </svg>
+                        </a>
+                        <a href="https://discord.gg/auroracraft" class="btn btn-glass btn-lg" target="_blank"
+                            rel="noopener">
+                            <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M20.317 4.492c-1.53-.69-3.17-1.2-4.885-1.49a.075.075 0 0 0-.079.036c-.21.369-.444.85-.608 1.23a18.565 18.565 0 0 0-5.487 0 12.36 12.36 0 0 0-.617-1.23A.077.077 0 0 0 8.562 3c-1.714.29-3.354.8-4.885 1.491a.07.07 0 0 0-.032.027C.533 9.093-.32 13.555.099 17.961a.08.08 0 0 0 .031.055 20.03 20.03 0 0 0 5.993 2.98.078.078 0 0 0 .084-.026 13.83 13.83 0 0 0 1.226-1.963.074.074 0 0 0-.041-.104 13.201 13.201 0 0 1-1.872-.878.075.075 0 0 1-.008-.125c.126-.093.252-.19.372-.287a.075.075 0 0 1 .078-.01c3.927 1.764 8.18 1.764 12.061 0a.075.075 0 0 1 .079.009c.12.098.245.195.372.288a.075.075 0 0 1-.006.125c-.598.344-1.22.635-1.873.877a.075.075 0 0 0-.041.105c.36.687.772 1.341 1.225 1.962a.077.077 0 0 0 .084.028 19.963 19.963 0 0 0 6.002-2.981.076.076 0 0 0 .032-.054c.5-5.094-.838-9.52-3.549-13.442a.06.06 0 0 0-.031-.028z" />
+                            </svg>
+                            Join Discord
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer" id="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="/" class="footer-logo">
+                        <svg class="logo-icon" viewBox="0 0 40 40" fill="none">
+                            <path d="M20 4L36 12V28L20 36L4 28V12L20 4Z" stroke="url(#logo-gradient)" stroke-width="2"
+                                fill="none" />
+                            <path d="M20 8L30 14V26L20 32L10 26V14L20 8Z" fill="url(#logo-gradient)" opacity="0.3" />
+                            <circle cx="20" cy="20" r="4" fill="url(#logo-gradient)" />
+                        </svg>
+                        <span>AuroraCraft</span>
+                    </a>
+                    <p class="footer-tagline">Build without limits. Create without code.</p>
+                    <div class="footer-social">
+                        <a href="https://discord.gg/auroracraft" aria-label="Discord" target="_blank" rel="noopener">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M20.317 4.492c-1.53-.69-3.17-1.2-4.885-1.49a.075.075 0 0 0-.079.036c-.21.369-.444.85-.608 1.23a18.565 18.565 0 0 0-5.487 0 12.36 12.36 0 0 0-.617-1.23A.077.077 0 0 0 8.562 3c-1.714.29-3.354.8-4.885 1.491a.07.07 0 0 0-.032.027C.533 9.093-.32 13.555.099 17.961a.08.08 0 0 0 .031.055 20.03 20.03 0 0 0 5.993 2.98.078.078 0 0 0 .084-.026 13.83 13.83 0 0 0 1.226-1.963.074.074 0 0 0-.041-.104 13.201 13.201 0 0 1-1.872-.878.075.075 0 0 1-.008-.125c.126-.093.252-.19.372-.287a.075.075 0 0 1 .078-.01c3.927 1.764 8.18 1.764 12.061 0a.075.075 0 0 1 .079.009c.12.098.245.195.372.288a.075.075 0 0 1-.006.125c-.598.344-1.22.635-1.873.877a.075.075 0 0 0-.041.105c.36.687.772 1.341 1.225 1.962a.077.077 0 0 0 .084.028 19.963 19.963 0 0 0 6.002-2.981.076.076 0 0 0 .032-.054c.5-5.094-.838-9.52-3.549-13.442a.06.06 0 0 0-.031-.028z" />
+                            </svg>
+                        </a>
+                        <a href="https://twitter.com/auroracraftai" aria-label="Twitter" target="_blank" rel="noopener">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                            </svg>
+                        </a>
+                        <a href="https://github.com/auroracraft" aria-label="GitHub" target="_blank" rel="noopener">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="footer-links">
+                    <div class="footer-column">
+                        <h4>Products</h4>
+                        <ul>
+                            <li><a href="#">Minecraft Plugins</a></li>
+                            <li><a href="#">Minecraft Mods</a></li>
+                            <li><a href="#">Discord Bots</a></li>
+                            <li><a href="#">Web Apps</a></li>
+                        </ul>
+                    </div>
+                    <div class="footer-column">
+                        <h4>Resources</h4>
+                        <ul>
+                            <li><a href="#">Documentation</a></li>
+                            <li><a href="#">API Reference</a></li>
+                            <li><a href="#">Tutorials</a></li>
+                            <li><a href="#">Blog</a></li>
+                        </ul>
+                    </div>
+                    <div class="footer-column">
+                        <h4>Company</h4>
+                        <ul>
+                            <li><a href="#">About Us</a></li>
+                            <li><a href="#">Careers</a></li>
+                            <li><a href="#">Contact</a></li>
+                            <li><a href="#">Press Kit</a></li>
+                        </ul>
+                    </div>
+                    <div class="footer-column">
+                        <h4>Legal</h4>
+                        <ul>
+                            <li><a href="#">Terms of Service</a></li>
+                            <li><a href="#">Privacy Policy</a></li>
+                            <li><a href="#">Cookie Policy</a></li>
+                            <li><a href="#">DMCA</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer-bottom">
+                <p>&copy; 2024 AuroraCraft. All rights reserved.</p>
+                <p>Made with <span class="heart">♥</span> for creators worldwide</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="js/stats-counter.js"></script>
+    <script src="js/tabs.js"></script>
+    <script src="js/main.js"></script>
+</body>
+
+</html>
