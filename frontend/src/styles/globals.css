@@ -1,0 +1,228 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@layer base {
+  :root {
+    --background: 2 6 23;
+    --foreground: 248 250 252;
+    --card: 15 23 42;
+    --card-foreground: 248 250 252;
+    --primary: 14 165 233;
+    --primary-foreground: 255 255 255;
+    --secondary: 30 41 59;
+    --secondary-foreground: 248 250 252;
+    --muted: 51 65 85;
+    --muted-foreground: 148 163 184;
+    --accent: 139 92 246;
+    --border: 51 65 85;
+    --input: 30 41 59;
+    --ring: 14 165 233;
+  }
+
+  * {
+    @apply border-dark-700;
+  }
+
+  body {
+    @apply bg-dark-950 text-dark-50 antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-dark-900;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-dark-600 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-dark-500;
+  }
+}
+
+@layer components {
+  /* Glass morphism effect */
+  .glass {
+    @apply bg-dark-900/50 backdrop-blur-xl border border-dark-700/50;
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-aurora-400 via-purple-500 to-pink-500;
+  }
+
+  /* Aurora glow effect */
+  .aurora-glow {
+    box-shadow: 
+      0 0 20px rgba(14, 165, 233, 0.2),
+      0 0 40px rgba(139, 92, 246, 0.1),
+      0 0 60px rgba(236, 72, 153, 0.05);
+  }
+
+  /* Button styles */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-aurora-500/50 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn bg-aurora-600 hover:bg-aurora-500 text-white px-4 py-2;
+  }
+
+  .btn-secondary {
+    @apply btn bg-dark-800 hover:bg-dark-700 text-dark-100 border border-dark-600 px-4 py-2;
+  }
+
+  .btn-ghost {
+    @apply btn hover:bg-dark-800 text-dark-300 hover:text-dark-100 px-4 py-2;
+  }
+
+  .btn-danger {
+    @apply btn bg-red-600 hover:bg-red-500 text-white px-4 py-2;
+  }
+
+  .btn-success {
+    @apply btn bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2;
+  }
+
+  /* Input styles */
+  .input {
+    @apply w-full bg-dark-800 border border-dark-600 rounded-lg px-4 py-2.5 text-dark-100 placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-aurora-500/50 focus:border-aurora-500 transition-all;
+  }
+
+  .input-error {
+    @apply border-red-500 focus:ring-red-500/50 focus:border-red-500;
+  }
+
+  /* Card styles */
+  .card {
+    @apply bg-dark-900/80 backdrop-blur-sm border border-dark-700/50 rounded-xl p-6;
+  }
+
+  /* Message bubble styles */
+  .message-user {
+    @apply bg-aurora-600/20 border border-aurora-500/30 rounded-2xl rounded-br-md;
+  }
+
+  .message-assistant {
+    @apply bg-dark-800/80 border border-dark-700/50 rounded-2xl rounded-bl-md;
+  }
+
+  /* Code block styling */
+  .code-block {
+    @apply bg-dark-950 border border-dark-700 rounded-lg overflow-hidden font-mono text-sm;
+  }
+
+  /* File tree item */
+  .file-tree-item {
+    @apply flex items-center gap-2 px-2 py-1 rounded cursor-pointer hover:bg-dark-800 text-dark-300 hover:text-dark-100 transition-colors;
+  }
+
+  .file-tree-item.active {
+    @apply bg-aurora-600/20 text-aurora-400;
+  }
+
+  /* Tab styles */
+  .tab {
+    @apply px-4 py-2 text-sm font-medium text-dark-400 hover:text-dark-200 border-b-2 border-transparent transition-colors;
+  }
+
+  .tab.active {
+    @apply text-aurora-400 border-aurora-500;
+  }
+
+  /* Compilation status badges */
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium;
+  }
+
+  .badge-success {
+    @apply badge bg-emerald-500/20 text-emerald-400 border border-emerald-500/30;
+  }
+
+  .badge-error {
+    @apply badge bg-red-500/20 text-red-400 border border-red-500/30;
+  }
+
+  .badge-warning {
+    @apply badge bg-amber-500/20 text-amber-400 border border-amber-500/30;
+  }
+
+  .badge-info {
+    @apply badge bg-blue-500/20 text-blue-400 border border-blue-500/30;
+  }
+
+  .badge-pending {
+    @apply badge bg-dark-600/50 text-dark-300 border border-dark-500/30;
+  }
+}
+
+@layer utilities {
+  /* Animate gradient background */
+  .animate-gradient-x {
+    animation: gradient-x 15s ease infinite;
+    background-size: 200% 200%;
+  }
+
+  @keyframes gradient-x {
+    0%, 100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
+
+  /* Fade in animation */
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out;
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Slide in from right */
+  .animate-slide-in-right {
+    animation: slide-in-right 0.3s ease-out;
+  }
+
+  @keyframes slide-in-right {
+    from {
+      opacity: 0;
+      transform: translateX(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  /* Typing cursor animation */
+  .typing-cursor::after {
+    content: '▋';
+    animation: blink 1s step-end infinite;
+  }
+
+  @keyframes blink {
+    50% {
+      opacity: 0;
+    }
+  }
+}

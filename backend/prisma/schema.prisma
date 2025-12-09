@@ -1,0 +1,253 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER & AUTHENTICATION
+// ============================================
+
+model User {
+  id            String   @id @default(uuid())
+  username      String   @unique
+  email         String   @unique
+  passwordHash  String
+  role          Role     @default(USER)
+  tokenBalance  Int      @default(100000) // Starting tokens
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sessions          Session[]
+  tokenTransactions TokenTransaction[]
+
+  @@index([email])
+  @@index([username])
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+// ============================================
+// SESSIONS (Projects)
+// ============================================
+
+model Session {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  projectType ProjectType @default(MINECRAFT_PLUGIN)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  files           SessionFile[]
+  messages        ChatMessage[]
+  compilationJobs CompilationJob[]
+  memoryEntries   MemoryEntry[]
+
+  @@index([userId])
+}
+
+enum ProjectType {
+  MINECRAFT_PLUGIN
+  MINECRAFT_MOD
+  DISCORD_BOT
+  CHROME_EXTENSION
+  WEB_APP
+}
+
+// ============================================
+// FILES
+// ============================================
+
+model SessionFile {
+  id        String   @id @default(uuid())
+  path      String   // Relative path within session, e.g., "src/main/java/Plugin.java"
+  name      String
+  content   String   @db.Text
+  isFolder  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, path])
+  @@index([sessionId])
+}
+
+// ============================================
+// CHAT MESSAGES
+// ============================================
+
+model ChatMessage {
+  id        String      @id @default(uuid())
+  role      MessageRole
+  content   String      @db.Text
+  metadata  Json?       // For tool calls, file references, etc.
+  createdAt DateTime    @default(now())
+
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // Track which model was used
+  modelId String?
+  model   Model?  @relation(fields: [modelId], references: [id])
+
+  @@index([sessionId])
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+// ============================================
+// AI PROVIDERS & MODELS
+// ============================================
+
+model Provider {
+  id              String       @id @default(uuid())
+  name            String       @unique
+  baseUrl         String
+  authType        AuthType     @default(BEARER)
+  apiKey          String?      // Encrypted in production
+  customHeaders   Json?        // Additional headers as JSON
+  healthEndpoint  String?      // Optional health check URL
+  defaultPayload  Json?        // Default request payload template
+  isEnabled       Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  models Model[]
+
+  @@index([name])
+}
+
+enum AuthType {
+  BEARER
+  API_KEY
+  CUSTOM_HEADER
+  NONE
+}
+
+model Model {
+  id                 String   @id @default(uuid())
+  name               String   // Display name
+  modelId            String   // Actual model identifier for API
+  inputTokenCost     Float    @default(0.001) // Cost per 1000 input chars
+  outputTokenCost    Float    @default(0.002) // Cost per 1000 output chars
+  maxContextLength   Int      @default(128000)
+  isEnabled          Boolean  @default(true)
+  isVisible          Boolean  @default(true) // Visible to users
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  providerId String
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  chatMessages ChatMessage[]
+
+  @@unique([providerId, modelId])
+  @@index([providerId])
+}
+
+// ============================================
+// TOKEN ECONOMY
+// ============================================
+
+model TokenTransaction {
+  id          String          @id @default(uuid())
+  amount      Int             // Negative for deductions, positive for additions
+  type        TransactionType
+  description String?
+  metadata    Json?           // Additional context (model used, etc.)
+  createdAt   DateTime        @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+enum TransactionType {
+  AI_INPUT
+  AI_OUTPUT
+  ENHANCE_PROMPT
+  ADMIN_GRANT
+  ADMIN_DEDUCT
+  SIGNUP_BONUS
+}
+
+// ============================================
+// COMPILATION
+// ============================================
+
+model CompilationJob {
+  id          String            @id @default(uuid())
+  status      CompilationStatus @default(PENDING)
+  logs        String            @db.Text @default("")
+  errorLogs   String?           @db.Text
+  artifactPath String?          // Path to compiled JAR
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime          @default(now())
+
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([status])
+}
+
+enum CompilationStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+// ============================================
+// MEMORY (Long-term session memory)
+// ============================================
+
+model MemoryEntry {
+  id        String   @id @default(uuid())
+  key       String
+  value     String   @db.Text
+  category  String   @default("general")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, key])
+  @@index([sessionId])
+}
+
+// ============================================
+// SYSTEM SETTINGS
+// ============================================
+
+model SystemSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
