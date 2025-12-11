@@ -38,7 +38,10 @@ router.post('/:sessionId/message', authMiddleware, async (req: Request, res: Res
 
         // Verify session ownership
         const session = await prisma.session.findFirst({
-            where: { id: req.params.sessionId, userId: req.user!.id },
+            where: {
+                id: req.params.sessionId,
+                ...(req.user!.role !== 'ADMIN' ? { userId: req.user!.id } : {}),
+            },
             include: {
                 files: { select: { path: true } },
                 messages: {
@@ -115,7 +118,10 @@ router.post('/:sessionId/apply-actions', authMiddleware, async (req: Request, re
 
         // Verify session ownership
         const session = await prisma.session.findFirst({
-            where: { id: req.params.sessionId, userId: req.user!.id },
+            where: {
+                id: req.params.sessionId,
+                ...(req.user!.role !== 'ADMIN' ? { userId: req.user!.id } : {}),
+            },
         });
 
         if (!session) {
@@ -165,7 +171,10 @@ router.post('/:sessionId/apply-actions', authMiddleware, async (req: Request, re
 router.get('/:sessionId/history', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
     try {
         const session = await prisma.session.findFirst({
-            where: { id: req.params.sessionId, userId: req.user!.id },
+            where: {
+                id: req.params.sessionId,
+                ...(req.user!.role !== 'ADMIN' ? { userId: req.user!.id } : {}),
+            },
         });
 
         if (!session) {

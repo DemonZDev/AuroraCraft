@@ -76,6 +76,10 @@ interface Session {
     projectType: string;
     createdAt: string;
     updatedAt: string;
+    _count?: {
+        files: number;
+        messages: number;
+    };
 }
 
 interface SessionState {

@@ -33,9 +33,19 @@ const renameFileSchema = z.object({
 });
 
 // Helper to verify session ownership
-async function verifySessionOwnership(sessionId: string, userId: string) {
+async function verifySessionOwnership(sessionId: string, user: { id: string; role: string }) {
+    if (user.role === 'ADMIN') {
+        const session = await prisma.session.findUnique({
+            where: { id: sessionId },
+        });
+        if (!session) {
+            throw createError('Session not found', 404);
+        }
+        return session;
+    }
+
     const session = await prisma.session.findFirst({
-        where: { id: sessionId, userId },
+        where: { id: sessionId, userId: user.id },
     });
     if (!session) {
         throw createError('Session not found', 404);
@@ -46,7 +56,7 @@ async function verifySessionOwnership(sessionId: string, userId: string) {
 // Get file tree
 router.get('/:sessionId', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        await verifySessionOwnership(req.params.sessionId, req.user!.id);
+        await verifySessionOwnership(req.params.sessionId, req.user!);
         const files = await fileService.getFileTree(req.params.sessionId);
         res.json({ files });
     } catch (error) {
@@ -57,7 +67,7 @@ router.get('/:sessionId', async (req: Request, res: Response, next: NextFunction
 // Get file content
 router.get('/:sessionId/file', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        await verifySessionOwnership(req.params.sessionId, req.user!.id);
+        await verifySessionOwnership(req.params.sessionId, req.user!);
         const filePath = req.query.path as string;
 
         if (!filePath) {
@@ -74,7 +84,7 @@ router.get('/:sessionId/file', async (req: Request, res: Response, next: NextFun
 // Create file or folder
 router.post('/:sessionId', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        await verifySessionOwnership(req.params.sessionId, req.user!.id);
+        await verifySessionOwnership(req.params.sessionId, req.user!);
         const data = createFileSchema.parse(req.body);
 
         const file = await fileService.createFile(
@@ -93,7 +103,7 @@ router.post('/:sessionId', async (req: Request, res: Response, next: NextFunctio
 // Update file content
 router.put('/:sessionId/file', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        await verifySessionOwnership(req.params.sessionId, req.user!.id);
+        await verifySessionOwnership(req.params.sessionId, req.user!);
         const filePath = req.query.path as string;
 
         if (!filePath) {
@@ -112,7 +122,7 @@ router.put('/:sessionId/file', async (req: Request, res: Response, next: NextFun
 // Rename/move file
 router.patch('/:sessionId/file', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        await verifySessionOwnership(req.params.sessionId, req.user!.id);
+        await verifySessionOwnership(req.params.sessionId, req.user!);
         const oldPath = req.query.path as string;
 
         if (!oldPath) {
@@ -131,7 +141,7 @@ router.patch('/:sessionId/file', async (req: Request, res: Response, next: NextF
 // Delete file
 router.delete('/:sessionId/file', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        await verifySessionOwnership(req.params.sessionId, req.user!.id);
+        await verifySessionOwnership(req.params.sessionId, req.user!);
         const filePath = req.query.path as string;
 
         if (!filePath) {
@@ -148,7 +158,7 @@ router.delete('/:sessionId/file', async (req: Request, res: Response, next: Next
 // Upload ZIP
 router.post('/:sessionId/upload', upload.single('file'), async (req: Request, res: Response, next: NextFunction) => {
     try {
-        await verifySessionOwnership(req.params.sessionId, req.user!.id);
+        await verifySessionOwnership(req.params.sessionId, req.user!);
 
         if (!req.file) {
             throw createError('No file uploaded', 400);
@@ -176,7 +186,7 @@ router.post('/:sessionId/upload', upload.single('file'), async (req: Request, re
 // Download as ZIP
 router.get('/:sessionId/download', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        await verifySessionOwnership(req.params.sessionId, req.user!.id);
+        await verifySessionOwnership(req.params.sessionId, req.user!);
 
         const session = await prisma.session.findUnique({
             where: { id: req.params.sessionId },
@@ -198,7 +208,7 @@ router.get('/:sessionId/download', async (req: Request, res: Response, next: Nex
 // Download single file
 router.get('/:sessionId/download/file', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        await verifySessionOwnership(req.params.sessionId, req.user!.id);
+        await verifySessionOwnership(req.params.sessionId, req.user!);
         const filePath = req.query.path as string;
 
         if (!filePath) {

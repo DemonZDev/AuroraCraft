@@ -18,6 +18,7 @@ export interface StreamOptions {
     res: Response;
 }
 
+
 export async function streamChatCompletion(options: StreamOptions): Promise<void> {
     const { sessionId, modelId, messages, userId, mode = 'agent', res } = options;
 
@@ -37,19 +38,6 @@ export async function streamChatCompletion(options: StreamOptions): Promise<void
         throw createError('Insufficient tokens for this request', 402, 'INSUFFICIENT_TOKENS');
     }
 
-    // Build request
-    const headers = buildRequestHeaders(modelConfig.provider);
-    const url = buildRequestUrl(modelConfig.provider);
-
-    const requestBody = {
-        model: modelConfig.modelId,
-        messages,
-        stream: true,
-        max_tokens: 16000,
-        temperature: 0.7,
-        ...modelConfig.provider.defaultPayload,
-    };
-
     // Set SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -57,8 +45,65 @@ export async function streamChatCompletion(options: StreamOptions): Promise<void
     res.setHeader('X-Accel-Buffering', 'no');
 
     let fullResponse = '';
+    const providerName = modelConfig.provider.name.toLowerCase();
 
     try {
+        let url: string;
+        let headers: Record<string, string>;
+        let requestBody: any;
+
+        // Handle Google's different API format
+        if (providerName === 'google') {
+            // Google Gemini API uses different format
+            const baseUrl = modelConfig.provider.baseUrl.replace(/\/$/, '');
+            url = `${baseUrl}/models/${modelConfig.modelId}:streamGenerateContent?alt=sse&key=${modelConfig.provider.apiKey}`;
+            headers = { 'Content-Type': 'application/json' };
+
+            // Convert OpenAI format to Google format
+            const contents = messages
+                .filter(m => m.role !== 'system')
+                .map(m => ({
+                    role: m.role === 'assistant' ? 'model' : 'user',
+                    parts: [{ text: m.content }]
+                }));
+
+            // Add system instruction if present
+            const systemMessage = messages.find(m => m.role === 'system');
+            requestBody = {
+                contents,
+                generationConfig: {
+                    maxOutputTokens: 16000,
+                    temperature: 0.7,
+                },
+                ...(systemMessage ? { systemInstruction: { parts: [{ text: systemMessage.content }] } } : {}),
+            };
+        } else if (providerName === 'perplexity') {
+            // Perplexity uses OpenAI-compatible format
+            headers = buildRequestHeaders(modelConfig.provider);
+            url = `${modelConfig.provider.baseUrl.replace(/\/$/, '')}/chat/completions`;
+            requestBody = {
+                model: modelConfig.modelId,
+                messages,
+                stream: true,
+                max_tokens: 16000,
+                temperature: 0.7,
+            };
+        } else {
+            // OpenRouter, SamuraiAPI, and other OpenAI-compatible APIs
+            headers = buildRequestHeaders(modelConfig.provider);
+            url = buildRequestUrl(modelConfig.provider);
+            requestBody = {
+                model: modelConfig.modelId,
+                messages,
+                stream: true,
+                max_tokens: 16000,
+                temperature: 0.7,
+                ...modelConfig.provider.defaultPayload,
+            };
+        }
+
+        console.log(`[AI] Requesting ${providerName}: ${url}`);
+
         const response = await fetch(url, {
             method: 'POST',
             headers,
@@ -67,7 +112,8 @@ export async function streamChatCompletion(options: StreamOptions): Promise<void
 
         if (!response.ok) {
             const error = await response.text();
-            res.write(`data: ${JSON.stringify({ error: `API Error: ${error}` })}\n\n`);
+            console.error(`[AI] API Error from ${providerName}:`, error);
+            res.write(`data: ${JSON.stringify({ error: `API Error (${providerName}): ${error}` })}\n\n`);
             res.write('data: [DONE]\n\n');
             res.end();
             return;
@@ -97,7 +143,16 @@ export async function streamChatCompletion(options: StreamOptions): Promise<void
 
                     try {
                         const parsed = JSON.parse(data);
-                        const content = parsed.choices?.[0]?.delta?.content || '';
+                        let content = '';
+
+                        // Handle different response formats
+                        if (providerName === 'google') {
+                            // Google format: candidates[0].content.parts[0].text
+                            content = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                        } else {
+                            // OpenAI-compatible format: choices[0].delta.content
+                            content = parsed.choices?.[0]?.delta?.content || '';
+                        }
 
                         if (content) {
                             fullResponse += content;
@@ -144,12 +199,14 @@ export async function streamChatCompletion(options: StreamOptions): Promise<void
     }
 }
 
+
 export async function enhancePrompt(
     prompt: string,
     modelId: string,
     userId: string
 ): Promise<string> {
     const modelConfig = await getModelConfig(modelId);
+    const providerName = modelConfig.provider.name.toLowerCase();
 
     const systemPrompt = `You are an expert prompt engineer. Your task is to take a user's simple request for a Minecraft plugin and transform it into a detailed, comprehensive specification that will help an AI create the best possible plugin.
 
@@ -162,13 +219,28 @@ Include:
 
 Keep the enhanced prompt focused and actionable. Do not include conversational text, just the enhanced requirements.`;
 
-    const headers = buildRequestHeaders(modelConfig.provider);
-    const url = buildRequestUrl(modelConfig.provider);
+    let url: string;
+    let headers: Record<string, string>;
+    let requestBody: any;
 
-    const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
+    if (providerName === 'google') {
+        const baseUrl = modelConfig.provider.baseUrl.replace(/\/$/, '');
+        url = `${baseUrl}/models/${modelConfig.modelId}:generateContent?key=${modelConfig.provider.apiKey}`;
+        headers = { 'Content-Type': 'application/json' };
+        requestBody = {
+            contents: [{
+                role: 'user',
+                parts: [{ text: `${systemPrompt}\n\nRequest to enhance:\n${prompt}` }]
+            }],
+            generationConfig: {
+                maxOutputTokens: 2000,
+                temperature: 0.7,
+            }
+        };
+    } else if (providerName === 'perplexity') {
+        headers = buildRequestHeaders(modelConfig.provider);
+        url = `${modelConfig.provider.baseUrl.replace(/\/$/, '')}/chat/completions`;
+        requestBody = {
             model: modelConfig.modelId,
             messages: [
                 { role: 'system', content: systemPrompt },
@@ -176,15 +248,39 @@ Keep the enhanced prompt focused and actionable. Do not include conversational t
             ],
             max_tokens: 2000,
             temperature: 0.7,
-        }),
+        };
+    } else {
+        headers = buildRequestHeaders(modelConfig.provider);
+        url = buildRequestUrl(modelConfig.provider);
+        requestBody = {
+            model: modelConfig.modelId,
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: `Enhance this Minecraft plugin request:\n\n${prompt}` },
+            ],
+            max_tokens: 2000,
+            temperature: 0.7,
+        };
+    }
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
-        throw createError('Failed to enhance prompt', 500);
+        throw createError(`Failed to enhance prompt: ${await response.text()}`, 500);
     }
 
-    const data = await response.json();
-    const enhanced = data.choices?.[0]?.message?.content || prompt;
+    const data: any = await response.json();
+    let enhanced = '';
+
+    if (providerName === 'google') {
+        enhanced = data.candidates?.[0]?.content?.parts?.[0]?.text || prompt;
+    } else {
+        enhanced = data.choices?.[0]?.message?.content || prompt;
+    }
 
     // Get enhance cost from settings
     const enhanceCostSetting = await prisma.systemSetting.findUnique({

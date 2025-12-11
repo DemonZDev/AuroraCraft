@@ -9,9 +9,19 @@ const router = Router();
 router.use(authMiddleware);
 
 // Helper to verify session ownership
-async function verifySessionOwnership(sessionId: string, userId: string) {
+async function verifySessionOwnership(sessionId: string, user: { id: string; role: string }) {
+    if (user.role === 'ADMIN') {
+        const session = await prisma.session.findFirst({
+            where: { id: sessionId },
+        });
+        if (!session) {
+            throw createError('Session not found', 404);
+        }
+        return session;
+    }
+
     const session = await prisma.session.findFirst({
-        where: { id: sessionId, userId },
+        where: { id: sessionId, userId: user.id },
     });
     if (!session) {
         throw createError('Session not found', 404);
@@ -22,7 +32,7 @@ async function verifySessionOwnership(sessionId: string, userId: string) {
 // Start compilation
 router.post('/:sessionId/compile', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        await verifySessionOwnership(req.params.sessionId, req.user!.id);
+        await verifySessionOwnership(req.params.sessionId, req.user!);
         const jobId = await compileService.startCompilation(req.params.sessionId);
         res.json({ jobId });
     } catch (error) {
@@ -33,7 +43,7 @@ router.post('/:sessionId/compile', async (req: Request, res: Response, next: Nex
 // Get compilation status
 router.get('/:sessionId/status/:jobId', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        await verifySessionOwnership(req.params.sessionId, req.user!.id);
+        await verifySessionOwnership(req.params.sessionId, req.user!);
         const job = await compileService.getCompilationJob(req.params.jobId);
 
         if (job.sessionId !== req.params.sessionId) {
@@ -49,7 +59,7 @@ router.get('/:sessionId/status/:jobId', async (req: Request, res: Response, next
 // Get compilation history
 router.get('/:sessionId/history', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        await verifySessionOwnership(req.params.sessionId, req.user!.id);
+        await verifySessionOwnership(req.params.sessionId, req.user!);
         const limit = parseInt(req.query.limit as string) || 20;
         const jobs = await compileService.getCompilationHistory(req.params.sessionId, limit);
         res.json({ jobs });
@@ -61,7 +71,7 @@ router.get('/:sessionId/history', async (req: Request, res: Response, next: Next
 // Cancel compilation
 router.post('/:sessionId/cancel/:jobId', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        await verifySessionOwnership(req.params.sessionId, req.user!.id);
+        await verifySessionOwnership(req.params.sessionId, req.user!);
         await compileService.cancelCompilation(req.params.jobId);
         res.json({ success: true });
     } catch (error) {
@@ -72,7 +82,7 @@ router.post('/:sessionId/cancel/:jobId', async (req: Request, res: Response, nex
 // Download artifact
 router.get('/:sessionId/download/:jobId', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        await verifySessionOwnership(req.params.sessionId, req.user!.id);
+        await verifySessionOwnership(req.params.sessionId, req.user!);
         const artifactPath = await compileService.getArtifactPath(req.params.jobId);
 
         const filename = artifactPath.split('/').pop() || 'plugin.jar';
@@ -89,7 +99,7 @@ router.get('/:sessionId/download/:jobId', async (req: Request, res: Response, ne
 // Stream compilation logs (SSE)
 router.get('/:sessionId/logs/:jobId', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        await verifySessionOwnership(req.params.sessionId, req.user!.id);
+        await verifySessionOwnership(req.params.sessionId, req.user!);
 
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache');

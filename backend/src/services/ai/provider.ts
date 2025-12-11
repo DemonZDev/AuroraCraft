@@ -38,6 +38,7 @@ export async function getEnabledProviders(): Promise<ProviderConfig[]> {
 
     return providers.map((p) => ({
         ...p,
+        apiKey: p.apiKey || undefined,
         customHeaders: p.customHeaders as Record<string, string> | undefined,
         defaultPayload: p.defaultPayload as Record<string, any> | undefined,
     }));

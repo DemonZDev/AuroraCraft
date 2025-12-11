@@ -69,7 +69,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
         const session = await prisma.session.findFirst({
             where: {
                 id: req.params.id,
-                userId: req.user!.id,
+                ...(req.user!.role !== 'ADMIN' ? { userId: req.user!.id } : {}),
             },
             include: {
                 files: {
@@ -121,7 +121,10 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
 router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
         const session = await prisma.session.findFirst({
-            where: { id: req.params.id, userId: req.user!.id },
+            where: {
+                id: req.params.id,
+                ...(req.user!.role !== 'ADMIN' ? { userId: req.user!.id } : {}),
+            },
         });
 
         if (!session) {
@@ -146,7 +149,10 @@ router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => 
 router.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
         const session = await prisma.session.findFirst({
-            where: { id: req.params.id, userId: req.user!.id },
+            where: {
+                id: req.params.id,
+                ...(req.user!.role !== 'ADMIN' ? { userId: req.user!.id } : {}),
+            },
         });
 
         if (!session) {
