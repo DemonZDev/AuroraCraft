@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -111,13 +111,15 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card border border-card-border">
-              <Coins className="w-4 h-4 text-primary" />
-              <span className="font-medium text-sm" data-testid="text-token-balance">
-                {user?.tokenBalance?.toLocaleString() || 0}
-              </span>
-              <span className="text-xs text-muted-foreground">tokens</span>
-            </div>
+            <Link href="/tokens">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card border border-card-border cursor-pointer hover-elevate">
+                <Coins className="w-4 h-4 text-primary" />
+                <span className="font-medium text-sm" data-testid="text-token-balance">
+                  {user?.tokenBalance?.toLocaleString() || 0}
+                </span>
+                <span className="text-xs text-muted-foreground">tokens</span>
+              </div>
+            </Link>
 
             {user?.isAdmin && (
               <Button

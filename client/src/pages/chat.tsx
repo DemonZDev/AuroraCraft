@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useRoute, useLocation } from "wouter";
+import { useRoute, useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,9 +30,20 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { CodeEditor, getLanguageFromFilename } from "@/components/code-editor";
 import type { ChatSession, ChatMessage, Model, ProjectFile, Compilation } from "@shared/schema";
 import {
   ArrowLeft,
@@ -49,17 +60,18 @@ import {
   FolderOpen,
   File,
   Plus,
-  Trash2,
-  Edit2,
   ChevronRight,
   ChevronDown,
-  MoreVertical,
   Check,
   X,
   Package,
-  AlertCircle,
   Loader2,
   Wrench,
+  Trash2,
+  Edit2,
+  FilePlus,
+  FolderPlus,
+  MoreVertical,
 } from "lucide-react";
 
 interface FileTreeItem {
@@ -225,6 +237,16 @@ export default function ChatPage() {
   const [selectedFile, setSelectedFile] = useState<FileTreeItem | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(["src"]));
   const [editorContent, setEditorContent] = useState("");
+  const [streamingContent, setStreamingContent] = useState("");
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const [isNewFileDialogOpen, setIsNewFileDialogOpen] = useState(false);
+  const [newFileName, setNewFileName] = useState("");
+  const [newFilePath, setNewFilePath] = useState("");
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
+  const [renameFileName, setRenameFileName] = useState("");
+  const [fileToRename, setFileToRename] = useState<FileTreeItem | null>(null);
+  const [fileToDelete, setFileToDelete] = useState<FileTreeItem | null>(null);
 
   const { data: session, isLoading: sessionLoading } = useQuery<ChatSession>({
     queryKey: ["/api/sessions", sessionId],
@@ -250,28 +272,112 @@ export default function ChatPage() {
     enabled: !!sessionId,
   });
 
-  const sendMessage = useMutation({
-    mutationFn: async (content: string) => {
-      setIsStreaming(true);
-      const response = await apiRequest("POST", `/api/sessions/${sessionId}/chat`, {
-        content,
-        mode,
+  const sendMessageStreaming = async (content: string) => {
+    setIsStreaming(true);
+    setStreamingContent("");
+    setMessage("");
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/chat/stream`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          content,
+          mode,
+          modelId: selectedModel ? parseInt(selectedModel) : undefined,
+        }),
+        credentials: "include",
+        signal: abortController.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to send message");
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No reader available");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === "chunk") {
+                setStreamingContent((prev) => prev + data.content);
+              } else if (data.type === "done") {
+                queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "messages"] });
+                queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "files"] });
+                queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+              } else if (data.type === "error") {
+                toast({
+                  title: "Error",
+                  description: data.content,
+                  variant: "destructive",
+                });
+              }
+            } catch {
+              // Ignore parse errors
+            }
+          }
+        }
+      }
+    } catch (error: any) {
+      if (error.name !== "AbortError") {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to send message",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsStreaming(false);
+      setStreamingContent("");
+      abortControllerRef.current = null;
+    }
+  };
+
+  const stopStreaming = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+  };
+
+  const enhancePrompt = useMutation({
+    mutationFn: async (prompt: string) => {
+      const response = await apiRequest("POST", "/api/enhance-prompt", {
+        prompt,
         modelId: selectedModel ? parseInt(selectedModel) : undefined,
+        framework: session?.framework || "paper",
       });
       return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "messages"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "files"] });
+    onSuccess: (data) => {
+      setMessage(data.enhancedPrompt);
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      setMessage("");
-      setIsStreaming(false);
+      toast({
+        title: "Prompt enhanced",
+        description: `Used ${data.tokensUsed} tokens`,
+      });
     },
     onError: (error) => {
-      setIsStreaming(false);
       toast({
         title: "Error",
-        description: error.message || "Failed to send message",
+        description: error.message || "Failed to enhance prompt",
         variant: "destructive",
       });
     },
@@ -322,6 +428,85 @@ export default function ChatPage() {
     },
   });
 
+  const createFile = useMutation({
+    mutationFn: async ({ name, path, content, isFolder }: { name: string; path: string; content?: string; isFolder?: boolean }) => {
+      const response = await apiRequest("POST", `/api/sessions/${sessionId}/files`, {
+        name,
+        path,
+        content: content || "",
+        isFolder: isFolder || false,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "files"] });
+      setIsNewFileDialogOpen(false);
+      setNewFileName("");
+      setNewFilePath("");
+      toast({ title: "File created" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to create file", variant: "destructive" });
+    },
+  });
+
+  const renameFile = useMutation({
+    mutationFn: async ({ id, name, path }: { id: number; name: string; path: string }) => {
+      const response = await apiRequest("PATCH", `/api/files/${id}`, { name, path });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "files"] });
+      setIsRenameDialogOpen(false);
+      setFileToRename(null);
+      setRenameFileName("");
+      toast({ title: "File renamed" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to rename file", variant: "destructive" });
+    },
+  });
+
+  const deleteFile = useMutation({
+    mutationFn: async (id: number) => {
+      const response = await apiRequest("DELETE", `/api/files/${id}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "files"] });
+      if (selectedFile?.id === fileToDelete?.id) {
+        setSelectedFile(null);
+        setEditorContent("");
+      }
+      setFileToDelete(null);
+      toast({ title: "File deleted" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to delete file", variant: "destructive" });
+    },
+  });
+
+  const handleCreateFile = () => {
+    const name = newFileName.trim();
+    if (!name) return;
+    const path = newFilePath ? `${newFilePath}/${name}` : name;
+    createFile.mutate({ name, path, content: "", isFolder: false });
+  };
+
+  const handleRenameFile = () => {
+    if (!fileToRename || !renameFileName.trim()) return;
+    const oldPath = fileToRename.path;
+    const parentPath = oldPath.includes("/") ? oldPath.substring(0, oldPath.lastIndexOf("/")) : "";
+    const newPath = parentPath ? `${parentPath}/${renameFileName.trim()}` : renameFileName.trim();
+    renameFile.mutate({ id: fileToRename.id, name: renameFileName.trim(), path: newPath });
+  };
+
+  const openRenameDialog = (file: FileTreeItem) => {
+    setFileToRename(file);
+    setRenameFileName(file.name);
+    setIsRenameDialogOpen(true);
+  };
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -355,7 +540,7 @@ export default function ChatPage() {
 
   const handleSend = () => {
     if (!message.trim() || isStreaming) return;
-    sendMessage.mutate(message);
+    sendMessageStreaming(message);
   };
 
   if (!sessionId) {
@@ -385,10 +570,12 @@ export default function ChatPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card border border-card-border">
-            <Coins className="w-4 h-4 text-primary" />
-            <span className="font-medium text-sm">{user?.tokenBalance?.toLocaleString() || 0}</span>
-          </div>
+          <Link href="/tokens">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card border border-card-border cursor-pointer hover-elevate">
+              <Coins className="w-4 h-4 text-primary" />
+              <span className="font-medium text-sm">{user?.tokenBalance?.toLocaleString() || 0}</span>
+            </div>
+          </Link>
 
           <Button
             variant="outline"
@@ -507,6 +694,20 @@ export default function ChatPage() {
                     </div>
                   ))
                 )}
+                {isStreaming && (
+                  <div className="flex gap-3" data-testid="message-streaming">
+                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
+                      <Bot className="w-4 h-4 text-primary-foreground animate-pulse" />
+                    </div>
+                    <div className="max-w-[85%] rounded-xl px-4 py-3 bg-card border border-card-border">
+                      <p className="text-sm whitespace-pre-wrap">
+                        {streamingContent || (
+                          <span className="text-muted-foreground">Thinking...</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <div ref={messagesEndRef} />
               </div>
             </ScrollArea>
@@ -526,8 +727,18 @@ export default function ChatPage() {
                   </SelectContent>
                 </Select>
 
-                <Button variant="outline" size="sm" data-testid="button-enhance">
-                  <Sparkles className="w-4 h-4 mr-1.5" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => message.trim() && enhancePrompt.mutate(message)}
+                  disabled={!message.trim() || enhancePrompt.isPending}
+                  data-testid="button-enhance"
+                >
+                  {enhancePrompt.isPending ? (
+                    <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-4 h-4 mr-1.5" />
+                  )}
                   Enhance
                 </Button>
               </div>
@@ -555,7 +766,7 @@ export default function ChatPage() {
                 <Button
                   size="icon"
                   className="absolute bottom-3 right-3"
-                  onClick={isStreaming ? () => setIsStreaming(false) : handleSend}
+                  onClick={isStreaming ? stopStreaming : handleSend}
                   disabled={!message.trim() && !isStreaming}
                   variant={isStreaming ? "destructive" : "default"}
                   data-testid="button-send"
@@ -579,9 +790,25 @@ export default function ChatPage() {
               <div className="h-full flex flex-col border-r border-border">
                 <div className="p-3 border-b border-border flex items-center justify-between gap-2">
                   <span className="font-medium text-sm">Files</span>
-                  <Button variant="ghost" size="icon" className="w-7 h-7">
-                    <Plus className="w-4 h-4" />
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="w-7 h-7" data-testid="button-add-file">
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setNewFilePath("");
+                          setIsNewFileDialogOpen(true);
+                        }}
+                        data-testid="menu-new-file"
+                      >
+                        <FilePlus className="w-4 h-4 mr-2" />
+                        New File
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
                 <ScrollArea className="flex-1">
                   <div className="py-2">
@@ -648,12 +875,10 @@ export default function ChatPage() {
                       </Button>
                     </div>
                     <div className="flex-1 overflow-hidden">
-                      <textarea
+                      <CodeEditor
                         value={editorContent}
-                        onChange={(e) => setEditorContent(e.target.value)}
-                        className="w-full h-full p-4 font-mono text-sm bg-background resize-none focus:outline-none"
-                        spellCheck={false}
-                        data-testid="editor-content"
+                        onChange={setEditorContent}
+                        language={getLanguageFromFilename(selectedFile.name)}
                       />
                     </div>
                   </>
@@ -720,6 +945,104 @@ export default function ChatPage() {
           </ResizablePanelGroup>
         </ResizablePanel>
       </ResizablePanelGroup>
+
+      <Dialog open={isNewFileDialogOpen} onOpenChange={setIsNewFileDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New File</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="filename">File Name</Label>
+              <Input
+                id="filename"
+                placeholder="e.g., MyPlugin.java"
+                value={newFileName}
+                onChange={(e) => setNewFileName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleCreateFile();
+                }}
+                data-testid="input-new-filename"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="filepath">Path (optional)</Label>
+              <Input
+                id="filepath"
+                placeholder="e.g., src/main/java"
+                value={newFilePath}
+                onChange={(e) => setNewFilePath(e.target.value)}
+                data-testid="input-new-filepath"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsNewFileDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateFile} disabled={!newFileName.trim() || createFile.isPending}>
+              {createFile.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isRenameDialogOpen} onOpenChange={setIsRenameDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename File</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="rename-filename">New Name</Label>
+              <Input
+                id="rename-filename"
+                value={renameFileName}
+                onChange={(e) => setRenameFileName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleRenameFile();
+                }}
+                data-testid="input-rename-filename"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRenameDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleRenameFile} disabled={!renameFileName.trim() || renameFile.isPending}>
+              {renameFile.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Rename
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!fileToDelete} onOpenChange={(open) => !open && setFileToDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete File</DialogTitle>
+          </DialogHeader>
+          <p className="py-4">
+            Are you sure you want to delete <span className="font-mono font-medium">{fileToDelete?.name}</span>?
+            This action cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFileToDelete(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => fileToDelete && deleteFile.mutate(fileToDelete.id)}
+              disabled={deleteFile.isPending}
+            >
+              {deleteFile.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

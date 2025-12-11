@@ -9,6 +9,7 @@ import Landing from "@/pages/landing";
 import Home from "@/pages/home";
 import ChatPage from "@/pages/chat";
 import AdminPage from "@/pages/admin";
+import TokensPage from "@/pages/tokens";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -22,6 +23,7 @@ function Router() {
         <>
           <Route path="/" component={Home} />
           <Route path="/chat/:id" component={ChatPage} />
+          <Route path="/tokens" component={TokensPage} />
           <Route path="/admin" component={AdminPage} />
         </>
       )}

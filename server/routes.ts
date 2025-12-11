@@ -212,6 +212,209 @@ export async function registerRoutes(
     }
   });
 
+  // Streaming chat with SSE
+  app.post("/api/sessions/:id/chat/stream", isAuthenticated, async (req: any, res) => {
+    try {
+      const session = await storage.getSession(parseInt(req.params.id));
+      if (!session || session.userId !== req.user.claims.sub) {
+        return res.status(404).json({ message: "Session not found" });
+      }
+
+      const { content, mode, modelId } = req.body;
+      const userId = req.user.claims.sub;
+
+      // Save user message
+      await storage.createMessage({
+        sessionId: session.id,
+        role: "user",
+        content,
+        modelId: modelId || null,
+      });
+
+      // Set up SSE headers
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.setHeader("X-Accel-Buffering", "no");
+
+      let fullResponse = "";
+      let tokensUsed = content.length;
+
+      if (modelId) {
+        const model = await storage.getModel(modelId);
+        if (model && model.providerId) {
+          const provider = await storage.getProvider(model.providerId);
+          if (provider && provider.apiKey) {
+            try {
+              const openai = new OpenAI({
+                apiKey: provider.apiKey,
+                baseURL: provider.baseUrl,
+              });
+
+              const systemPrompt = getSystemPrompt(mode, session.framework || "paper");
+              const previousMessages = await storage.getMessages(session.id);
+
+              const stream = await openai.chat.completions.create({
+                model: model.name,
+                messages: [
+                  { role: "system", content: systemPrompt },
+                  ...previousMessages.slice(-20).map((m) => ({
+                    role: m.role as "user" | "assistant",
+                    content: m.content,
+                  })),
+                  { role: "user", content },
+                ],
+                max_completion_tokens: 4096,
+                stream: true,
+              });
+
+              for await (const chunk of stream) {
+                const text = chunk.choices[0]?.delta?.content || "";
+                if (text) {
+                  fullResponse += text;
+                  res.write(`data: ${JSON.stringify({ type: "chunk", content: text })}\n\n`);
+                }
+                if (chunk.usage) {
+                  tokensUsed = (chunk.usage.total_tokens || content.length) * (model.tokenCostPerChar || 1);
+                }
+              }
+            } catch (aiError) {
+              console.error("AI streaming error:", aiError);
+              fullResponse = "I encountered an error processing your request. Please try again.";
+              res.write(`data: ${JSON.stringify({ type: "error", content: fullResponse })}\n\n`);
+            }
+          }
+        }
+      }
+
+      if (!fullResponse) {
+        fullResponse = "I understand you want to create a Minecraft plugin. Let me help you with that.";
+        res.write(`data: ${JSON.stringify({ type: "chunk", content: fullResponse })}\n\n`);
+      }
+
+      // Save assistant message
+      const assistantMessage = await storage.createMessage({
+        sessionId: session.id,
+        role: "assistant",
+        content: fullResponse,
+        modelId: modelId || null,
+        tokensUsed,
+      });
+
+      // Deduct tokens from user
+      const user = await storage.getUser(userId);
+      if (user) {
+        await storage.updateUser(userId, {
+          tokenBalance: Math.max(0, (user.tokenBalance || 0) - tokensUsed),
+        });
+
+        await storage.createTokenUsage({
+          userId,
+          sessionId: session.id,
+          modelId: modelId || null,
+          action: "chat",
+          tokensUsed,
+        });
+      }
+
+      // Update session
+      await storage.updateSession(session.id, { mode });
+
+      // Send completion event
+      res.write(`data: ${JSON.stringify({ type: "done", messageId: assistantMessage.id, tokensUsed })}\n\n`);
+      res.end();
+    } catch (error) {
+      console.error("Error in streaming chat:", error);
+      if (!res.headersSent) {
+        res.status(500).json({ message: "Failed to process chat" });
+      } else {
+        res.write(`data: ${JSON.stringify({ type: "error", content: "Stream error" })}\n\n`);
+        res.end();
+      }
+    }
+  });
+
+  // Enhance prompt
+  app.post("/api/enhance-prompt", isAuthenticated, async (req: any, res) => {
+    try {
+      const { prompt, modelId, framework } = req.body;
+      const userId = req.user.claims.sub;
+
+      if (!prompt || prompt.trim().length === 0) {
+        return res.status(400).json({ message: "Prompt is required" });
+      }
+
+      let enhancedPrompt = prompt;
+      let tokensUsed = 0;
+
+      if (modelId) {
+        const model = await storage.getModel(modelId);
+        if (model && model.providerId) {
+          const provider = await storage.getProvider(model.providerId);
+          if (provider && provider.apiKey) {
+            try {
+              const openai = new OpenAI({
+                apiKey: provider.apiKey,
+                baseURL: provider.baseUrl,
+              });
+
+              const response = await openai.chat.completions.create({
+                model: model.name,
+                messages: [
+                  {
+                    role: "system",
+                    content: `You are a prompt enhancement assistant for AuroraCraft, a Minecraft plugin development platform.
+Your task is to take a user's basic prompt and enhance it into a detailed, well-structured request for creating a Minecraft ${framework || "Paper"} plugin.
+
+Guidelines:
+- Keep the user's core intent intact
+- Add technical specifics like commands, permissions, events to handle
+- Suggest best practices and features they might want
+- Make the prompt clearer and more actionable
+- Format as a natural request, not a list
+- Keep it concise but comprehensive (2-4 sentences max)
+
+Only respond with the enhanced prompt, nothing else.`,
+                  },
+                  { role: "user", content: prompt },
+                ],
+                max_completion_tokens: 500,
+              });
+
+              enhancedPrompt = response.choices[0]?.message?.content || prompt;
+              tokensUsed = (response.usage?.total_tokens || 0) * (model.tokenCostPerChar || 1);
+            } catch (aiError) {
+              console.error("AI error in enhance:", aiError);
+            }
+          }
+        }
+      }
+
+      // Deduct tokens
+      if (tokensUsed > 0) {
+        const user = await storage.getUser(userId);
+        if (user) {
+          await storage.updateUser(userId, {
+            tokenBalance: Math.max(0, (user.tokenBalance || 0) - tokensUsed),
+          });
+
+          await storage.createTokenUsage({
+            userId,
+            sessionId: null,
+            modelId: modelId || null,
+            action: "enhance_prompt",
+            tokensUsed,
+          });
+        }
+      }
+
+      res.json({ enhancedPrompt, tokensUsed });
+    } catch (error) {
+      console.error("Error enhancing prompt:", error);
+      res.status(500).json({ message: "Failed to enhance prompt" });
+    }
+  });
+
   // Files
   app.get("/api/sessions/:id/files", isAuthenticated, async (req: any, res) => {
     try {
@@ -525,6 +728,18 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching stats:", error);
       res.status(500).json({ message: "Failed to fetch stats" });
+    }
+  });
+
+  // Token usage history for current user
+  app.get("/api/token-usage", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const usage = await storage.getUserTokenUsage(userId);
+      res.json(usage);
+    } catch (error) {
+      console.error("Error fetching token usage:", error);
+      res.status(500).json({ message: "Failed to fetch token usage" });
     }
   });
 
