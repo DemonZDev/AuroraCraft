@@ -171,8 +171,15 @@ export interface FileAction {
 export function parseFileActions(response: string): FileAction[] {
     const actions: FileAction[] = [];
 
-    // Match action blocks
-    const actionPattern = /```action:(CREATE_FILE|UPDATE_FILE|DELETE_FILE|RENAME_FILE)\npath:\s*(.+?)(?:\nnewPath:\s*(.+?))?\n```\n```\w*\n([\s\S]*?)```/g;
+    // Match action blocks - more flexible regex that handles whitespace variations
+    // Matches:
+    // ```action:CREATE_FILE
+    // path: some/path.java
+    // ```
+    // ```java
+    // content
+    // ```
+    const actionPattern = /```action:(CREATE_FILE|UPDATE_FILE|DELETE_FILE|RENAME_FILE)\s*\npath:\s*(.+?)(?:\nnewPath:\s*(.+?))?\s*\n```\s*\n*```\w*\n([\s\S]*?)```/g;
 
     let match;
     while ((match = actionPattern.exec(response)) !== null) {

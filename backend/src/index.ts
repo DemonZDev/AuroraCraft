@@ -24,11 +24,32 @@ app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
-// CORS
+// CORS - Allow dynamic origins for mobile access
 app.use(cors({
-    origin: config.frontendUrl,
+    origin: function (origin, callback) {
+        // Allow requests with no origin (mobile apps, curl, etc.)
+        if (!origin) return callback(null, true);
+
+        // Allow localhost and any origin in development
+        // In production, you would want to restrict this to specific domains
+        const allowedPatterns = [
+            /^http:\/\/localhost(:\d+)?$/,
+            /^http:\/\/127\.0\.0\.1(:\d+)?$/,
+            /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/,  // Local network IPs
+            /^http:\/\/10\.\d+\.\d+\.\d+(:\d+)?$/,   // Private network
+            /^http:\/\/172\.(1[6-9]|2\d|3[01])\.\d+\.\d+(:\d+)?$/, // Private network
+        ];
+
+        const isAllowed = allowedPatterns.some(pattern => pattern.test(origin));
+        if (isAllowed || process.env.NODE_ENV === 'development') {
+            callback(null, true);
+        } else {
+            callback(null, config.frontendUrl); // Fall back to configured frontend URL in production
+        }
+    },
     credentials: true,
 }));
+
 
 // Rate limiting
 const limiter = rateLimit({

@@ -3,6 +3,8 @@ import { getModelConfig, buildRequestHeaders, buildRequestUrl } from './provider
 import prisma from '../../config/database.js';
 import { deductTokens, calculateTokenCost } from '../token.js';
 import { createError } from '../../middleware/errorHandler.js';
+import { parseFileActions } from './prompts.js';
+import * as fileService from '../file.js';
 
 export interface ChatMessage {
     role: 'user' | 'assistant' | 'system';
@@ -78,12 +80,48 @@ export async function streamChatCompletion(options: StreamOptions): Promise<void
                 ...(systemMessage ? { systemInstruction: { parts: [{ text: systemMessage.content }] } } : {}),
             };
         } else if (providerName === 'perplexity') {
-            // Perplexity uses OpenAI-compatible format
+            // Perplexity uses OpenAI-compatible format but requires strict message alternation
             headers = buildRequestHeaders(modelConfig.provider);
             url = `${modelConfig.provider.baseUrl.replace(/\/$/, '')}/chat/completions`;
+
+            // Filter and fix messages for Perplexity - needs user/assistant alternation after system
+            const systemMsgs = messages.filter(m => m.role === 'system');
+            const nonSystemMsgs = messages.filter(m => m.role !== 'system');
+
+            // Merge consecutive messages with same role and ensure proper alternation
+            const fixedMsgs: typeof messages = [];
+            for (const msg of nonSystemMsgs) {
+                if (fixedMsgs.length === 0) {
+                    // First non-system message must be user
+                    if (msg.role === 'user') {
+                        fixedMsgs.push(msg);
+                    } else {
+                        // Insert a placeholder user message if first is assistant
+                        fixedMsgs.push({ role: 'user', content: 'Continue.' });
+                        fixedMsgs.push(msg);
+                    }
+                } else {
+                    const lastMsg = fixedMsgs[fixedMsgs.length - 1];
+                    if (msg.role === lastMsg.role) {
+                        // Merge consecutive same-role messages
+                        lastMsg.content += '\n\n' + msg.content;
+                    } else {
+                        fixedMsgs.push(msg);
+                    }
+                }
+            }
+
+            // Ensure ends with user message
+            if (fixedMsgs.length > 0 && fixedMsgs[fixedMsgs.length - 1].role !== 'user') {
+                // This shouldn't happen in normal flow, but handle it
+                fixedMsgs.push({ role: 'user', content: 'Please continue.' });
+            }
+
+            const perplexityMessages = [...systemMsgs, ...fixedMsgs];
+
             requestBody = {
                 model: modelConfig.modelId,
-                messages,
+                messages: perplexityMessages,
                 stream: true,
                 max_tokens: 16000,
                 temperature: 0.7,
@@ -103,6 +141,8 @@ export async function streamChatCompletion(options: StreamOptions): Promise<void
         }
 
         console.log(`[AI] Requesting ${providerName}: ${url}`);
+        console.log(`[AI] Headers:`, JSON.stringify(headers, null, 2));
+        console.log(`[AI] Body model: ${requestBody.model}`);
 
         const response = await fetch(url, {
             method: 'POST',
