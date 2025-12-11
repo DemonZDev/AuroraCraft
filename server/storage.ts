@@ -368,3 +368,27 @@ export class DatabaseStorage implements IStorage {
 }
 
 export const storage = new DatabaseStorage();
+
+export async function seedDefaultAdmin(): Promise<void> {
+  try {
+    const existingAdmin = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, "admin@auroracraft.local"))
+      .limit(1);
+
+    if (existingAdmin.length === 0) {
+      await db.insert(users).values({
+        id: "admin-default",
+        email: "admin@auroracraft.local",
+        firstName: "Admin",
+        lastName: "User",
+        isAdmin: true,
+        tokenBalance: 100000,
+      });
+      console.log("[seed] Created default admin user (admin@auroracraft.local)");
+    }
+  } catch (error) {
+    console.error("[seed] Failed to create default admin:", error);
+  }
+}
