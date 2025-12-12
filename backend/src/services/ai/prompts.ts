@@ -58,7 +58,22 @@ Work in clear phases:
 
 After completing each phase, summarize what was done and ask if the user wants to continue to the next phase.
 
-## Important Rules
+## Agentic Loop & Rules
+
+1. **Separation of Concerns**: 
+   - If you want to speak to the user, write conversational text.
+   - If you want to perform an action, write ONLY the Action Block.
+   - Do NOT mix conversation and code/actions in the same response if possible.
+
+2. **Stop After Action**: 
+   - Immediately stop generating after closing an action block (\`\`\` ... \`\`\`).
+   - Do NOT write explanation after the code. You will be prompted again with the action result.
+
+3. **Silent Execution**:
+   - The user does NOT see your Action Blocks. They only see your conversational text.
+   - Use the \`action\` format for ALL file operations.
+   - **CRITICAL**: Do NOT use standard markdown code blocks (e.g. \`\`\`java). You MUST use the \`\`\`action\` block syntax. Any code outside an action block is a violation.
+
 
 1. Always create complete, working code - no placeholders or TODOs
 2. Include proper error handling and null checks
@@ -171,29 +186,64 @@ export interface FileAction {
 export function parseFileActions(response: string): FileAction[] {
     const actions: FileAction[] = [];
 
-    // Match action blocks - more flexible regex that handles whitespace variations
-    // Matches:
-    // ```action:CREATE_FILE
-    // path: some/path.java
-    // ```
-    // ```java
-    // content
-    // ```
-    const actionPattern = /```action:(CREATE_FILE|UPDATE_FILE|DELETE_FILE|RENAME_FILE)\s*\npath:\s*(.+?)(?:\nnewPath:\s*(.+?))?\s*\n```\s*\n*```\w*\n([\s\S]*?)```/g;
+    // 1. Find all Action Blocks
+    // Matches ```action:TYPE ... ```
+    const actionRegex = /```action:(CREATE_FILE|UPDATE_FILE|DELETE_FILE|RENAME_FILE)([\s\S]+?)```/g;
 
     let match;
-    while ((match = actionPattern.exec(response)) !== null) {
-        const [, type, path, newPath, content] = match;
-        actions.push({
-            type: type as FileAction['type'],
-            path: path.trim(),
-            content: content?.trim(),
-            newPath: newPath?.trim(),
-        });
-    }
+    while ((match = actionRegex.exec(response)) !== null) {
+        const type = match[1];
+        const blockContent = match[2];
+        const pathMatch = blockContent.match(/path:\s*(.+)/);
+        const newPathMatch = blockContent.match(/newPath:\s*(.+)/);
 
+        // Check for content INSIDE the action block (Single Block format)
+        // Look for 'content:' followed by anything until end or other keys (naive check)
+        // But content might be multiline.
+        // Let's assume content is the last field if present in single block?
+        // Or specific regex: `content:\s*([\s\S]+)` 
+        const contentMatch = blockContent.match(/content:\s*([\s\S]+)/);
+
+        if (pathMatch) {
+            const action: FileAction = {
+                type: type as any,
+                path: pathMatch[1].trim(),
+                newPath: newPathMatch ? newPathMatch[1].trim() : undefined,
+                content: ''
+            };
+
+            // If content found in properties, use it (Single Block priority)
+            if (contentMatch) {
+                action.content = contentMatch[1].trim();
+                actions.push(action);
+                continue;
+            }
+
+            // If DELETE/RENAME, we are done
+            if (type === 'DELETE_FILE' || type === 'RENAME_FILE') {
+                actions.push(action);
+                continue;
+            }
+
+            // For CREATE/UPDATE, find the NEXT code block after this action matches index
+            const afterActionIndex = match.index + match[0].length;
+            const textAfter = response.slice(afterActionIndex);
+
+            // Regex for next generic code block
+            // Relaxed: Allow \w* then optional newline or space, then content.
+            // But exclude the backticks.
+            const codeBlockRegex = /```\w*(?:\r?\n|\s)([\s\S]*?)```/;
+            const codeMatch = textAfter.match(codeBlockRegex);
+
+            if (codeMatch) {
+                action.content = codeMatch[1];
+                actions.push(action);
+            }
+        }
+    }
     return actions;
 }
+
 
 // Extract just the text response without action blocks
 export function extractTextResponse(response: string): string {

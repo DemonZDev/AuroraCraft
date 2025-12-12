@@ -176,12 +176,41 @@ export default function SessionPage() {
 
                         try {
                             const parsed = JSON.parse(data);
+
+                            // Standard content delta
                             if (parsed.content) {
                                 updateLastMessage(parsed.content);
                             }
+
+                            // Standard error
                             if (parsed.error) {
                                 toast.error(parsed.error);
                             }
+
+                            // Agentic Events
+                            if (parsed.type === 'agent_log') {
+                                const msg = parsed.message;
+                                // Use a stable ID for the specific file action if possible, or a shared one for sequential actions
+                                // For now, we use a shared ID 'agent-action' so 'Creating...' is replaced by 'Created'
+                                if (msg.includes('Creating') || msg.includes('Updating') || msg.includes('Deleting') || msg.includes('Renaming')) {
+                                    toast.loading(msg, { id: 'agent-action' });
+                                } else if (msg.includes('✅')) {
+                                    toast.success(msg, { id: 'agent-action' });
+                                } else if (msg.includes('❌')) {
+                                    toast.error(msg, { id: 'agent-action' });
+                                } else {
+                                    toast(msg, { icon: '🤖', id: 'agent-log' });
+                                }
+                            }
+
+                            if (parsed.type === 'agent_error') {
+                                toast.error(parsed.message);
+                            }
+
+                            if (parsed.type === 'refresh_files') {
+                                fetchFiles(sessionId);
+                            }
+
                         } catch {
                             // Skip invalid JSON
                         }

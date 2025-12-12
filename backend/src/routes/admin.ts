@@ -284,23 +284,20 @@ router.put('/providers/:id', async (req: Request, res: Response, next: NextFunct
             },
         });
 
+        // If provider is being disabled, cascade-disable all its models
+        if (data.isEnabled === false) {
+            await prisma.model.updateMany({
+                where: { providerId: req.params.id },
+                data: { isEnabled: false },
+            });
+        }
+
         res.json({ provider });
     } catch (error) {
         next(error);
     }
 });
 
-// Delete provider
-router.delete('/providers/:id', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        await prisma.provider.delete({
-            where: { id: req.params.id },
-        });
-        res.json({ success: true });
-    } catch (error) {
-        next(error);
-    }
-});
 
 // ==================== MODELS ====================
 

@@ -22,22 +22,22 @@ export interface StreamOptions {
 
 
 export async function streamChatCompletion(options: StreamOptions): Promise<void> {
-    const { sessionId, modelId, messages, userId, mode = 'agent', res } = options;
+    const { sessionId, modelId, userId, res } = options;
+    let messages = [...options.messages]; // Clone messages for mutation in loop
 
-    // Get model config
     const modelConfig = await getModelConfig(modelId);
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
 
-    // Check if user has enough tokens (estimate)
+    // Initial Cost Check
     const inputChars = messages.reduce((sum, m) => sum + m.content.length, 0);
-    const estimatedCost = Math.ceil((inputChars / 1000) * modelConfig.inputTokenCost * 1000);
-
     const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { tokenBalance: true },
     });
-
-    if (!user || user.tokenBalance < estimatedCost) {
-        throw createError('Insufficient tokens for this request', 402, 'INSUFFICIENT_TOKENS');
+    // Rough estimate for first turn
+    if (!user || user.tokenBalance < (inputChars / 3)) {
+        throw createError('Insufficient tokens', 402, 'INSUFFICIENT_TOKENS');
     }
 
     // Set SSE headers
@@ -46,197 +46,300 @@ export async function streamChatCompletion(options: StreamOptions): Promise<void
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
 
-    let fullResponse = '';
-    const providerName = modelConfig.provider.name.toLowerCase();
+    let steps = 0;
+    const MAX_STEPS = 5; // Prevent infinite loops
+    const notifiedActions = new Set<string>();
 
     try {
-        let url: string;
-        let headers: Record<string, string>;
-        let requestBody: any;
+        while (steps < MAX_STEPS) {
+            console.log(`[Agent] Step ${steps + 1}/${MAX_STEPS}`);
 
-        // Handle Google's different API format
-        if (providerName === 'google') {
-            // Google Gemini API uses different format
-            const baseUrl = modelConfig.provider.baseUrl.replace(/\/$/, '');
-            url = `${baseUrl}/models/${modelConfig.modelId}:streamGenerateContent?alt=sse&key=${modelConfig.provider.apiKey}`;
-            headers = { 'Content-Type': 'application/json' };
-
-            // Convert OpenAI format to Google format
-            const contents = messages
-                .filter(m => m.role !== 'system')
-                .map(m => ({
-                    role: m.role === 'assistant' ? 'model' : 'user',
-                    parts: [{ text: m.content }]
-                }));
-
-            // Add system instruction if present
-            const systemMessage = messages.find(m => m.role === 'system');
-            requestBody = {
-                contents,
-                generationConfig: {
-                    maxOutputTokens: 16000,
-                    temperature: 0.7,
-                },
-                ...(systemMessage ? { systemInstruction: { parts: [{ text: systemMessage.content }] } } : {}),
-            };
-        } else if (providerName === 'perplexity') {
-            // Perplexity uses OpenAI-compatible format but requires strict message alternation
-            headers = buildRequestHeaders(modelConfig.provider);
-            url = `${modelConfig.provider.baseUrl.replace(/\/$/, '')}/chat/completions`;
-
-            // Filter and fix messages for Perplexity - needs user/assistant alternation after system
-            const systemMsgs = messages.filter(m => m.role === 'system');
-            const nonSystemMsgs = messages.filter(m => m.role !== 'system');
-
-            // Merge consecutive messages with same role and ensure proper alternation
-            const fixedMsgs: typeof messages = [];
-            for (const msg of nonSystemMsgs) {
-                if (fixedMsgs.length === 0) {
-                    // First non-system message must be user
-                    if (msg.role === 'user') {
-                        fixedMsgs.push(msg);
-                    } else {
-                        // Insert a placeholder user message if first is assistant
-                        fixedMsgs.push({ role: 'user', content: 'Continue.' });
-                        fixedMsgs.push(msg);
-                    }
-                } else {
-                    const lastMsg = fixedMsgs[fixedMsgs.length - 1];
-                    if (msg.role === lastMsg.role) {
-                        // Merge consecutive same-role messages
-                        lastMsg.content += '\n\n' + msg.content;
-                    } else {
-                        fixedMsgs.push(msg);
-                    }
-                }
-            }
-
-            // Ensure ends with user message
-            if (fixedMsgs.length > 0 && fixedMsgs[fixedMsgs.length - 1].role !== 'user') {
-                // This shouldn't happen in normal flow, but handle it
-                fixedMsgs.push({ role: 'user', content: 'Please continue.' });
-            }
-
-            const perplexityMessages = [...systemMsgs, ...fixedMsgs];
-
-            requestBody = {
-                model: modelConfig.modelId,
-                messages: perplexityMessages,
-                stream: true,
-                max_tokens: 16000,
-                temperature: 0.7,
-            };
-        } else {
-            // OpenRouter, SamuraiAPI, and other OpenAI-compatible APIs
-            headers = buildRequestHeaders(modelConfig.provider);
-            url = buildRequestUrl(modelConfig.provider);
-            requestBody = {
-                model: modelConfig.modelId,
-                messages,
-                stream: true,
-                max_tokens: 16000,
-                temperature: 0.7,
-                ...modelConfig.provider.defaultPayload,
-            };
-        }
-
-        console.log(`[AI] Requesting ${providerName}: ${url}`);
-        console.log(`[AI] Headers:`, JSON.stringify(headers, null, 2));
-        console.log(`[AI] Body model: ${requestBody.model}`);
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(requestBody),
-        });
-
-        if (!response.ok) {
-            const error = await response.text();
-            console.error(`[AI] API Error from ${providerName}:`, error);
-            res.write(`data: ${JSON.stringify({ error: `API Error (${providerName}): ${error}` })}\n\n`);
-            res.write('data: [DONE]\n\n');
-            res.end();
-            return;
-        }
-
-        const reader = response.body?.getReader();
-        if (!reader) {
-            throw new Error('No response body');
-        }
-
-        const decoder = new TextDecoder();
-
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n').filter(line => line.trim() !== '');
-
-            for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    const data = line.slice(6);
-
-                    if (data === '[DONE]') {
-                        continue;
-                    }
-
-                    try {
-                        const parsed = JSON.parse(data);
-                        let content = '';
-
-                        // Handle different response formats
-                        if (providerName === 'google') {
-                            // Google format: candidates[0].content.parts[0].text
-                            content = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
-                        } else {
-                            // OpenAI-compatible format: choices[0].delta.content
-                            content = parsed.choices?.[0]?.delta?.content || '';
-                        }
-
-                        if (content) {
-                            fullResponse += content;
-                            res.write(`data: ${JSON.stringify({ content })}\n\n`);
-                        }
-                    } catch {
-                        // Skip invalid JSON
-                    }
-                }
-            }
-        }
-
-        // Save assistant message to database
-        await prisma.chatMessage.create({
-            data: {
+            // Logic for this step
+            const stepResult = await executeAgentStep({
                 sessionId,
-                role: 'ASSISTANT',
-                content: fullResponse,
                 modelId,
-            },
-        });
+                messages,
+                modelConfig,
+                res,
+                notifiedActions
+            });
 
-        // Calculate and deduct tokens
-        const cost = await calculateTokenCost(modelId, inputChars, fullResponse.length);
+            totalInputTokens += stepResult.inputChars;
+            totalOutputTokens += stepResult.outputChars;
+
+            // Update history with Assistant Response
+            messages.push({ role: 'assistant', content: stepResult.fullResponse });
+
+            // Execute Actions if any
+            const actions = parseFileActions(stepResult.fullResponse);
+
+            if (actions.length > 0) {
+                // We have actions -> This was a "Tool Turn"
+                // Execute actions and add results to history
+                const toolOutputs: string[] = [];
+
+                for (const action of actions) {
+                    console.log(`[Agent] Executing ${action.type}: ${action.path}`);
+                    try {
+                        let resultMsg = '';
+                        if (action.type === 'CREATE_FILE') {
+                            try {
+                                await fileService.createFile(sessionId, action.path, action.content || '');
+                                resultMsg = `Successfully created file: ${action.path}`;
+                            } catch (err: any) {
+                                if (err.message === 'File already exists') {
+                                    await fileService.updateFile(sessionId, action.path, action.content || '');
+                                    resultMsg = `File existed, updated content: ${action.path}`;
+                                } else throw err;
+                            }
+                        } else if (action.type === 'UPDATE_FILE') {
+                            await fileService.updateFile(sessionId, action.path, action.content || '');
+                            resultMsg = `Successfully updated file: ${action.path}`;
+                        } else if (action.type === 'DELETE_FILE') {
+                            await fileService.deleteFile(sessionId, action.path);
+                            resultMsg = `Successfully deleted file: ${action.path}`;
+                        } else if (action.type === 'RENAME_FILE' && action.newPath) {
+                            await fileService.renameFile(sessionId, action.path, action.newPath);
+                            resultMsg = `Successfully renamed ${action.path} to ${action.newPath}`;
+                        }
+
+                        toolOutputs.push(resultMsg);
+
+                        // Notify Frontend of Success
+                        const pastVerb = action.type === 'CREATE_FILE' ? 'Created' :
+                            action.type === 'UPDATE_FILE' ? 'Updated' :
+                                action.type === 'DELETE_FILE' ? 'Deleted' : 'Renamed';
+                        res.write(`data: ${JSON.stringify({ type: 'agent_log', message: `✅ ${pastVerb} ${action.path}` })}\n\n`);
+                        res.write(`data: ${JSON.stringify({ type: 'refresh_files' })}\n\n`);
+
+                    } catch (err: any) {
+                        console.error(`[Agent] Tool Failed:`, err);
+                        toolOutputs.push(`Error executing ${action.type} on ${action.path}: ${err.message}`);
+
+                        res.write(`data: ${JSON.stringify({
+                            type: 'agent_error',
+                            message: `❌ Failed to ${action.type} ${action.path}: ${err.message}`
+                        })}\n\n`);
+                    }
+                }
+
+                // Append Tool Outputs to History as User/System message to prompt next step
+                messages.push({
+                    role: 'user',
+                    content: `[System] Tool Actions Completed.\nResults:\n${toolOutputs.join('\n')}\n\nPlease continue. If you are done, output a conversational response.`
+                });
+
+                // Loop continues to next step (AI detects tool results and responds)
+            } else {
+                // No actions found -> This was a "Final Response"
+
+                // Safety Check: Did we log an action start but fail to parse it?
+                if (stepResult.hasLog) {
+                    console.warn('[Agent] Stalled Action Detected: Log emitted but no action parsed.');
+                    res.write(`data: ${JSON.stringify({
+                        type: 'agent_error',
+                        message: '❌ Action Failed: The AI response was malformed. Please try again.'
+                    })}\n\n`);
+                }
+
+                // It was already streamed to the user.
+                break; // Exit Loop
+            }
+
+            steps++;
+        }
+
+        // Final Token Deduction
+        const cost = await calculateTokenCost(modelId, totalInputTokens, totalOutputTokens);
         await deductTokens(userId, cost.totalCost, 'AI_OUTPUT',
-            `Chat completion with ${modelConfig.name}`,
-            { modelId, inputChars, outputChars: fullResponse.length }
+            `Agent Session (${steps} steps)`,
+            { modelId, inputChars: totalInputTokens, outputChars: totalOutputTokens }
         );
 
-        // Send final done event with token info
         res.write(`data: ${JSON.stringify({
             done: true,
             tokensUsed: cost.totalCost,
-            messageLength: fullResponse.length
+            messageLength: totalOutputTokens
         })}\n\n`);
         res.write('data: [DONE]\n\n');
         res.end();
 
     } catch (error: any) {
-        console.error('Streaming error:', error);
-        res.write(`data: ${JSON.stringify({ error: error.message || 'Streaming failed' })}\n\n`);
+        console.error('Agent Loop Error:', error);
+        res.write(`data: ${JSON.stringify({ error: error.message || 'Agent Loop Failed' })}\n\n`);
         res.write('data: [DONE]\n\n');
         res.end();
     }
+}
+
+// Helper to execute a single LLM turn
+async function executeAgentStep(params: {
+    sessionId: string,
+    modelId: string,
+    messages: ChatMessage[],
+    modelConfig: any,
+    res: any,
+    notifiedActions: Set<string>
+}): Promise<{ fullResponse: string, inputChars: number, outputChars: number, hasLog: boolean }> {
+    const { modelId, messages, modelConfig, res, notifiedActions } = params;
+    const providerName = modelConfig.provider.name.toLowerCase();
+
+    // Construct Request (Shared Logic)
+    let url: string = '';
+    let headers: Record<string, string> = {};
+    let requestBody: any = {};
+
+    // Note: I will inline the request construction here to ensure correctness
+
+    if (providerName === 'google') {
+        const baseUrl = modelConfig.provider.baseUrl.replace(/\/$/, '');
+        url = `${baseUrl}/models/${modelConfig.modelId}:streamGenerateContent?alt=sse&key=${modelConfig.provider.apiKey}`;
+        headers = { 'Content-Type': 'application/json' };
+        const contents = messages.filter(m => m.role !== 'system').map(m => ({
+            role: m.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: m.content }]
+        }));
+        const systemMessage = messages.find(m => m.role === 'system');
+        requestBody = {
+            contents,
+            generationConfig: { maxOutputTokens: 16000, temperature: 0.7 },
+            ...(systemMessage ? { systemInstruction: { parts: [{ text: systemMessage.content }] } } : {}),
+        };
+    } else if (providerName === 'perplexity') {
+        headers = buildRequestHeaders(modelConfig.provider);
+        url = `${modelConfig.provider.baseUrl.replace(/\/$/, '')}/chat/completions`;
+        const systemMsgs = messages.filter(m => m.role === 'system');
+        const nonSystemMsgs = messages.filter(m => m.role !== 'system');
+        const fixedMsgs: typeof messages = [];
+        for (const msg of nonSystemMsgs) {
+            if (fixedMsgs.length === 0) {
+                if (msg.role === 'user') fixedMsgs.push(msg);
+                else { fixedMsgs.push({ role: 'user', content: 'Continue.' }); fixedMsgs.push(msg); }
+            } else {
+                const last = fixedMsgs[fixedMsgs.length - 1];
+                if (last.role === msg.role) last.content += '\n\n' + msg.content;
+                else fixedMsgs.push(msg);
+            }
+        }
+        requestBody = {
+            model: modelConfig.modelId,
+            messages: [...systemMsgs, ...fixedMsgs],
+            stream: true,
+            temperature: 0.7,
+            ...modelConfig.provider.defaultPayload,
+        };
+    } else {
+        headers = buildRequestHeaders(modelConfig.provider);
+        if (providerName === 'openrouter') {
+            headers['HTTP-Referer'] = 'https://auroracraft.local';
+            headers['X-Title'] = 'AuroraCraft';
+        }
+        url = buildRequestUrl(modelConfig.provider);
+        requestBody = {
+            model: modelConfig.modelId,
+            messages,
+            stream: true,
+            temperature: 0.7,
+            // OpenRouter-specific routing options
+            ...(providerName === 'openrouter' ? {
+                provider: {
+                    allow_fallbacks: true,
+                    sort: 'throughput',
+                },
+            } : {}),
+            ...modelConfig.provider.defaultPayload,
+        };
+    }
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) throw new Error(await response.text());
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No body');
+
+    const decoder = new TextDecoder();
+    let fullResponse = '';
+    let isHiddenMode = false;
+    let hasLog = false;
+
+    // Streaming Loop
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n').filter(l => l.trim() !== '');
+
+        for (const line of lines) {
+            if (line.startsWith('data: ')) {
+                const data = line.slice(6);
+                if (data === '[DONE]') continue;
+                try {
+                    const parsed = JSON.parse(data);
+                    let content = '';
+                    if (providerName === 'google') content = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                    else content = parsed.choices?.[0]?.delta?.content || '';
+
+                    if (content) {
+                        const prevLen = fullResponse.length;
+                        fullResponse += content;
+
+                        // Check for Action Block Start
+                        if (!isHiddenMode) {
+                            // We use a loose check for '```action' to catch it early
+                            const actionIndex = fullResponse.indexOf('```action');
+
+                            if (actionIndex !== -1) {
+                                isHiddenMode = true;
+
+                                // If there is text BEFORE the action block in this chunk, write it.
+                                // The part of fullResponse before prevLen was already written.
+                                // We need to write from prevLen to actionIndex.
+                                if (actionIndex > prevLen) {
+                                    const safeChunk = fullResponse.slice(prevLen, actionIndex);
+                                    if (safeChunk) {
+                                        res.write(`data: ${JSON.stringify({ content: safeChunk })}\n\n`);
+                                    }
+                                }
+                            } else {
+                                // No action detected, write full content
+                                res.write(`data: ${JSON.stringify({ content })}\n\n`);
+                            }
+                        }
+
+                        // Status Notification Logic (Run regardless of whether we just switched mode)
+                        if (isHiddenMode) {
+                            const headerPattern = /```action:(CREATE_FILE|UPDATE_FILE|DELETE_FILE|RENAME_FILE)\s*\npath:\s*(.+?)(?:\n|$)/g;
+                            let match;
+                            while ((match = headerPattern.exec(fullResponse)) !== null) {
+                                const key = `${match[1]}:${match[2].trim()}`;
+                                if (!notifiedActions.has(key)) {
+                                    notifiedActions.add(key);
+                                    const verb = match[1] === 'CREATE_FILE' ? 'Creating' : match[1] === 'UPDATE_FILE' ? 'Updating' : 'Processing';
+                                    res.write(`data: ${JSON.stringify({ type: 'agent_log', message: `${verb} ${match[2].trim()}...` })}\n\n`);
+                                    hasLog = true;
+                                }
+                            }
+                        }
+                    }
+                } catch { }
+            }
+        }
+    }
+
+    // Input chars calculation (approx)
+    const inputChars = JSON.stringify(requestBody).length;
+
+    return {
+        fullResponse,
+        inputChars,
+        outputChars: fullResponse.length,
+        hasLog
+    };
 }
 
 

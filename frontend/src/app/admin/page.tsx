@@ -49,6 +49,17 @@ export default function AdminPage() {
     const [showAddTokensModal, setShowAddTokensModal] = useState<string | null>(null);
     const [editingProvider, setEditingProvider] = useState<any>(null);
     const [editingModel, setEditingModel] = useState<any>(null);
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => { },
+    });
 
     useEffect(() => {
         checkAuth().then(() => {
@@ -161,16 +172,6 @@ export default function AdminPage() {
         }
     };
 
-    const handleDeleteProvider = async (providerId: string) => {
-        if (!confirm('Delete this provider and all its models?')) return;
-        try {
-            await api.deleteProvider(providerId);
-            setProviders((prev) => prev.filter((p) => p.id !== providerId));
-            toast.success('Provider deleted');
-        } catch (error: any) {
-            toast.error(error.message || 'Failed to delete provider');
-        }
-    };
 
     const handleToggleModel = async (modelId: string, providerId: string, isEnabled: boolean) => {
         try {
@@ -187,19 +188,27 @@ export default function AdminPage() {
         }
     };
 
-    const handleDeleteModel = async (modelId: string, providerId: string) => {
-        if (!confirm('Delete this model?')) return;
-        try {
-            await api.deleteModel(modelId);
-            setProviderModels((prev) => ({
-                ...prev,
-                [providerId]: prev[providerId].filter((m) => m.id !== modelId),
-            }));
-            toast.success('Model deleted');
-        } catch (error: any) {
-            toast.error(error.message || 'Failed to delete model');
-        }
+    const handleDeleteModel = (modelId: string, providerId: string) => {
+        setConfirmModal({
+            isOpen: true,
+            title: 'Delete Model',
+            message: 'Are you sure you want to delete this model? This cannot be undone.',
+            onConfirm: async () => {
+                try {
+                    await api.deleteModel(modelId);
+                    setProviderModels((prev) => ({
+                        ...prev,
+                        [providerId]: prev[providerId].filter((m) => m.id !== modelId),
+                    }));
+                    toast.success('Model deleted');
+                    setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+                } catch (error: any) {
+                    toast.error(error.message || 'Failed to delete model');
+                }
+            },
+        });
     };
+
 
     if (isLoading) {
         return (
@@ -245,8 +254,8 @@ export default function AdminPage() {
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === tab.id
-                                    ? 'bg-aurora-600 text-white'
-                                    : 'bg-dark-800 text-dark-400 hover:text-dark-200'
+                                ? 'bg-aurora-600 text-white'
+                                : 'bg-dark-800 text-dark-400 hover:text-dark-200'
                                 }`}
                         >
                             <tab.icon className="w-4 h-4" />
@@ -411,6 +420,7 @@ export default function AdminPage() {
                                                 handleToggleProvider(provider.id, provider.isEnabled);
                                             }}
                                             className={`btn-ghost p-2 ${provider.isEnabled ? 'text-amber-400' : 'text-emerald-400'}`}
+                                            title={provider.isEnabled ? 'Disable provider and all its models' : 'Enable provider'}
                                         >
                                             {provider.isEnabled ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                         </button>
@@ -420,17 +430,9 @@ export default function AdminPage() {
                                                 setEditingProvider(provider);
                                             }}
                                             className="btn-ghost p-2 text-aurora-400"
+                                            title="Edit provider"
                                         >
                                             <Edit2 className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleDeleteProvider(provider.id);
-                                            }}
-                                            className="btn-ghost p-2 text-red-400"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
                                         </button>
                                     </div>
                                 </div>
@@ -478,7 +480,21 @@ export default function AdminPage() {
                                                                 )}
                                                             </button>
                                                             <button
-                                                                onClick={() => handleDeleteModel(model.id, provider.id)}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setEditingModel({ ...model, providerId: provider.id });
+                                                                    setShowAddModelModal(true);
+                                                                }}
+                                                                className="btn-ghost p-1.5 text-aurora-400"
+                                                                title="Edit model"
+                                                            >
+                                                                <Edit2 className="w-4 h-4" />
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleDeleteModel(model.id, provider.id);
+                                                                }}
                                                                 className="btn-ghost p-1.5 text-red-400"
                                                             >
                                                                 <Trash2 className="w-4 h-4" />
@@ -548,21 +564,37 @@ export default function AdminPage() {
             {showAddModelModal && editingModel && (
                 <ModelModal
                     providerId={editingModel.providerId}
+                    initialData={editingModel.id ? editingModel : undefined}
                     onClose={() => {
                         setShowAddModelModal(false);
                         setEditingModel(null);
                     }}
                     onSave={async (data) => {
                         try {
-                            await api.createModel(data);
+                            if (editingModel?.id) {
+                                await api.updateModel(editingModel.id, data);
+                                toast.success('Model updated');
+                            } else {
+                                await api.createModel(data);
+                                toast.success('Model created');
+                            }
                             loadProviderModels(editingModel.providerId);
                             setShowAddModelModal(false);
                             setEditingModel(null);
-                            toast.success('Model created');
                         } catch (error: any) {
-                            toast.error(error.message || 'Failed to create model');
+                            toast.error(error.message || `Failed to ${editingModel?.id ? 'update' : 'create'} model`);
                         }
                     }}
+                />
+            )}
+
+            {/* Confirmation Modal */}
+            {confirmModal.isOpen && (
+                <ConfirmationModal
+                    title={confirmModal.title}
+                    message={confirmModal.message}
+                    onConfirm={confirmModal.onConfirm}
+                    onCancel={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
                 />
             )}
         </div>
@@ -735,24 +767,25 @@ function ProviderModal({
     );
 }
 
-// Model Modal Component
+// ModelModal Component
 function ModelModal({
     providerId,
+    initialData,
     onClose,
     onSave,
 }: {
     providerId: string;
+    initialData?: any;
     onClose: () => void;
     onSave: (data: any) => void;
 }) {
     const [formData, setFormData] = useState({
-        name: '',
-        modelId: '',
-        inputTokenCost: 0.001,
-        outputTokenCost: 0.002,
-        maxContextLength: 128000,
-        isEnabled: true,
-        isVisible: true,
+        name: initialData?.name || '',
+        modelId: initialData?.modelId || '',
+        inputTokenCost: initialData?.inputTokenCost || 0.001,
+        outputTokenCost: initialData?.outputTokenCost || 0.002,
+        isEnabled: initialData?.isEnabled ?? true,
+        isVisible: initialData?.isVisible ?? true,
         providerId,
     });
 
@@ -769,7 +802,7 @@ function ModelModal({
                 className="card w-full max-w-md max-h-[90vh] overflow-y-auto"
                 onClick={(e) => e.stopPropagation()}
             >
-                <h2 className="text-xl font-bold mb-4">Add Model</h2>
+                <h2 className="text-xl font-bold mb-4">{initialData ? 'Edit Model' : 'Add Model'}</h2>
                 <div className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-dark-300 mb-2">Display Name</label>
@@ -813,15 +846,6 @@ function ModelModal({
                             />
                         </div>
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-dark-300 mb-2">Max Context</label>
-                        <input
-                            type="number"
-                            value={formData.maxContextLength}
-                            onChange={(e) => setFormData({ ...formData, maxContextLength: parseInt(e.target.value) })}
-                            className="input"
-                        />
-                    </div>
                 </div>
                 <div className="flex gap-3 mt-6">
                     <button onClick={onClose} className="btn-secondary flex-1">
@@ -832,7 +856,47 @@ function ModelModal({
                         disabled={!formData.name || !formData.modelId}
                         className="btn-primary flex-1"
                     >
-                        Create
+                        {initialData ? 'Save' : 'Create'}
+                    </button>
+                </div>
+            </motion.div>
+        </motion.div>
+    );
+}
+
+// Confirmation Modal Component
+function ConfirmationModal({
+    title,
+    message,
+    onConfirm,
+    onCancel,
+}: {
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+}) {
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+            onClick={onCancel}
+        >
+            <motion.div
+                initial={{ scale: 0.95 }}
+                animate={{ scale: 1 }}
+                className="card w-full max-w-sm"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <h2 className="text-xl font-bold mb-2">{title}</h2>
+                <p className="text-dark-300 mb-6">{message}</p>
+                <div className="flex gap-3">
+                    <button onClick={onCancel} className="btn-secondary flex-1">
+                        Cancel
+                    </button>
+                    <button onClick={onConfirm} className="btn-primary flex-1 bg-red-500 hover:bg-red-600 border-red-500">
+                        Delete
                     </button>
                 </div>
             </motion.div>

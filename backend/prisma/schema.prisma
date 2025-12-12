@@ -103,7 +103,7 @@ model ChatMessage {
 
   // Track which model was used
   modelId String?
-  model   Model?  @relation(fields: [modelId], references: [id])
+  model   Model?  @relation(fields: [modelId], references: [id], onDelete: SetNull)
 
   @@index([sessionId])
 }
