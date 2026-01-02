@@ -15,18 +15,32 @@ import NotFound from "@/pages/not-found";
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
 
+  // Show loading spinner while checking auth - prevents flash of Landing page
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  // Unauthenticated routes
+  if (!isAuthenticated) {
+    return (
+      <Switch>
+        <Route path="/" component={Landing} />
+        <Route component={NotFound} />
+      </Switch>
+    );
+  }
+
+  // Authenticated routes
   return (
     <Switch>
-      {isLoading || !isAuthenticated ? (
-        <Route path="/" component={Landing} />
-      ) : (
-        <>
-          <Route path="/" component={Home} />
-          <Route path="/chat/:id" component={ChatPage} />
-          <Route path="/tokens" component={TokensPage} />
-          <Route path="/admin" component={AdminPage} />
-        </>
-      )}
+      <Route path="/" component={Home} />
+      <Route path="/chat/:id" component={ChatPage} />
+      <Route path="/tokens" component={TokensPage} />
+      <Route path="/admin" component={AdminPage} />
       <Route component={NotFound} />
     </Switch>
   );

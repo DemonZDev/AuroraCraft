@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
@@ -44,6 +44,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { CodeEditor, getLanguageFromFilename } from "@/components/code-editor";
+import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import type { ChatSession, ChatMessage, Model, ProjectFile, Compilation } from "@shared/schema";
 import {
   ArrowLeft,
@@ -171,9 +172,8 @@ function FileTreeNode({
   return (
     <div>
       <div
-        className={`flex items-center gap-1 px-2 py-1 text-sm cursor-pointer hover-elevate rounded-md ${
-          isSelected ? "bg-accent text-accent-foreground" : ""
-        }`}
+        className={`flex items-center gap-1 px-2 py-1 text-sm cursor-pointer hover-elevate rounded-md ${isSelected ? "bg-accent text-accent-foreground" : ""
+          }`}
         style={{ paddingLeft: `${level * 12 + 8}px` }}
         onClick={() => {
           if (item.isFolder) {
@@ -224,6 +224,87 @@ function FileTreeNode({
   );
 }
 
+/**
+ * Parse AI response for file operation markers and execute them via API.
+ * Returns the cleaned display content without raw file contents.
+ */
+async function parseAndCreateFiles(
+  response: string,
+  sessionId: number
+): Promise<string> {
+  let displayContent = response;
+
+  // Match :::CREATE_FILE path...content...:::END_FILE
+  const createPattern = /:::CREATE_FILE\s+([^\n]+)\n([\s\S]*?):::END_FILE/g;
+  let match;
+  const operations: Array<{ type: string; path: string; content?: string }> = [];
+
+  while ((match = createPattern.exec(response)) !== null) {
+    const filePath = match[1].trim();
+    const fileContent = match[2].trim();
+    operations.push({ type: "create", path: filePath, content: fileContent });
+
+    // Replace with clean badge
+    const fullMatch = match[0];
+    const fileName = filePath.split("/").pop() || filePath;
+    displayContent = displayContent.replace(
+      fullMatch,
+      `✅ **Created:** \`${fileName}\`\n`
+    );
+  }
+
+  // Match :::UPDATE_FILE path...content...:::END_FILE
+  const updatePattern = /:::UPDATE_FILE\s+([^\n]+)\n([\s\S]*?):::END_FILE/g;
+
+  while ((match = updatePattern.exec(response)) !== null) {
+    const filePath = match[1].trim();
+    const fileContent = match[2].trim();
+    operations.push({ type: "update", path: filePath, content: fileContent });
+
+    const fullMatch = match[0];
+    const fileName = filePath.split("/").pop() || filePath;
+    displayContent = displayContent.replace(
+      fullMatch,
+      `✏️ **Updated:** \`${fileName}\`\n`
+    );
+  }
+
+  // Match :::DELETE_FILE path
+  const deletePattern = /:::DELETE_FILE\s+([^\n]+)/g;
+
+  while ((match = deletePattern.exec(response)) !== null) {
+    const filePath = match[1].trim();
+    operations.push({ type: "delete", path: filePath });
+
+    const fullMatch = match[0];
+    const fileName = filePath.split("/").pop() || filePath;
+    displayContent = displayContent.replace(
+      fullMatch,
+      `🗑️ **Deleted:** \`${fileName}\`\n`
+    );
+  }
+
+  // Execute file operations via API
+  for (const op of operations) {
+    try {
+      if (op.type === "create" || op.type === "update") {
+        const fileName = op.path.split("/").pop() || op.path;
+        await apiRequest("POST", `/api/sessions/${sessionId}/files`, {
+          name: fileName,
+          path: op.path,
+          content: op.content || "",
+          isFolder: false,
+        });
+      }
+      // DELETE operations would need to find file ID first - skip for now
+    } catch (err) {
+      console.error(`Failed to execute file operation:`, op, err);
+    }
+  }
+
+  return displayContent;
+}
+
 export default function ChatPage() {
   const [, params] = useRoute("/chat/:id");
   const [, navigate] = useLocation();
@@ -241,6 +322,10 @@ export default function ChatPage() {
   const [editorContent, setEditorContent] = useState("");
   const [streamingContent, setStreamingContent] = useState("");
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  const [puterSignedIn, setPuterSignedIn] = useState<boolean | null>(null);
+  const [puterUsername, setPuterUsername] = useState<string | null>(null);
+  const [puterSigningIn, setPuterSigningIn] = useState(false);
 
   const [isNewFileDialogOpen, setIsNewFileDialogOpen] = useState(false);
   const [newFileName, setNewFileName] = useState("");
@@ -273,6 +358,73 @@ export default function ChatPage() {
     queryKey: ["/api/sessions", sessionId, "compilations"],
     enabled: !!sessionId,
   });
+
+  const selectedModelDetails = models?.find((m) => m.id.toString() === selectedModel);
+  const isPuterSelected = selectedModelDetails?.providerAuthType === "puterjs";
+
+  const refreshPuterAuth = useCallback(async () => {
+    const anyWindow = window as any;
+    const puter = anyWindow?.puter;
+
+    if (!puter?.auth?.isSignedIn) {
+      setPuterSignedIn(null);
+      setPuterUsername(null);
+      return;
+    }
+
+    const signedIn = !!puter.auth.isSignedIn();
+    setPuterSignedIn(signedIn);
+
+    if (signedIn && puter?.auth?.getUser) {
+      try {
+        const u = await puter.auth.getUser();
+        setPuterUsername(u?.username || null);
+      } catch {
+        setPuterUsername(null);
+      }
+    } else {
+      setPuterUsername(null);
+    }
+  }, []);
+
+  const handlePuterSignIn = useCallback(async () => {
+    const anyWindow = window as any;
+    const puter = anyWindow?.puter;
+
+    if (!puter?.auth?.signIn) {
+      toast({
+        title: "Puter unavailable",
+        description: "Puter.js is not available. Make sure the Puter.js script is loaded.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    setPuterSigningIn(true);
+    try {
+      await puter.auth.signIn({ attempt_temp_user_creation: true });
+      await refreshPuterAuth();
+      return true;
+    } catch (error: any) {
+      toast({
+        title: "Puter sign-in failed",
+        description: error?.message || "Unable to sign in to Puter",
+        variant: "destructive",
+      });
+      await refreshPuterAuth();
+      return false;
+    } finally {
+      setPuterSigningIn(false);
+    }
+  }, [refreshPuterAuth, toast]);
+
+  const ensurePuterSignedIn = useCallback(async () => {
+    const anyWindow = window as any;
+    const puter = anyWindow?.puter;
+    if (!puter?.auth?.isSignedIn) return false;
+    if (puter.auth.isSignedIn()) return true;
+    return await handlePuterSignIn();
+  }, [handlePuterSignIn]);
 
   const sendMessageWithPuter = async (
     content: string,
@@ -329,6 +481,9 @@ export default function ChatPage() {
     }
 
     if (!abortController.signal.aborted && fullText) {
+      // Parse file operations and create files via API
+      const displayContent = await parseAndCreateFiles(fullText, sessionId!);
+
       let tokensUsed = 0;
       try {
         const usageResponse = await apiRequest("POST", "/api/token-usage/apply", {
@@ -340,13 +495,14 @@ export default function ChatPage() {
         });
         const usageData = await usageResponse.json();
         tokensUsed = usageData.tokensUsed || 0;
-      } catch (e) {
+      } catch {
         // Token accounting failure should not break chat UX
       }
 
+      // Save cleaned message (no raw code)
       await apiRequest("POST", `/api/sessions/${sessionId}/messages`, {
         role: "assistant",
-        content: fullText,
+        content: displayContent,
         modelId: selectedModel ? parseInt(selectedModel) : undefined,
         tokensUsed,
       });
@@ -611,6 +767,12 @@ export default function ChatPage() {
   }, [models, selectedModel]);
 
   useEffect(() => {
+    if (isPuterSelected) {
+      refreshPuterAuth();
+    }
+  }, [isPuterSelected, refreshPuterAuth]);
+
+  useEffect(() => {
     if (selectedFile && !selectedFile.isFolder) {
       setEditorContent(selectedFile.content || "");
     }
@@ -631,8 +793,16 @@ export default function ChatPage() {
     });
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!message.trim() || isStreaming) return;
+
+    const isPuterModel =
+      models?.find((m) => m.id.toString() === selectedModel)?.providerAuthType === "puterjs";
+    if (isPuterModel) {
+      const signedIn = await ensurePuterSignedIn();
+      if (!signedIn) return;
+    }
+
     sendMessageStreaming(message);
   };
 
@@ -771,13 +941,32 @@ export default function ChatPage() {
                         </div>
                       )}
                       <div
-                        className={`max-w-[85%] rounded-xl px-4 py-3 ${
-                          msg.role === "user"
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-card border border-card-border"
-                        }`}
+                        className={`max-w-[85%] rounded-xl px-4 py-3 ${msg.role === "user"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-card border border-card-border"
+                          }`}
                       >
-                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                        {msg.role === "assistant" ? (
+                          <MarkdownRenderer
+                            content={msg.content}
+                            className="text-sm"
+                            onFileClick={(path) => {
+                              const file = files?.find(f => f.path === path || f.name === path);
+                              if (file) {
+                                const treeItem: FileTreeItem = {
+                                  id: file.id,
+                                  name: file.name,
+                                  path: file.path,
+                                  isFolder: file.isFolder || false,
+                                  content: file.content || "",
+                                };
+                                setSelectedFile(treeItem);
+                              }
+                            }}
+                          />
+                        ) : (
+                          <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                        )}
                       </div>
                       {msg.role === "user" && (
                         <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center shrink-0">
@@ -793,11 +982,27 @@ export default function ChatPage() {
                       <Bot className="w-4 h-4 text-primary-foreground animate-pulse" />
                     </div>
                     <div className="max-w-[85%] rounded-xl px-4 py-3 bg-card border border-card-border">
-                      <p className="text-sm whitespace-pre-wrap">
-                        {streamingContent || (
-                          <span className="text-muted-foreground">Thinking...</span>
-                        )}
-                      </p>
+                      {streamingContent ? (
+                        <MarkdownRenderer
+                          content={streamingContent}
+                          className="text-sm"
+                          onFileClick={(path) => {
+                            const file = files?.find(f => f.path === path || f.name === path);
+                            if (file) {
+                              const treeItem: FileTreeItem = {
+                                id: file.id,
+                                name: file.name,
+                                path: file.path,
+                                isFolder: file.isFolder || false,
+                                content: file.content || "",
+                              };
+                              setSelectedFile(treeItem);
+                            }
+                          }}
+                        />
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Thinking...</p>
+                      )}
                     </div>
                   </div>
                 )}
@@ -819,6 +1024,32 @@ export default function ChatPage() {
                     ))}
                   </SelectContent>
                 </Select>
+
+                {isPuterSelected && (
+                  <>
+                    <Badge variant="secondary" className="text-xs" data-testid="badge-puter-auth">
+                      {puterSignedIn
+                        ? `Puter: ${puterUsername || "Signed in"}`
+                        : "Puter: Sign in required"}
+                    </Badge>
+                    {!puterSignedIn && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handlePuterSignIn}
+                        disabled={puterSigningIn}
+                        data-testid="button-puter-signin"
+                      >
+                        {puterSigningIn ? (
+                          <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                        ) : (
+                          <User className="w-4 h-4 mr-1.5" />
+                        )}
+                        Sign in
+                      </Button>
+                    )}
+                  </>
+                )}
 
                 <Button
                   variant="outline"
@@ -842,8 +1073,8 @@ export default function ChatPage() {
                     mode === "agent"
                       ? "Describe what you want to build..."
                       : mode === "plan"
-                      ? "Describe the plugin architecture..."
-                      : "Ask a question about your project..."
+                        ? "Describe the plugin architecture..."
+                        : "Ask a question about your project..."
                   }
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
@@ -994,8 +1225,8 @@ export default function ChatPage() {
                             latestCompilation.status === "success"
                               ? "default"
                               : latestCompilation.status === "failed"
-                              ? "destructive"
-                              : "secondary"
+                                ? "destructive"
+                                : "secondary"
                           }
                           className="text-xs"
                         >

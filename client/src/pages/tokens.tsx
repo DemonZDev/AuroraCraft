@@ -167,7 +167,9 @@ export default function TokensPage() {
                         </p>
                       </div>
                       <Badge variant="secondary">
-                        -{usage.tokensUsed.toLocaleString()}
+                        {usage.tokensUsed > 0
+                          ? `-${usage.tokensUsed.toLocaleString()}`
+                          : usage.tokensUsed.toLocaleString()}
                       </Badge>
                     </div>
                   ))}

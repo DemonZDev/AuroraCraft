@@ -48,6 +48,13 @@ export function getSession() {
     tableName: "sessions",
   });
 
+  const cookieSecure =
+    process.env.SESSION_COOKIE_SECURE === "true"
+      ? true
+      : process.env.SESSION_COOKIE_SECURE === "false"
+        ? false
+        : false;
+
   if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
     throw new Error("SESSION_SECRET must be set in production");
   }
@@ -60,7 +67,7 @@ export function getSession() {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: cookieSecure,
       maxAge: sessionTtl,
       sameSite: "lax",
     },

@@ -147,6 +147,7 @@ export default function AdminPage() {
 function OverviewSection() {
   const { toast } = useToast();
   const [siteName, setSiteName] = useState("AuroraCraft");
+  const [compileCostTokens, setCompileCostTokens] = useState("0");
 
   const { data: settings, isLoading } = useQuery<SiteSetting[]>({
     queryKey: ["/api/admin/settings"],
@@ -165,6 +166,11 @@ function OverviewSection() {
   useEffect(() => {
     const nameSetting = settings?.find((s) => s.key === "site_name");
     if (nameSetting) setSiteName(nameSetting.value || "AuroraCraft");
+
+    const compileCostSetting = settings?.find((s) => s.key === "compile_cost_tokens");
+    if (compileCostSetting && typeof compileCostSetting.value === "string") {
+      setCompileCostTokens(compileCostSetting.value || "0");
+    }
   }, [settings]);
 
   if (isLoading) {
@@ -203,6 +209,37 @@ function OverviewSection() {
                 onClick={() => updateSetting.mutate({ key: "site_name", value: siteName })}
                 disabled={updateSetting.isPending}
                 data-testid="button-save-site-name"
+              >
+                {updateSetting.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="compile-cost-tokens">Compilation Cost (tokens)</Label>
+            <div className="flex gap-2">
+              <Input
+                id="compile-cost-tokens"
+                type="number"
+                min={0}
+                value={compileCostTokens}
+                onChange={(e) => setCompileCostTokens(e.target.value)}
+                placeholder="0"
+                data-testid="input-compile-cost-tokens"
+              />
+              <Button
+                onClick={() =>
+                  updateSetting.mutate({
+                    key: "compile_cost_tokens",
+                    value: String(parseInt(compileCostTokens || "0", 10) || 0),
+                  })
+                }
+                disabled={updateSetting.isPending}
+                data-testid="button-save-compile-cost-tokens"
               >
                 {updateSetting.isPending ? (
                   <Loader2 className="w-4 h-4 animate-spin" />

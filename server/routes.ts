@@ -10,6 +10,8 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 import archiver from "archiver";
+import fs from "fs";
+import path from "path";
 import OpenAI from "openai";
 import { buildSystemPrompt, buildEnhancePrompt, buildErrorFixPrompt } from "./prompts";
 
@@ -28,15 +30,15 @@ function computeTokenUsageFromChars(
     typeof model.inputCostPerKChar === "number" && model.inputCostPerKChar > 0
       ? model.inputCostPerKChar
       : typeof model.tokenCostPerChar === "number"
-      ? model.tokenCostPerChar
-      : 0;
+        ? model.tokenCostPerChar
+        : 0;
 
   const outputRate =
     typeof model.outputCostPerKChar === "number" && model.outputCostPerKChar > 0
       ? model.outputCostPerKChar
       : typeof model.tokenCostPerChar === "number"
-      ? model.tokenCostPerChar
-      : 0;
+        ? model.tokenCostPerChar
+        : 0;
 
   const safeInputChars = Number.isFinite(inputChars) && inputChars > 0 ? inputChars : 0;
   const safeOutputChars = Number.isFinite(outputChars) && outputChars > 0 ? outputChars : 0;
@@ -47,6 +49,159 @@ function computeTokenUsageFromChars(
     outputRate > 0 ? Math.round((safeOutputChars / 1000) * outputRate) : 0;
 
   return inputTokens + outputTokens;
+}
+
+async function writePlaceholderJar(jarPath: string, title: string): Promise<void> {
+  await fs.promises.mkdir(path.dirname(jarPath), { recursive: true });
+
+  const output = fs.createWriteStream(jarPath);
+  const archive = archiver("zip", { zlib: { level: 9 } });
+
+  const finished = new Promise<void>((resolve, reject) => {
+    output.on("close", () => resolve());
+    output.on("error", reject);
+    archive.on("error", reject);
+  });
+
+  archive.pipe(output);
+  archive.append(
+    `Manifest-Version: 1.0\nCreated-By: AuroraCraft\nImplementation-Title: ${title || "AuroraCraft Plugin"}\n\n`,
+    { name: "META-INF/MANIFEST.MF" },
+  );
+
+  await archive.finalize();
+  await finished;
+}
+
+interface FileOperation {
+  type: "create" | "update" | "delete";
+  path: string;
+  content?: string;
+}
+
+/**
+ * Parse AI response for file operation markers and execute them.
+ * Returns the cleaned display content without raw file contents.
+ */
+async function parseAndExecuteFileOperations(
+  response: string,
+  sessionId: number
+): Promise<{ displayContent: string; operations: FileOperation[] }> {
+  const operations: FileOperation[] = [];
+  let displayContent = response;
+
+  // Match :::CREATE_FILE path...content...:::END_FILE
+  const createPattern = /:::CREATE_FILE\s+([^\n]+)\n([\s\S]*?):::END_FILE/g;
+  let match;
+
+  while ((match = createPattern.exec(response)) !== null) {
+    const filePath = match[1].trim();
+    const fileContent = match[2].trim();
+
+    operations.push({
+      type: "create",
+      path: filePath,
+      content: fileContent,
+    });
+
+    // Create the file via storage
+    try {
+      const fileName = filePath.split("/").pop() || filePath;
+      await storage.createFile({
+        sessionId,
+        name: fileName,
+        path: filePath,
+        content: fileContent,
+        isFolder: false,
+      });
+    } catch (err) {
+      console.error(`Failed to create file ${filePath}:`, err);
+    }
+
+    // Replace full block with a clean badge in display
+    const fullMatch = match[0];
+    const fileName = filePath.split("/").pop() || filePath;
+    displayContent = displayContent.replace(
+      fullMatch,
+      `✅ **Created:** \`${fileName}\`\n`
+    );
+  }
+
+  // Match :::UPDATE_FILE path...content...:::END_FILE
+  const updatePattern = /:::UPDATE_FILE\s+([^\n]+)\n([\s\S]*?):::END_FILE/g;
+
+  while ((match = updatePattern.exec(response)) !== null) {
+    const filePath = match[1].trim();
+    const fileContent = match[2].trim();
+
+    operations.push({
+      type: "update",
+      path: filePath,
+      content: fileContent,
+    });
+
+    // Find and update the file
+    try {
+      const files = await storage.getFiles(sessionId);
+      const existingFile = files.find(f => f.path === filePath);
+      if (existingFile) {
+        await storage.updateFile(existingFile.id, { content: fileContent });
+      } else {
+        // Create if doesn't exist
+        const fileName = filePath.split("/").pop() || filePath;
+        await storage.createFile({
+          sessionId,
+          name: fileName,
+          path: filePath,
+          content: fileContent,
+          isFolder: false,
+        });
+      }
+    } catch (err) {
+      console.error(`Failed to update file ${filePath}:`, err);
+    }
+
+    // Replace with clean badge
+    const fullMatch = match[0];
+    const fileName = filePath.split("/").pop() || filePath;
+    displayContent = displayContent.replace(
+      fullMatch,
+      `✏️ **Updated:** \`${fileName}\`\n`
+    );
+  }
+
+  // Match :::DELETE_FILE path
+  const deletePattern = /:::DELETE_FILE\s+([^\n]+)/g;
+
+  while ((match = deletePattern.exec(response)) !== null) {
+    const filePath = match[1].trim();
+
+    operations.push({
+      type: "delete",
+      path: filePath,
+    });
+
+    // Find and delete the file
+    try {
+      const files = await storage.getFiles(sessionId);
+      const existingFile = files.find(f => f.path === filePath);
+      if (existingFile) {
+        await storage.deleteFile(existingFile.id);
+      }
+    } catch (err) {
+      console.error(`Failed to delete file ${filePath}:`, err);
+    }
+
+    // Replace with clean badge
+    const fullMatch = match[0];
+    const fileName = filePath.split("/").pop() || filePath;
+    displayContent = displayContent.replace(
+      fullMatch,
+      `🗑️ **Deleted:** \`${fileName}\`\n`
+    );
+  }
+
+  return { displayContent, operations };
 }
 
 export async function registerRoutes(
@@ -70,6 +225,45 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  app.get("/api/compilations/:id/artifact", isAuthenticated, async (req: any, res) => {
+    try {
+      const compilationId = parseInt(req.params.id);
+      if (!Number.isFinite(compilationId)) {
+        return res.status(400).json({ message: "Invalid compilation id" });
+      }
+
+      const compilation = await storage.getCompilation(compilationId);
+      if (!compilation) {
+        return res.status(404).json({ message: "Compilation not found" });
+      }
+
+      const session = await storage.getSession(compilation.sessionId!);
+      if (!session || session.userId !== req.user.id) {
+        return res.status(404).json({ message: "Compilation not found" });
+      }
+
+      if (compilation.status !== "success") {
+        return res.status(400).json({ message: "Compilation artifact is not available" });
+      }
+
+      const artifactPath = compilation.artifactPath;
+      if (!artifactPath || typeof artifactPath !== "string") {
+        return res.status(404).json({ message: "Compilation artifact is missing" });
+      }
+
+      const normalized = artifactPath.startsWith("/") ? artifactPath.slice(1) : artifactPath;
+      const artifactFsPath = path.resolve(process.cwd(), normalized);
+      if (!fs.existsSync(artifactFsPath)) {
+        return res.status(404).json({ message: "Compilation artifact file not found" });
+      }
+
+      res.download(artifactFsPath, "plugin.jar");
+    } catch (error) {
+      console.error("Error downloading artifact:", error);
+      res.status(500).json({ message: "Failed to download artifact" });
     }
   });
 
@@ -234,12 +428,14 @@ export async function registerRoutes(
       let aiResponse = "I understand you want to create a Minecraft plugin. Let me help you with that.";
       let tokensUsed = 0;
       let modelForUsage: any | undefined;
+      let isBuiltInModel = false;
 
       if (modelId) {
         const model = await storage.getModel(modelId);
         modelForUsage = model;
         if (model && model.providerId) {
           const provider = await storage.getProvider(model.providerId);
+          isBuiltInModel = isBuiltInProvider(provider);
           if (provider && provider.apiKey) {
             try {
               // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
@@ -251,7 +447,7 @@ export async function registerRoutes(
               const previousMessages = await storage.getMessages(session.id);
               const files = await storage.getFiles(session.id);
               const compilations = await storage.getCompilations(session.id);
-              
+
               const systemPrompt = buildSystemPrompt(mode, {
                 session,
                 files,
@@ -281,7 +477,7 @@ export async function registerRoutes(
         }
       }
 
-      if (modelForUsage) {
+      if (modelForUsage && !isBuiltInModel) {
         const inputChars = typeof content === "string" ? content.length : 0;
         const outputChars = aiResponse ? aiResponse.length : 0;
         tokensUsed = computeTokenUsageFromChars(modelForUsage, inputChars, outputChars);
@@ -298,7 +494,7 @@ export async function registerRoutes(
 
       // Deduct tokens from user
       const user = await storage.getUser(userId);
-      if (user && tokensUsed > 0) {
+      if (user && tokensUsed > 0 && !isBuiltInModel) {
         await storage.updateUser(userId, {
           tokenBalance: Math.max(0, (user.tokenBalance || 0) - tokensUsed),
         });
@@ -350,12 +546,14 @@ export async function registerRoutes(
       let fullResponse = "";
       let tokensUsed = 0;
       let modelForUsage: any | undefined;
+      let isBuiltInModel = false;
 
       if (modelId) {
         const model = await storage.getModel(modelId);
         modelForUsage = model;
         if (model && model.providerId) {
           const provider = await storage.getProvider(model.providerId);
+          isBuiltInModel = isBuiltInProvider(provider);
           if (provider && provider.apiKey) {
             try {
               const openai = new OpenAI({
@@ -366,7 +564,7 @@ export async function registerRoutes(
               const previousMessages = await storage.getMessages(session.id);
               const files = await storage.getFiles(session.id);
               const compilations = await storage.getCompilations(session.id);
-              
+
               const systemPrompt = buildSystemPrompt(mode, {
                 session,
                 files,
@@ -409,24 +607,35 @@ export async function registerRoutes(
         res.write(`data: ${JSON.stringify({ type: "chunk", content: fullResponse })}\n\n`);
       }
 
-      if (modelForUsage) {
+      if (modelForUsage && !isBuiltInModel) {
         const inputChars = typeof content === "string" ? content.length : 0;
         const outputChars = fullResponse ? fullResponse.length : 0;
         tokensUsed = computeTokenUsageFromChars(modelForUsage, inputChars, outputChars);
       }
 
-      // Save assistant message
+      // Parse file operations from AI response and execute them
+      const { displayContent, operations } = await parseAndExecuteFileOperations(
+        fullResponse,
+        session.id
+      );
+
+      // Log file operations for debugging
+      if (operations.length > 0) {
+        console.log(`Executed ${operations.length} file operations for session ${session.id}`);
+      }
+
+      // Save assistant message with cleaned display content (no raw code)
       const assistantMessage = await storage.createMessage({
         sessionId: session.id,
         role: "assistant",
-        content: fullResponse,
+        content: displayContent,
         modelId: modelId || null,
         tokensUsed,
       });
 
       // Deduct tokens from user
       const user = await storage.getUser(userId);
-      if (user && tokensUsed > 0) {
+      if (user && tokensUsed > 0 && !isBuiltInModel) {
         await storage.updateUser(userId, {
           tokenBalance: Math.max(0, (user.tokenBalance || 0) - tokensUsed),
         });
@@ -658,6 +867,33 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Session not found" });
       }
 
+      const userId = req.user.id;
+
+      try {
+        const compileCostSetting = await storage.getSetting("compile_cost_tokens");
+        const parsed = parseInt(compileCostSetting?.value || "0", 10);
+        const compileCost = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+
+        const user = await storage.getUser(userId);
+        if (user) {
+          if (compileCost > 0) {
+            await storage.updateUser(userId, {
+              tokenBalance: Math.max(0, (user.tokenBalance || 0) - compileCost),
+            });
+          }
+
+          await storage.createTokenUsage({
+            userId,
+            sessionId: session.id,
+            modelId: null,
+            action: "compile",
+            tokensUsed: compileCost,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to apply compilation token usage:", error);
+      }
+
       // Create compilation job
       const compilation = await storage.createCompilation({
         sessionId: session.id,
@@ -679,10 +915,23 @@ export async function registerRoutes(
               completedAt: new Date(),
             });
           } else {
+            const artifactRelativePath = path.join(
+              "artifacts",
+              String(session.id),
+              "plugin.jar",
+            );
+            const artifactFsPath = path.resolve(process.cwd(), artifactRelativePath);
+
+            try {
+              await writePlaceholderJar(artifactFsPath, session.name);
+            } catch (artifactError) {
+              console.error("Failed to write compilation artifact:", artifactError);
+            }
+
             await storage.updateCompilation(compilation.id, {
               status: "success",
               logs: "Build successful!\n[INFO] Building plugin...\n[INFO] Compiling Java sources...\n[INFO] BUILD SUCCESS",
-              artifactPath: `/artifacts/${session.id}/plugin.jar`,
+              artifactPath: artifactRelativePath,
               completedAt: new Date(),
             });
           }
@@ -899,13 +1148,19 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Model not found" });
       }
 
-      const tokensUsed = computeTokenUsageFromChars(
-        model,
-        typeof inputChars === "number" ? inputChars : 0,
-        typeof outputChars === "number" ? outputChars : 0
-      );
+      const provider = model.providerId ? await storage.getProvider(model.providerId) : null;
 
-      if (!tokensUsed || tokensUsed <= 0) {
+      const isBuiltIn = isBuiltInProvider(provider);
+
+      const tokensUsed = isBuiltIn
+        ? 0
+        : computeTokenUsageFromChars(
+          model,
+          typeof inputChars === "number" ? inputChars : 0,
+          typeof outputChars === "number" ? outputChars : 0
+        );
+
+      if (!isBuiltIn && (!tokensUsed || tokensUsed <= 0)) {
         return res.json({ tokensUsed: 0 });
       }
 
@@ -914,8 +1169,15 @@ export async function registerRoutes(
         return res.status(404).json({ message: "User not found" });
       }
 
-      const newBalance = Math.max(0, (user.tokenBalance || 0) - tokensUsed);
-      await storage.updateUser(userId, { tokenBalance: newBalance });
+      const shouldDeductBalance = !isBuiltIn;
+      const previousBalance = user.tokenBalance || 0;
+      const newBalance = shouldDeductBalance
+        ? Math.max(0, previousBalance - tokensUsed)
+        : previousBalance;
+
+      if (shouldDeductBalance && newBalance !== previousBalance) {
+        await storage.updateUser(userId, { tokenBalance: newBalance });
+      }
 
       await storage.createTokenUsage({
         userId,

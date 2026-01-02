@@ -1,0 +1,19 @@
+[Unit]
+Description=AuroraCraft
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=centos
+WorkingDirectory=/home/centos/AuroraCraft
+EnvironmentFile=/etc/auroracraft/auroracraft.env
+ExecStartPre=-/usr/bin/docker start auroracraft-postgres
+ExecStartPre=/usr/bin/bash -lc 'test -f dist/index.cjs || /usr/bin/npm run build'
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
