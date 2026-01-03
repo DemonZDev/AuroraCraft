@@ -45,6 +45,11 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { CodeEditor, getLanguageFromFilename } from "@/components/code-editor";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
+import { AgentExecutionDisplay } from "@/components/AgentExecutionDisplay";
+import { AuthRequiredModal } from "@/components/AuthRequiredModal";
+import { runAgentLoop } from "@/lib/agentOrchestrator";
+import type { AgentEvent, AgentContext } from "@/lib/agentEvents";
+import { reAuthenticatePuter } from "@/lib/puterAIWrapper";
 import type { ChatSession, ChatMessage, Model, ProjectFile, Compilation } from "@shared/schema";
 import {
   ArrowLeft,
@@ -335,6 +340,13 @@ export default function ChatPage() {
   const [fileToRename, setFileToRename] = useState<FileTreeItem | null>(null);
   const [fileToDelete, setFileToDelete] = useState<FileTreeItem | null>(null);
 
+  // Agentic execution state
+  const [isAgentExecuting, setIsAgentExecuting] = useState(false);
+  const [agentEvents, setAgentEvents] = useState<AgentEvent[]>([]);
+  const [pausedContext, setPausedContext] = useState<AgentContext | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+
   const { data: session, isLoading: sessionLoading } = useQuery<ChatSession>({
     queryKey: ["/api/sessions", sessionId],
     enabled: !!sessionId,
@@ -513,6 +525,156 @@ export default function ChatPage() {
     }
   };
 
+  /**
+   * Send message using multi-step agentic orchestration
+   * Each file operation is a separate AI request with cooldowns
+   */
+  const sendMessageWithAgentOrchestrator = async (
+    content: string,
+    model: VisibleModel | undefined,
+    abortController: AbortController,
+    resumeContext?: AgentContext
+  ) => {
+    if (!sessionId) return;
+
+    // Only persist user message if not resuming from paused context
+    if (!resumeContext) {
+      await apiRequest("POST", `/api/sessions/${sessionId}/messages`, {
+        role: "user",
+        content,
+        modelId: selectedModel ? parseInt(selectedModel) : undefined,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "messages"] });
+    }
+
+    setIsAgentExecuting(true);
+    // Keep existing events if resuming, otherwise reset
+    if (!resumeContext) {
+      setAgentEvents([]);
+    }
+
+    try {
+      const collectedEvents: AgentEvent[] = resumeContext ? [...agentEvents] : [];
+
+      const agentLoop = runAgentLoop({
+        sessionId,
+        task: content,
+        mode,
+        modelName: model?.name || "claude-sonnet-4-5-20250514",
+        maxSteps: 30,
+        minCooldownMs: 5000,
+        maxCooldownMs: 10000,
+        abortSignal: abortController.signal,
+        resumeFromContext: resumeContext,
+        onEvent: (event) => {
+          collectedEvents.push(event);
+          setAgentEvents((prev) => [...prev, event]);
+
+          // Refresh files when file operations complete
+          if (event.type === 'file_created' || event.type === 'file_updated' || event.type === 'file_deleted') {
+            queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "files"] });
+          }
+        },
+        onPause: (context) => {
+          // Persist paused context and trigger auth modal
+          setPausedContext(context);
+          setShowAuthModal(true);
+          setIsAgentExecuting(false); // Stop showing executing state
+        },
+      });
+
+      // Consume the generator
+      for await (const _event of agentLoop) {
+        if (abortController.signal.aborted) break;
+      }
+
+      // Check if we paused due to low balance
+      const pausedEvent = collectedEvents.find(e => e.type === 'paused');
+      if (pausedEvent) {
+        // Don't save summary message - task is paused
+        return;
+      }
+
+      // Save summary message at the end
+      const finalEvent = collectedEvents.find(e => e.type === 'complete');
+      if (finalEvent && finalEvent.type === 'complete') {
+        const summaryContent = `✅ **Task Complete**\n\n${finalEvent.summary}\n\n**Files created:** ${finalEvent.filesCreated.length}\n**Files updated:** ${finalEvent.filesUpdated.length}`;
+
+        await apiRequest("POST", `/api/sessions/${sessionId}/messages`, {
+          role: "assistant",
+          content: summaryContent,
+          modelId: selectedModel ? parseInt(selectedModel) : undefined,
+        });
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "messages"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "files"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+
+      // Clear paused context on successful completion
+      setPausedContext(null);
+    } catch (error: any) {
+      if (error.name !== "AbortError") {
+        toast({
+          title: "Agent Error",
+          description: error.message || "Failed during agentic execution",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      // Only stop executing if not paused
+      if (!pausedContext) {
+        setIsAgentExecuting(false);
+      }
+    }
+  };
+
+  /**
+   * Handle re-authentication after low balance
+   */
+  const handleReAuthenticate = async () => {
+    setIsAuthenticating(true);
+    try {
+      const success = await reAuthenticatePuter();
+      if (success && pausedContext) {
+        setShowAuthModal(false);
+        // Resume the agent loop from paused context
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
+        const selectedModelObj = models?.find((m) => m.id.toString() === selectedModel);
+        await sendMessageWithAgentOrchestrator(
+          pausedContext.task,
+          selectedModelObj,
+          abortController,
+          pausedContext
+        );
+      } else if (!success) {
+        toast({
+          title: "Authentication Failed",
+          description: "Could not authenticate with Puter. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Authentication Error",
+        description: error.message || "An error occurred during authentication.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
+  /**
+   * Handle cancel of re-authentication - keep paused state
+   */
+  const handleCancelReAuth = () => {
+    setShowAuthModal(false);
+    // Keep pausedContext - user can re-authenticate later via badge button
+  };
+
   const sendMessageStreaming = async (content: string) => {
     setIsStreaming(true);
     setStreamingContent("");
@@ -526,6 +688,12 @@ export default function ChatPage() {
       const isPuterModel = selectedModelObj?.providerAuthType === "puterjs";
 
       if (isPuterModel) {
+        // Use agentic orchestrator for agent mode (multi-step with cooldowns)
+        if (mode === "agent") {
+          await sendMessageWithAgentOrchestrator(content, selectedModelObj, abortController);
+          return;
+        }
+        // Use regular streaming for plan/question modes
         await sendMessageWithPuter(content, selectedModelObj, abortController);
         return;
       }
@@ -1006,6 +1174,33 @@ export default function ChatPage() {
                     </div>
                   </div>
                 )}
+                {/* Agentic execution display - shows clean file badges */}
+                {(isAgentExecuting || pausedContext) && (
+                  <div className="flex gap-3" data-testid="message-agent-executing">
+                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
+                      <Bot className={`w-4 h-4 text-primary-foreground ${isAgentExecuting ? 'animate-pulse' : ''}`} />
+                    </div>
+                    <div className="max-w-[85%] rounded-xl px-4 py-3 bg-card border border-card-border">
+                      <AgentExecutionDisplay
+                        events={agentEvents}
+                        onFileClick={(path) => {
+                          const file = files?.find(f => f.path === path || f.name === path);
+                          if (file) {
+                            const treeItem: FileTreeItem = {
+                              id: file.id,
+                              name: file.name,
+                              path: file.path,
+                              isFolder: file.isFolder || false,
+                              content: file.content || "",
+                            };
+                            setSelectedFile(treeItem);
+                          }
+                        }}
+                        onReAuthenticate={() => setShowAuthModal(true)}
+                      />
+                    </div>
+                  </div>
+                )}
                 <div ref={messagesEndRef} />
               </div>
             </ScrollArea>
@@ -1367,6 +1562,14 @@ export default function ChatPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Auth Required Modal for Low Balance */}
+      <AuthRequiredModal
+        open={showAuthModal}
+        onAuthenticate={handleReAuthenticate}
+        onCancel={handleCancelReAuth}
+        isAuthenticating={isAuthenticating}
+      />
     </div>
   );
 }
