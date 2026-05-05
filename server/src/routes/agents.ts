@@ -239,8 +239,10 @@ export async function agentRoutes(app: FastifyInstance) {
   // Send a message to an agent session
   app.post('/api/projects/:projectId/agent/sessions/:sessionId/messages', { preHandler: [authMiddleware] }, async (request, reply) => {
     const { projectId, sessionId } = request.params as { projectId: string; sessionId: string }
+    console.log('[DEBUG] Received message request body:', JSON.stringify(request.body))
     const parsed = sendMessageSchema.safeParse(request.body)
     if (!parsed.success) {
+      console.log('[DEBUG] Validation failed:', parsed.error.issues)
       return reply.status(400).send({
         message: parsed.error.issues[0].message,
         statusCode: 400,

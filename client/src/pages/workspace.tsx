@@ -779,14 +779,20 @@ function getBridgeFromModel(modelId: string): 'opencode' | 'kiro' {
   return modelId.startsWith('kiro/') ? 'kiro' : 'opencode'
 }
 
-function ChatPanel({ projectId, projectBridge, onRefreshFiles, onFileSelect }: { projectId: string; projectBridge?: 'opencode' | 'kiro'; onRefreshFiles?: () => void; onFileSelect?: (path: string) => void }) {
+function ChatPanel({ projectId, projectBridge, onRefreshFiles, onFileSelect, autoFixPayload, onAutoFixComplete }: { 
+  projectId: string
+  projectBridge?: 'opencode' | 'kiro'
+  onRefreshFiles?: () => void
+  onFileSelect?: (path: string) => void
+  autoFixPayload?: { prompt: string; model: string } | null
+  onAutoFixComplete?: () => void
+}) {
   const { sessions, isLoading: sessionsLoading, createSession } = useAgentSessions(projectId)
 
   const initialSessionId = sessions.length > 0 ? sessions[0].id : null
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
-  const [pendingMessage, setPendingMessage] = useState<string | null>(null)
+  const [pendingMessage, setPendingMessage] = useState<{ content: string; model: string } | null>(null)
   
-  // Filter models based on project's bridge setting
   const availableModels = AI_MODELS.filter(m => {
     if (!projectBridge) return true
     return projectBridge === 'kiro' ? m.id.startsWith('kiro/') : m.id.startsWith('opencode/')
@@ -798,8 +804,28 @@ function ChatPanel({ projectId, projectBridge, onRefreshFiles, onFileSelect }: {
 
   const handleSessionCreated = useCallback((id: string, message: string) => {
     setActiveSessionId(id)
-    setPendingMessage(message)
-  }, [])
+    setPendingMessage({ content: message, model: selectedModel })
+  }, [selectedModel])
+
+  const autoFixProcessedRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!autoFixPayload) return
+    const key = `${autoFixPayload.prompt}::${autoFixPayload.model}`
+    if (autoFixProcessedRef.current === key) return
+    autoFixProcessedRef.current = key
+
+    if (resolvedSessionId) {
+      setPendingMessage({ content: autoFixPayload.prompt, model: autoFixPayload.model })
+    } else {
+      const bridge = getBridgeFromModel(autoFixPayload.model)
+      createSession({ bridge }).then((session) => {
+        setActiveSessionId(session.id)
+        setPendingMessage({ content: autoFixPayload.prompt, model: autoFixPayload.model })
+      })
+    }
+    onAutoFixComplete?.()
+  }, [autoFixPayload, resolvedSessionId, createSession, onAutoFixComplete])
 
   if (sessionsLoading) {
     return (
@@ -937,7 +963,7 @@ function ChatEmptyState({ onSessionCreated, createSession, selectedModel, onMode
 function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSent, selectedModel, onModelChange, availableModels, onRefreshFiles, onFileSelect }: {
   projectId: string
   sessionId: string
-  pendingMessage?: string | null
+  pendingMessage?: { content: string; model: string } | null
   onPendingMessageSent?: () => void
   selectedModel: string
   onModelChange: (modelId: string) => void
@@ -965,6 +991,13 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
   const prevFileChangesRef = useRef(0)
   const prevCompletedOpsRef = useRef(0)
 
+  // Reset pendingSentRef when a new pendingMessage arrives
+  useEffect(() => {
+    if (pendingMessage) {
+      pendingSentRef.current = false
+    }
+  }, [pendingMessage])
+
   useEffect(() => {
     if (pendingMessage && !pendingSentRef.current && isConnected) {
       pendingSentRef.current = true
@@ -972,10 +1005,10 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
       resetStream()
       streamStartMessageCountRef.current = messages.length
       completionHandledRef.current = false
-      void sendMessage({ content: pendingMessage, model: selectedModel, bridge: getBridgeFromModel(selectedModel) }).catch(() => setAwaitingStream(false))
+      void sendMessage({ content: pendingMessage.content, model: pendingMessage.model, bridge: getBridgeFromModel(pendingMessage.model) }).catch(() => setAwaitingStream(false))
       onPendingMessageSent?.()
     }
-  }, [pendingMessage, isConnected, sendMessage, onPendingMessageSent, selectedModel, resetStream])
+  }, [pendingMessage, isConnected, sendMessage, onPendingMessageSent, resetStream, messages.length])
 
   // Fallback: send message even without SSE connection after timeout
   useEffect(() => {
@@ -987,12 +1020,12 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
         resetStream()
         streamStartMessageCountRef.current = messages.length
         completionHandledRef.current = false
-        void sendMessage({ content: pendingMessage, model: selectedModel, bridge: getBridgeFromModel(selectedModel) }).catch(() => setAwaitingStream(false))
+        void sendMessage({ content: pendingMessage.content, model: pendingMessage.model, bridge: getBridgeFromModel(pendingMessage.model) }).catch(() => setAwaitingStream(false))
         onPendingMessageSent?.()
       }
     }, 5000)
     return () => clearTimeout(timer)
-  }, [pendingMessage, sendMessage, onPendingMessageSent, selectedModel, resetStream])
+  }, [pendingMessage, sendMessage, onPendingMessageSent, resetStream])
 
   useEffect(() => {
     // Only auto-scroll for new messages, not during streaming
@@ -1443,28 +1476,58 @@ export default function WorkspacePage() {
   const [reviewResults, setReviewResults] = useState<any>(null)
   const [reviewHistoryOpen, setReviewHistoryOpen] = useState(false)
   const [reviewHistory, setReviewHistory] = useState<any[]>([])
-  const [selectedIssues, setSelectedIssues] = useState<number[]>([])
+  const [expandedReviews, setExpandedReviews] = useState<Set<string>>(new Set())
+  const [expandedIssues, setExpandedIssues] = useState<Set<string>>(new Set())
+  const [autoFixModalOpen, setAutoFixModalOpen] = useState(false)
+  const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL_ID)
+const [selectedIssues, setSelectedIssues] = useState<Array<{ reviewId: string; issueIdx: number }>>([])
+  const [autoFixPayload, setAutoFixPayload] = useState<{ prompt: string; model: string } | null>(null)
 
-  const toggleIssueSelection = (idx: number) => {
-    setSelectedIssues(prev => 
-      prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
-    )
+  const toggleIssueSelection = (reviewId: string, idx: number) => {
+    setSelectedIssues(prev => {
+      const existing = prev.find(s => s.reviewId === reviewId && s.issueIdx === idx)
+      if (existing) return prev.filter(s => !(s.reviewId === reviewId && s.issueIdx === idx))
+      return [...prev, { reviewId, issueIdx: idx }]
+    })
   }
 
-  const handleAutoFix = () => {
-    if (selectedIssues.length === 0) {
-      alert('Please select at least one issue to fix')
+const handleAutoFix = () => {
+    if (!project || selectedIssues.length === 0) {
+      if (selectedIssues.length === 0) alert('Please select at least one issue to fix')
       return
     }
-    const issues = selectedIssues.map(idx => reviewResults.issues[idx])
+    const availableModelsForBridge = AI_MODELS.filter(m => {
+      if (!project.bridge) return true
+      return project.bridge === 'kiro' ? m.id.startsWith('kiro/') : m.id.startsWith('opencode/')
+    })
+    if (availableModelsForBridge.length > 0) {
+      setSelectedModel(availableModelsForBridge[0].id)
+    }
+    setAutoFixModalOpen(true)
+  }
+
+  const confirmAutoFix = async () => {
+    const issues = selectedIssues.map(({ reviewId, issueIdx }) => {
+      const review = reviewHistory.find(r => r.id === reviewId) ?? null
+      return review?.issuesJson?.[issueIdx] ?? null
+    }).filter(Boolean)
+
+    if (issues.length === 0) {
+      return
+    }
+
     const prompt = `Fix the following code review issues:\n\n${issues.map((issue: any, i: number) => 
       `${i + 1}. [${issue.severity}] ${issue.fileName}\n${issue.codegenInstructions}\n`
     ).join('\n')}`
-    
-    // TODO: Send to AI chat
-    alert(`Will send to AI:\n\n${prompt}`)
+
+    setAutoFixModalOpen(false)
+    setReviewHistoryOpen(false)
     setReviewResults(null)
     setSelectedIssues([])
+
+    if (isMobile) setMobileTab('chat')
+
+    setAutoFixPayload({ prompt, model: selectedModel })
   }
 
   const fetchReviewHistory = async () => {
@@ -1681,9 +1744,6 @@ export default function WorkspacePage() {
     }
   }
 
-  // Lock UI during review
-  const isUILocked = reviewing
-
   const handlePush = async () => {
     if (!commitMessage.trim()) return
     setPushing(true)
@@ -1739,7 +1799,8 @@ export default function WorkspacePage() {
       : [{ id: 'code' as const, icon: Code2, label: 'Code' }, { id: 'files' as const, icon: FolderTree, label: 'Files' }, { id: 'chat' as const, icon: MessageCircle, label: 'Chat' }]
 
     return (
-      <div className="flex h-[100dvh] flex-col bg-background">
+      <>
+        <div className="flex h-[100dvh] flex-col bg-background">
         <header className="flex h-11 shrink-0 items-center gap-3 border-b border-border bg-surface/80 backdrop-blur-sm px-3">
           <Link to="/dashboard" className="text-text-dim hover:text-text-muted">
             <ArrowLeft className="h-4 w-4" />
@@ -1847,7 +1908,14 @@ export default function WorkspacePage() {
               <MessageSquare className="h-4 w-4 text-primary" />
               <span className="text-sm font-medium text-text">AI Assistant</span>
             </div>
-            <ChatPanel projectId={project.id} projectBridge={project.bridge} onRefreshFiles={refetchFiles} onFileSelect={handleFileSelect} />
+            <ChatPanel 
+              projectId={project.id} 
+              projectBridge={project.bridge} 
+              onRefreshFiles={refetchFiles} 
+              onFileSelect={handleFileSelect}
+              autoFixPayload={autoFixPayload}
+              onAutoFixComplete={() => setAutoFixPayload(null)}
+            />
           </div>
           <div className={cn('h-full', mobileTab !== 'files' && 'hidden')}>
             <FileTreePanel files={files} filesLoading={filesLoading} refetchFiles={refetchFiles} onFileSelect={handleFileSelect} selectedFile={selectedFile} fileOps={fileOps} />
@@ -2013,33 +2081,23 @@ export default function WorkspacePage() {
                 <div className="space-y-3 mb-6">
                   {reviewResults.issues.map((issue: any, idx: number) => (
                     <div key={idx} className="rounded-lg border border-border bg-background p-4">
-                      <div className="flex items-start gap-3">
-                        <input
-                          type="checkbox"
-                          checked={selectedIssues.includes(idx)}
-                          onChange={() => toggleIssueSelection(idx)}
-                          className="mt-1"
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-start gap-2 mb-2">
-                            <span className={`rounded px-2 py-0.5 text-xs font-medium ${
-                              issue.severity === 'critical' ? 'bg-red-500/10 text-red-500' :
-                              issue.severity === 'major' ? 'bg-orange-500/10 text-orange-500' :
-                              issue.severity === 'minor' ? 'bg-yellow-500/10 text-yellow-500' :
-                              'bg-blue-500/10 text-blue-500'
-                            }`}>
-                              {issue.severity}
-                            </span>
-                            <span className="text-xs text-text-muted">{issue.fileName}</span>
-                          </div>
-                          <p className="text-sm text-text mb-2">{issue.codegenInstructions}</p>
-                          {issue.suggestions && issue.suggestions.length > 0 && (
-                            <div className="text-xs text-text-dim">
-                              Suggestions: {issue.suggestions.join(', ')}
-                            </div>
-                          )}
-                        </div>
+                      <div className="flex items-start gap-2 mb-2">
+                        <span className={`rounded px-2 py-0.5 text-xs font-medium ${
+                          issue.severity === 'critical' ? 'bg-red-500/10 text-red-500' :
+                          issue.severity === 'major' ? 'bg-orange-500/10 text-orange-500' :
+                          issue.severity === 'minor' ? 'bg-yellow-500/10 text-yellow-500' :
+                          'bg-blue-500/10 text-blue-500'
+                        }`}>
+                          {issue.severity}
+                        </span>
+                        <span className="text-xs text-text-muted">{issue.fileName}</span>
                       </div>
+                      <p className="text-sm text-text mb-2 whitespace-pre-wrap break-words">{issue.codegenInstructions}</p>
+                      {issue.suggestions && issue.suggestions.length > 0 && (
+                        <div className="text-xs text-text-dim">
+                          Suggestions: {issue.suggestions.join(', ')}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -2057,7 +2115,7 @@ export default function WorkspacePage() {
                 >
                   Close
                 </button>
-                {reviewResults.status === 'passed' && reviewResults.issuesCount === 0 ? (
+                {reviewResults.status === 'passed' && reviewResults.issuesCount === 0 && (
                   <button
                     onClick={async () => {
                       setReviewResults(null)
@@ -2076,15 +2134,7 @@ export default function WorkspacePage() {
                   >
                     Push to GitHub
                   </button>
-                ) : reviewResults.issuesCount > 0 ? (
-                  <button
-                    onClick={handleAutoFix}
-                    disabled={selectedIssues.length === 0}
-                    className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
-                  >
-                    Auto Fix ({selectedIssues.length}) Issues
-                  </button>
-                ) : null}
+                )}
               </div>
             </div>
           </div>
@@ -2100,38 +2150,139 @@ export default function WorkspacePage() {
                 <p className="text-sm text-text-muted text-center py-8">No reviews yet</p>
               ) : (
                 <div className="space-y-3">
-                  {reviewHistory.map((review: any) => (
-                    <div key={review.id} className="rounded-lg border border-border bg-background p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className={`rounded px-2 py-0.5 text-xs font-medium ${
-                          review.status === 'passed' ? 'bg-success/10 text-success' :
-                          review.status === 'failed' ? 'bg-red-500/10 text-red-500' :
-                          review.status === 'superseded' ? 'bg-gray-500/10 text-gray-500' :
-                          review.status === 'pushed' ? 'bg-blue-500/10 text-blue-500' :
-                          'bg-yellow-500/10 text-yellow-500'
-                        }`}>
-                          {review.status}
-                        </span>
-                        <span className="text-xs text-text-muted">
-                          {new Date(review.createdAt).toLocaleString()}
-                        </span>
+                  {reviewHistory.map((review: any) => {
+                    const isExpanded = expandedReviews.has(review.id)
+                    
+                    return (
+                      <div key={review.id} className="rounded-lg border border-border bg-background overflow-hidden">
+                        <div className="p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className={`rounded px-2 py-0.5 text-xs font-medium ${
+                              review.status === 'passed' ? 'bg-success/10 text-success' :
+                              review.status === 'failed' ? 'bg-red-500/10 text-red-500' :
+                              review.status === 'superseded' ? 'bg-gray-500/10 text-gray-500' :
+                              review.status === 'pushed' ? 'bg-blue-500/10 text-blue-500' :
+                              'bg-yellow-500/10 text-yellow-500'
+                            }`}>
+                              {review.status}
+                            </span>
+                            <span className="text-xs text-text-muted">
+                              {new Date(review.createdAt).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm text-text">
+                              {review.issuesJson ? `${review.issuesJson.length} issue(s) found` : 'No issues'}
+                            </p>
+                            {review.issuesJson && review.issuesJson.length > 0 && (
+                              <button
+                                onClick={() => {
+                                  const newExpanded = new Set(expandedReviews)
+                                  if (isExpanded) {
+                                    newExpanded.delete(review.id)
+                                  } else {
+                                    newExpanded.add(review.id)
+                                  }
+                                  setExpandedReviews(newExpanded)
+                                }}
+                                className="flex items-center gap-1 text-xs text-primary hover:underline"
+                              >
+                                {isExpanded ? 'Hide' : 'Show'} Issues
+                                <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {isExpanded && review.issuesJson && (
+<div className="border-t border-border bg-surface/50 p-4 space-y-2">
+                              <div className="flex items-center justify-between mb-2">
+                                <button
+                                  onClick={() => {
+                                    const allSelected = review.issuesJson.every((_: any, idx: number) =>
+                                      selectedIssues.some(s => s.reviewId === review.id && s.issueIdx === idx)
+                                    )
+                                    if (allSelected) {
+                                      setSelectedIssues(prev => prev.filter(s => s.reviewId !== review.id))
+                                    } else {
+                                      setSelectedIssues(prev => {
+                                        const others = prev.filter(s => s.reviewId !== review.id)
+                                        const newSelections = review.issuesJson.map((_: any, idx: number) => ({ reviewId: review.id, issueIdx: idx }))
+                                        return [...others, ...newSelections]
+                                      })
+                                    }
+                                  }}
+                                  className="text-xs text-primary hover:underline"
+                                >
+                                  {review.issuesJson.every((_: any, idx: number) =>
+                                    selectedIssues.some(s => s.reviewId === review.id && s.issueIdx === idx)
+                                  ) ? 'Deselect All' : 'Select All'}
+                                </button>
+                              </div>
+                              
+                              {review.issuesJson.map((issue: any, idx: number) => {
+                                const issueId = `${review.id}-${idx}`
+                                const isIssueExpanded = expandedIssues.has(issueId)
+                                const isSelected = selectedIssues.some(s => s.reviewId === review.id && s.issueIdx === idx)
+                                
+                                return (
+                                  <div key={idx} className="rounded-lg border border-border bg-background overflow-hidden">
+                                    <div className="p-3 flex items-center gap-3">
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={() => toggleIssueSelection(review.id, idx)}
+                                        className="shrink-0"
+                                      />
+                                    <button
+                                      onClick={() => {
+                                        const newExpanded = new Set(expandedIssues)
+                                        if (isIssueExpanded) {
+                                          newExpanded.delete(issueId)
+                                        } else {
+                                          newExpanded.add(issueId)
+                                        }
+                                        setExpandedIssues(newExpanded)
+                                      }}
+                                      className="flex-1 flex items-center justify-between hover:bg-surface/50 transition-colors"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <span className={`rounded px-2 py-0.5 text-xs font-medium ${
+                                          issue.severity === 'critical' ? 'bg-red-500/10 text-red-500' :
+                                          issue.severity === 'major' ? 'bg-orange-500/10 text-orange-500' :
+                                          issue.severity === 'minor' ? 'bg-yellow-500/10 text-yellow-500' :
+                                          'bg-blue-500/10 text-blue-500'
+                                        }`}>
+                                          {issue.severity}
+                                        </span>
+                                        <span className="text-xs text-text-muted truncate max-w-[200px]">{issue.fileName}</span>
+                                      </div>
+                                      <ChevronDown className={`h-4 w-4 text-text-muted transition-transform ${isIssueExpanded ? 'rotate-180' : ''}`} />
+                                    </button>
+                                  </div>
+                                  
+                                  {isIssueExpanded && (
+                                    <div className="border-t border-border p-3 bg-surface/30">
+                                      <p className="text-sm text-text whitespace-pre-wrap break-words">{issue.codegenInstructions}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                            
+                            {selectedIssues.length > 0 && (
+                              <button
+                                onClick={handleAutoFix}
+                                className="w-full mt-3 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                              >
+                                Auto Fix ({selectedIssues.length}) Issue{selectedIssues.length !== 1 ? 's' : ''}
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <p className="text-sm text-text">
-                        {review.issuesJson ? `${review.issuesJson.length} issue(s) found` : 'No issues'}
-                      </p>
-                      {review.status !== 'superseded' && review.status !== 'pushed' && review.issuesJson && (
-                        <button
-                          onClick={() => {
-                            setReviewResults({ issues: review.issuesJson, issuesCount: review.issuesJson.length, status: review.status, reviewId: review.id })
-                            setReviewHistoryOpen(false)
-                          }}
-                          className="mt-2 text-xs text-primary hover:underline"
-                        >
-                          View Details
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
 
@@ -2227,6 +2378,51 @@ export default function WorkspacePage() {
           </div>
         )}
       </div>
+
+      {/* Auto-Fix AI Model Selection Modal */}
+      {autoFixModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onClick={() => setAutoFixModalOpen(false)}>
+          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-lg border border-border bg-surface p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold text-text mb-2">Select AI Model</h2>
+            <p className="text-sm text-text-muted mb-4">
+              Choose which AI model to use for fixing {selectedIssues.length} issue{selectedIssues.length !== 1 ? 's' : ''}
+            </p>
+            
+            <div className="space-y-2 mb-6">
+              {AI_MODELS.filter(m => { if (!project.bridge) return true; const prefix = project.bridge === 'kiro' ? 'kiro/' : 'opencode/'; return m.id.startsWith(prefix) }).map((model) => (
+                <button
+                  key={model.id}
+                  onClick={() => setSelectedModel(model.id)}
+                  className={`w-full rounded-lg border p-3 text-left transition-colors ${
+                    selectedModel === model.id
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border bg-background hover:bg-surface'
+                  }`}
+                >
+                  <div className="font-medium text-sm text-text">{model.name}</div>
+                  <div className="text-xs text-text-muted mt-1">{model.description}</div>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setAutoFixModalOpen(false)}
+                className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmAutoFix}
+                className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+              >
+                Start Fixing
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
     )
   }
 
@@ -2337,7 +2533,14 @@ export default function WorkspacePage() {
                 <MessageSquare className="h-4 w-4 text-primary" />
                 <span className="text-sm font-medium text-text">AI Assistant</span>
               </div>
-              <ChatPanel projectId={project.id} projectBridge={project.bridge} onRefreshFiles={refetchFiles} onFileSelect={handleFileSelect} />
+              <ChatPanel 
+              projectId={project.id} 
+              projectBridge={project.bridge} 
+              onRefreshFiles={refetchFiles} 
+              onFileSelect={handleFileSelect}
+              autoFixPayload={autoFixPayload}
+              onAutoFixComplete={() => setAutoFixPayload(null)}
+            />
             </aside>
 
             <aside className="w-56 shrink-0 overflow-hidden border-r border-border">
@@ -2363,7 +2566,14 @@ export default function WorkspacePage() {
                 <MessageSquare className="h-4 w-4 text-primary" />
                 <span className="text-sm font-medium text-text">AI Assistant</span>
               </div>
-              <ChatPanel projectId={project.id} projectBridge={project.bridge} onRefreshFiles={refetchFiles} onFileSelect={handleFileSelect} />
+              <ChatPanel 
+              projectId={project.id} 
+              projectBridge={project.bridge} 
+              onRefreshFiles={refetchFiles} 
+              onFileSelect={handleFileSelect}
+              autoFixPayload={autoFixPayload}
+              onAutoFixComplete={() => setAutoFixPayload(null)}
+            />
             </aside>
           </>
         )}
@@ -2512,28 +2722,23 @@ export default function WorkspacePage() {
               <div className="space-y-3 mb-6">
                 {reviewResults.issues.map((issue: any, idx: number) => (
                   <div key={idx} className="rounded-lg border border-border bg-background p-4">
-                    <div className="flex items-start gap-3">
-                      <input type="checkbox" checked={selectedIssues.includes(idx)} onChange={() => toggleIssueSelection(idx)} className="mt-1" />
-                      <div className="flex-1">
-                        <div className="flex items-start gap-2 mb-2">
-                          <span className={`rounded px-2 py-0.5 text-xs font-medium ${
-                            issue.severity === 'critical' ? 'bg-red-500/10 text-red-500' :
-                            issue.severity === 'major' ? 'bg-orange-500/10 text-orange-500' :
-                            issue.severity === 'minor' ? 'bg-yellow-500/10 text-yellow-500' :
-                            'bg-blue-500/10 text-blue-500'
-                          }`}>
-                            {issue.severity}
-                          </span>
-                          <span className="text-xs text-text-muted">{issue.fileName}</span>
-                        </div>
-                        <p className="text-sm text-text mb-2">{issue.codegenInstructions}</p>
-                        {issue.suggestions && issue.suggestions.length > 0 && (
-                          <div className="text-xs text-text-dim">
-                            Suggestions: {issue.suggestions.join(', ')}
-                          </div>
-                        )}
-                      </div>
+                    <div className="flex items-start gap-2 mb-2">
+                      <span className={`rounded px-2 py-0.5 text-xs font-medium ${
+                        issue.severity === 'critical' ? 'bg-red-500/10 text-red-500' :
+                        issue.severity === 'major' ? 'bg-orange-500/10 text-orange-500' :
+                        issue.severity === 'minor' ? 'bg-yellow-500/10 text-yellow-500' :
+                        'bg-blue-500/10 text-blue-500'
+                      }`}>
+                        {issue.severity}
+                      </span>
+                      <span className="text-xs text-text-muted">{issue.fileName}</span>
                     </div>
+                    <p className="text-sm text-text mb-2 whitespace-pre-wrap break-words">{issue.codegenInstructions}</p>
+                    {issue.suggestions && issue.suggestions.length > 0 && (
+                      <div className="text-xs text-text-dim">
+                        Suggestions: {issue.suggestions.join(', ')}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -2545,7 +2750,7 @@ export default function WorkspacePage() {
               <button onClick={() => { setReviewResults(null); setSelectedIssues([]); }} className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
                 Close
               </button>
-              {reviewResults.status === 'passed' && reviewResults.issuesCount === 0 ? (
+              {reviewResults.status === 'passed' && reviewResults.issuesCount === 0 && (
                 <button
                   onClick={async () => {
                     setReviewResults(null)
@@ -2563,11 +2768,7 @@ export default function WorkspacePage() {
                 >
                   Push to GitHub
                 </button>
-              ) : reviewResults.issuesCount > 0 ? (
-                <button onClick={handleAutoFix} disabled={selectedIssues.length === 0} className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50">
-                  Auto Fix ({selectedIssues.length}) Issues
-                </button>
-              ) : null}
+              )}
             </div>
           </div>
         </div>
@@ -2583,38 +2784,139 @@ export default function WorkspacePage() {
               <p className="text-sm text-text-muted text-center py-8">No reviews yet</p>
             ) : (
               <div className="space-y-3">
-                {reviewHistory.map((review: any) => (
-                  <div key={review.id} className="rounded-lg border border-border bg-background p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={`rounded px-2 py-0.5 text-xs font-medium ${
-                        review.status === 'passed' ? 'bg-success/10 text-success' :
-                        review.status === 'failed' ? 'bg-red-500/10 text-red-500' :
-                        review.status === 'superseded' ? 'bg-gray-500/10 text-gray-500' :
-                        review.status === 'pushed' ? 'bg-blue-500/10 text-blue-500' :
-                        'bg-yellow-500/10 text-yellow-500'
-                      }`}>
-                        {review.status}
-                      </span>
-                      <span className="text-xs text-text-muted">
-                        {new Date(review.createdAt).toLocaleString()}
-                      </span>
+                {reviewHistory.map((review: any) => {
+                  const isExpanded = expandedReviews.has(review.id)
+                  
+                  return (
+                    <div key={review.id} className="rounded-lg border border-border bg-background overflow-hidden">
+                      <div className="p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className={`rounded px-2 py-0.5 text-xs font-medium ${
+                            review.status === 'passed' ? 'bg-success/10 text-success' :
+                            review.status === 'failed' ? 'bg-red-500/10 text-red-500' :
+                            review.status === 'superseded' ? 'bg-gray-500/10 text-gray-500' :
+                            review.status === 'pushed' ? 'bg-blue-500/10 text-blue-500' :
+                            'bg-yellow-500/10 text-yellow-500'
+                          }`}>
+                            {review.status}
+                          </span>
+                          <span className="text-xs text-text-muted">
+                            {new Date(review.createdAt).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm text-text">
+                            {review.issuesJson ? `${review.issuesJson.length} issue(s) found` : 'No issues'}
+                          </p>
+                          {review.issuesJson && review.issuesJson.length > 0 && (
+                            <button
+                              onClick={() => {
+                                const newExpanded = new Set(expandedReviews)
+                                if (isExpanded) {
+                                  newExpanded.delete(review.id)
+                                } else {
+                                  newExpanded.add(review.id)
+                                }
+                                setExpandedReviews(newExpanded)
+                              }}
+                              className="flex items-center gap-1 text-xs text-primary hover:underline"
+                            >
+                              {isExpanded ? 'Hide' : 'Show'} Issues
+                              <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {isExpanded && review.issuesJson && (
+                        <div className="border-t border-border bg-surface/50 p-4 space-y-2">
+                          <div className="flex items-center justify-between mb-2">
+                            <button
+                              onClick={() => {
+                                const allSelected = review.issuesJson.every((_: any, idx: number) =>
+                                  selectedIssues.some(s => s.reviewId === review.id && s.issueIdx === idx)
+                                )
+                                if (allSelected) {
+                                  setSelectedIssues(prev => prev.filter(s => s.reviewId !== review.id))
+                                } else {
+                                  setSelectedIssues(prev => {
+                                    const others = prev.filter(s => s.reviewId !== review.id)
+                                    const newSelections = review.issuesJson.map((_: any, idx: number) => ({ reviewId: review.id, issueIdx: idx }))
+                                    return [...others, ...newSelections]
+                                  })
+                                }
+                              }}
+                              className="text-xs text-primary hover:underline"
+                            >
+                              {review.issuesJson.every((_: any, idx: number) =>
+                                selectedIssues.some(s => s.reviewId === review.id && s.issueIdx === idx)
+                              ) ? 'Deselect All' : 'Select All'}
+                            </button>
+                          </div>
+                          
+                          {review.issuesJson.map((issue: any, idx: number) => {
+                            const issueId = `${review.id}-${idx}`
+                            const isIssueExpanded = expandedIssues.has(issueId)
+                            const isSelected = selectedIssues.some(s => s.reviewId === review.id && s.issueIdx === idx)
+                            
+                            return (
+                              <div key={idx} className="rounded-lg border border-border bg-background overflow-hidden">
+                                <div className="p-3 flex items-center gap-3">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => toggleIssueSelection(review.id, idx)}
+                                    className="shrink-0"
+                                  />
+                                  <button
+                                    onClick={() => {
+                                      const newExpanded = new Set(expandedIssues)
+                                      if (isIssueExpanded) {
+                                        newExpanded.delete(issueId)
+                                      } else {
+                                        newExpanded.add(issueId)
+                                      }
+                                      setExpandedIssues(newExpanded)
+                                    }}
+                                    className="flex-1 flex items-center justify-between hover:bg-surface/50 transition-colors"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <span className={`rounded px-2 py-0.5 text-xs font-medium ${
+                                        issue.severity === 'critical' ? 'bg-red-500/10 text-red-500' :
+                                        issue.severity === 'major' ? 'bg-orange-500/10 text-orange-500' :
+                                        issue.severity === 'minor' ? 'bg-yellow-500/10 text-yellow-500' :
+                                        'bg-blue-500/10 text-blue-500'
+                                      }`}>
+                                        {issue.severity}
+                                      </span>
+                                      <span className="text-xs text-text-muted truncate max-w-[200px]">{issue.fileName}</span>
+                                    </div>
+                                    <ChevronDown className={`h-4 w-4 text-text-muted transition-transform ${isIssueExpanded ? 'rotate-180' : ''}`} />
+                                  </button>
+                                </div>
+                                
+                                {isIssueExpanded && (
+                                  <div className="border-t border-border p-3 bg-surface/30">
+                                    <p className="text-sm text-text whitespace-pre-wrap break-words">{issue.codegenInstructions}</p>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                          
+                          {selectedIssues.length > 0 && (
+                            <button
+                              onClick={handleAutoFix}
+                              className="w-full mt-3 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                            >
+                              Auto Fix ({selectedIssues.length}) Issue{selectedIssues.length !== 1 ? 's' : ''}
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <p className="text-sm text-text">
-                      {review.issuesJson ? `${review.issuesJson.length} issue(s) found` : 'No issues'}
-                    </p>
-                    {review.status !== 'superseded' && review.status !== 'pushed' && review.issuesJson && (
-                      <button
-                        onClick={() => {
-                          setReviewResults({ issues: review.issuesJson, issuesCount: review.issuesJson.length, status: review.status, reviewId: review.id })
-                          setReviewHistoryOpen(false)
-                        }}
-                        className="mt-2 text-xs text-primary hover:underline"
-                      >
-                        View Details
-                      </button>
-                    )}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
 
@@ -2701,6 +3003,50 @@ export default function WorkspacePage() {
                 className="flex-1 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600"
               >
                 Disconnect
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Auto-Fix AI Model Selection Modal */}
+      {autoFixModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onClick={() => setAutoFixModalOpen(false)}>
+          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-lg border border-border bg-surface p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold text-text mb-2">Select AI Model</h2>
+            <p className="text-sm text-text-muted mb-4">
+              Choose which AI model to use for fixing {selectedIssues.length} issue{selectedIssues.length !== 1 ? 's' : ''}
+            </p>
+            
+            <div className="space-y-2 mb-6">
+              {AI_MODELS.filter(m => { if (!project.bridge) return true; const prefix = project.bridge === 'kiro' ? 'kiro/' : 'opencode/'; return m.id.startsWith(prefix) }).map((model) => (
+                <button
+                  key={model.id}
+                  onClick={() => setSelectedModel(model.id)}
+                  className={`w-full rounded-lg border p-3 text-left transition-colors ${
+                    selectedModel === model.id
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border bg-background hover:bg-surface'
+                  }`}
+                >
+                  <div className="font-medium text-sm text-text">{model.name}</div>
+                  <div className="text-xs text-text-muted mt-1">{model.description}</div>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setAutoFixModalOpen(false)}
+                className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmAutoFix}
+                className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+              >
+                Start Fixing
               </button>
             </div>
           </div>

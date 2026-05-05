@@ -12,12 +12,12 @@ export function useAdminStats() {
 }
 
 export function useAdminUsers() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['admin', 'users'],
     queryFn: () => api.get<User[]>('/admin/users'),
   })
 
-  return { users: data ?? [], isLoading }
+  return { users: data ?? [], isLoading, refetch }
 }
 
 export function useAdminProjects() {
