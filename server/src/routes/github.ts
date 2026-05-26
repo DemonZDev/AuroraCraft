@@ -134,7 +134,8 @@ export async function githubRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' })
     }
 
-    const projectDir = project.linkId ? `/home/auroracraft-${request.user!.username}/${project.linkId}` : null
+    const systemUser = `auroracraft-${request.user!.username}`
+    const projectDir = project.linkId ? `/home/${systemUser}/${project.linkId}` : null
     if (!projectDir) {
       return reply.status(404).send({ error: 'Project directory not found' })
     }
@@ -144,31 +145,36 @@ export async function githubRoutes(app: FastifyInstance) {
       const { promisify } = await import('util')
       const execAsync = promisify(exec)
       
+      const git = async (cmd: string) => {
+        const { stdout } = await execAsync(`runuser -u ${systemUser} -- git -C "${projectDir}" ${cmd}`)
+        return stdout
+      }
+
       // Check if git repo exists
       try {
-        await execAsync('git rev-parse --git-dir', { cwd: projectDir })
+        await git('rev-parse --git-dir')
       } catch {
         // Initialize git if not exists
-        await execAsync('git init', { cwd: projectDir })
-        await execAsync('git checkout -b main', { cwd: projectDir })
+        await execAsync(`runuser -u ${systemUser} -- git -C "${projectDir}" init`)
+        await execAsync(`runuser -u ${systemUser} -- git -C "${projectDir}" checkout -b main`)
         return { branches: ['main'], currentBranch: 'main', needsRemote: true }
       }
       
       // Check if remote exists
       let hasRemote = false
       try {
-        const { stdout: remoteUrl } = await execAsync('git config --get remote.origin.url', { cwd: projectDir })
+        const remoteUrl = await git('config --get remote.origin.url')
         hasRemote = !!remoteUrl.trim()
       } catch {}
       
-      const { stdout } = await execAsync('git branch -a', { cwd: projectDir })
+      const stdout = await git('branch -a')
       const branches = stdout
         .split('\n')
         .map(b => b.trim().replace(/^\*\s+/, '').replace(/^remotes\/origin\//, ''))
         .filter(b => b && b !== 'HEAD' && !b.includes('->'))
         .filter((b, i, arr) => arr.indexOf(b) === i)
       
-      const { stdout: currentBranch } = await execAsync('git rev-parse --abbrev-ref HEAD', { cwd: projectDir })
+      const currentBranch = await git('rev-parse --abbrev-ref HEAD')
       
       return { 
         branches: branches.length > 0 ? branches : ['main'], 
@@ -192,7 +198,8 @@ export async function githubRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' })
     }
 
-    const projectDir = project.linkId ? `/home/auroracraft-${request.user!.username}/${project.linkId}` : null
+    const systemUser = `auroracraft-${request.user!.username}`
+    const projectDir = project.linkId ? `/home/${systemUser}/${project.linkId}` : null
     if (!projectDir) {
       return reply.status(404).send({ error: 'Project directory not found' })
     }
@@ -204,11 +211,11 @@ export async function githubRoutes(app: FastifyInstance) {
 
       // Remove existing remote if any
       try {
-        await execAsync('git remote remove origin', { cwd: projectDir })
+        await execAsync(`runuser -u ${systemUser} -- git -C "${projectDir}" remote remove origin`)
       } catch {}
 
       // Add new remote
-      await execAsync(`git remote add origin "${repoUrl}"`, { cwd: projectDir })
+      await execAsync(`runuser -u ${systemUser} -- git -C "${projectDir}" remote add origin '${repoUrl}'`)
 
       return { success: true }
     } catch (err) {
@@ -238,7 +245,8 @@ export async function githubRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'GitHub account not connected' })
     }
 
-    const projectDir = project.linkId ? `/home/auroracraft-${request.user!.username}/${project.linkId}` : null
+    const systemUser = `auroracraft-${request.user!.username}`
+    const projectDir = project.linkId ? `/home/${systemUser}/${project.linkId}` : null
     if (!projectDir) {
       return reply.status(404).send({ error: 'Project directory not found' })
     }
@@ -248,25 +256,29 @@ export async function githubRoutes(app: FastifyInstance) {
       const { promisify } = await import('util')
       const execAsync = promisify(exec)
 
+      const git = async (cmd: string) => {
+        await execAsync(`runuser -u ${systemUser} -- git -C "${projectDir}" ${cmd}`)
+      }
+
       // Configure git credentials
-      await execAsync(`git config credential.helper store`, { cwd: projectDir })
+      await git('config credential.helper store')
       
       // Get remote URL and inject token
-      const { stdout: remoteUrl } = await execAsync('git config --get remote.origin.url', { cwd: projectDir })
+      const { stdout: remoteUrl } = await execAsync(`runuser -u ${systemUser} -- git -C "${projectDir}" config --get remote.origin.url`)
       const url = remoteUrl.trim()
       
       if (url.includes('github.com')) {
         const tokenUrl = url.replace('https://github.com/', `https://oauth2:${user.githubAccessToken}@github.com/`)
-        await execAsync(`git remote set-url origin "${tokenUrl}"`, { cwd: projectDir })
+        await git(`remote set-url origin '${tokenUrl}'`)
       }
 
       // Git add, commit, push
-      await execAsync('git add .', { cwd: projectDir })
-      await execAsync(`git commit -m "${message.replace(/"/g, '\\"')}" || true`, { cwd: projectDir })
-      await execAsync(`git push origin ${branch}${force ? ' --force' : ''}`, { cwd: projectDir })
+      await git('add .')
+      await execAsync(`runuser -u ${systemUser} -- sh -c 'git -C "${projectDir}" commit -m "${message.replace(/"/g, '\\"')}" || true'`)
+      await git(`push origin '${branch}'${force ? ' --force' : ''}`)
 
       // Reset URL to remove token
-      await execAsync(`git remote set-url origin "${url}"`, { cwd: projectDir })
+      await git(`remote set-url origin '${url}'`)
 
       return { success: true }
     } catch (err) {
@@ -286,7 +298,8 @@ export async function githubRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' })
     }
 
-    const projectDir = project.linkId ? `/home/auroracraft-${request.user!.username}/${project.linkId}` : null
+    const systemUser = `auroracraft-${request.user!.username}`
+    const projectDir = project.linkId ? `/home/${systemUser}/${project.linkId}` : null
     if (!projectDir) {
       return reply.status(404).send({ error: 'Project directory not found' })
     }
@@ -295,10 +308,9 @@ export async function githubRoutes(app: FastifyInstance) {
       const { exec } = await import('child_process')
       const { promisify } = await import('util')
       const execAsync = promisify(exec)
-      const { rm, mkdir } = await import('fs/promises')
 
       // Get remote URL before deleting
-      const { stdout: remoteUrl } = await execAsync('git config --get remote.origin.url', { cwd: projectDir })
+      const { stdout: remoteUrl } = await execAsync(`runuser -u ${systemUser} -- git -C "${projectDir}" config --get remote.origin.url`)
       const repoUrl = remoteUrl.trim()
 
       if (!repoUrl) {
@@ -319,17 +331,17 @@ export async function githubRoutes(app: FastifyInstance) {
         }
       }
 
-      // Delete all files
-      await rm(projectDir, { recursive: true, force: true })
-      await mkdir(projectDir, { recursive: true })
+      // Delete all files as project owner
+      await execAsync(`runuser -u ${systemUser} -- rm -rf "${projectDir}"/* "${projectDir}"/.[!.]* 2>/dev/null || true`)
+      await execAsync(`runuser -u ${systemUser} -- mkdir -p "${projectDir}"`)
 
-      // Clone fresh
-      const branchFlag = branch ? ` -b "${branch}"` : ''
-      await execAsync(`git clone${branchFlag} "${cloneUrl}" "${projectDir}"`)
+      // Clone fresh as project owner
+      const branchFlag = branch ? ` -b '${branch}'` : ''
+      await execAsync(`runuser -u ${systemUser} -- git clone${branchFlag} '${cloneUrl}' "${projectDir}"`)
 
       // Checkout specific commit if provided
       if (commit) {
-        await execAsync(`git checkout "${commit}"`, { cwd: projectDir })
+        await execAsync(`runuser -u ${systemUser} -- git -C "${projectDir}" checkout '${commit}'`)
       }
 
       return { success: true }
@@ -356,10 +368,11 @@ export async function githubRoutes(app: FastifyInstance) {
       .where(eq(users.id, request.user!.id))
       .limit(1)
 
+    const systemUser = `auroracraft-${request.user!.username}`
     const githubAuth = !!user.githubAccessToken
 
     // Check filesystem remote as fallback
-    const projectDir = project.linkId ? `/home/auroracraft-${request.user!.username}/${project.linkId}` : null
+    const projectDir = project.linkId ? `/home/${systemUser}/${project.linkId}` : null
     let hasRemote = false
     let currentBranch = project.repoBranch || 'main'
     if (projectDir) {
@@ -368,11 +381,11 @@ export async function githubRoutes(app: FastifyInstance) {
         const { promisify } = await import('util')
         const execAsync = promisify(exec)
         try {
-          const { stdout } = await execAsync('git config --get remote.origin.url', { cwd: projectDir })
+          const { stdout } = await execAsync(`runuser -u ${systemUser} -- git -C "${projectDir}" config --get remote.origin.url`)
           hasRemote = !!stdout.trim()
         } catch {}
         try {
-          const { stdout } = await execAsync('git rev-parse --abbrev-ref HEAD', { cwd: projectDir })
+          const { stdout } = await execAsync(`runuser -u ${systemUser} -- git -C "${projectDir}" rev-parse --abbrev-ref HEAD`)
           currentBranch = stdout.trim() || currentBranch
         } catch {}
       } catch {}
@@ -526,7 +539,8 @@ export async function githubRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' })
     }
 
-    const projectDir = project.linkId ? `/home/auroracraft-${request.user!.username}/${project.linkId}` : null
+    const systemUser = `auroracraft-${request.user!.username}`
+    const projectDir = project.linkId ? `/home/${systemUser}/${project.linkId}` : null
     if (!projectDir) {
       return reply.status(404).send({ error: 'Project directory not found' })
     }
@@ -536,33 +550,62 @@ export async function githubRoutes(app: FastifyInstance) {
       const { promisify } = await import('util')
       const execAsync = promisify(exec)
 
+      // Ensure project directory exists as project owner
+      await execAsync(`runuser -u ${systemUser} -- mkdir -p "${projectDir}"`)
+
+      // Helper to run git as the project owner (avoids dubious ownership)
+      const git = async (cmd: string) => {
+        const { stdout, stderr } = await execAsync(`runuser -u ${systemUser} -- git -C "${projectDir}" ${cmd}`)
+        return { stdout, stderr }
+      }
+
       // Initialize git if not exists
+      let isFreshRepo = false
       try {
-        await execAsync('git rev-parse --git-dir', { cwd: projectDir })
+        await git('rev-parse --git-dir')
       } catch {
-        await execAsync('git init', { cwd: projectDir })
+        await git('init')
+        isFreshRepo = true
       }
 
       // Set git identity (required for commits)
       try {
-        await execAsync('git config user.email "auroracraft@local"', { cwd: projectDir })
-        await execAsync('git config user.name "AuroraCraft"', { cwd: projectDir })
+        await git('config user.email "auroracraft@local"')
+        await git('config user.name "AuroraCraft"')
       } catch {}
 
       // Remove existing remote if any
-      try { await execAsync('git remote remove origin', { cwd: projectDir }) } catch {}
+      try { await git('remote remove origin') } catch {}
 
       // Add new remote
-      await execAsync(`git remote add origin "${repoUrl}"`, { cwd: projectDir })
+      await git(`remote add origin '${repoUrl}'`)
 
-      // Ensure branch exists locally
+      // Check if repo has any commits
+      let hasCommits = false
       try {
-        await execAsync(`git checkout -b "${branch}"`, { cwd: projectDir })
+        await git('rev-parse HEAD')
+        hasCommits = true
       } catch {
-        // Branch may already exist
+        hasCommits = false
+      }
+
+      if (hasCommits) {
+        // Repo has commits — ensure the requested branch exists locally
+        let branchExists = false
         try {
-          await execAsync(`git checkout "${branch}"`, { cwd: projectDir })
+          await git(`show-ref --verify --quiet refs/heads/'${branch}'`)
+          branchExists = true
         } catch {}
+        
+        if (branchExists) {
+          await git(`checkout '${branch}'`)
+        } else {
+          await git(`checkout -b '${branch}'`)
+        }
+      } else {
+        // No commits yet — use symbolic-ref to set default branch name
+        // This works even when there are no commits (fresh git init or empty repo)
+        await git(`symbolic-ref HEAD refs/heads/'${branch}'`)
       }
 
       // Save to database
@@ -571,9 +614,9 @@ export async function githubRoutes(app: FastifyInstance) {
         .where(eq(projects.id, id))
 
       return { success: true, repoUrl, branch }
-    } catch (err) {
+    } catch (err: any) {
       app.log.error({ err }, 'Failed to connect project to git')
-      return reply.status(500).send({ error: 'Failed to connect repository' })
+      return reply.status(500).send({ error: `Failed to connect repository: ${err?.message || 'Unknown error'}` })
     }
   })
 
@@ -618,7 +661,8 @@ export async function githubRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' })
     }
 
-    const projectDir = project.linkId ? `/home/auroracraft-${request.user!.username}/${project.linkId}` : null
+    const systemUser = `auroracraft-${request.user!.username}`
+    const projectDir = project.linkId ? `/home/${systemUser}/${project.linkId}` : null
     if (!projectDir) {
       return reply.status(404).send({ error: 'Project directory not found' })
     }
@@ -627,7 +671,23 @@ export async function githubRoutes(app: FastifyInstance) {
       const { exec } = await import('child_process')
       const { promisify } = await import('util')
       const execAsync = promisify(exec)
-      await execAsync(`git checkout -b "${branchName}"`, { cwd: projectDir })
+      
+      // Check if repo has commits
+      let hasCommits = false
+      try {
+        await execAsync(`runuser -u ${systemUser} -- git -C "${projectDir}" rev-parse HEAD`)
+        hasCommits = true
+      } catch {
+        hasCommits = false
+      }
+
+      if (hasCommits) {
+        await execAsync(`runuser -u ${systemUser} -- git -C "${projectDir}" checkout -b '${branchName}'`)
+      } else {
+        // No commits yet — use symbolic-ref
+        await execAsync(`runuser -u ${systemUser} -- git -C "${projectDir}" symbolic-ref HEAD refs/heads/'${branchName}'`)
+      }
+      
       return { success: true, branch: branchName }
     } catch (err) {
       app.log.error({ err }, 'Failed to create branch')
