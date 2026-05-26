@@ -5,6 +5,45 @@ import { projects } from '../db/schema/projects'
 import { codeReviews } from '../db/schema/code-reviews'
 import { eq, and, desc, or } from 'drizzle-orm'
 import { authMiddleware, adminGuard } from '../middleware/auth'
+import { access, readdir, unlink, rm } from 'fs/promises'
+import { join } from 'path'
+
+async function cleanupCoderabbitCache(userHome: string) {
+  const dirs = [
+    join(userHome, '.coderabbit', 'reviews'),
+    join(userHome, '.coderabbit', 'logs'),
+  ]
+  for (const dir of dirs) {
+    try {
+      const entries = await readdir(dir, { withFileTypes: true })
+      for (const entry of entries) {
+        const entryPath = join(dir, entry.name)
+        if (entry.isDirectory()) {
+          await rm(entryPath, { recursive: true, force: true })
+        } else {
+          await unlink(entryPath)
+        }
+      }
+    } catch {
+    }
+  }
+}
+
+async function resolveCoderabbitPath(userHome: string): Promise<string | null> {
+  const systemWide = '/usr/local/bin/coderabbit'
+  const userLocal = `${userHome}/.local/bin/coderabbit`
+  try {
+    await access(systemWide)
+    return systemWide
+  } catch {
+    try {
+      await access(userLocal)
+      return userLocal
+    } catch {
+      return null
+    }
+  }
+}
 
 export default async function coderabbitRoutes(app: FastifyInstance) {
   // Admin: Initiate CodeRabbit login
@@ -38,50 +77,13 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
       await execAsync(`mkdir -p ${userHome}`)
       await execAsync(`chown -R auroracraft-${user.username}:auroracraft-${user.username} ${userHome} 2>/dev/null || true`)
 
-      // Check if CodeRabbit CLI is installed for this user
-      const coderabbitPath = `${userHome}/.local/bin/coderabbit`
-      let installed = false
-      try {
-        await execAsync(`test -f ${coderabbitPath}`)
-        installed = true
-      } catch {
-        installed = false
-      }
-
-      if (!installed) {
-        app.log.info(`Installing CodeRabbit CLI for user ${user.username}...`)
-        try {
-          const { stdout: installOut, stderr: installErr } = await execAsync(
-            `curl -fsSL https://cli.coderabbit.ai/install.sh | HOME=${userHome} sh`,
-            { timeout: 60000 }
-          )
-          app.log.info({ stdout: installOut, stderr: installErr }, 'CodeRabbit CLI install output')
-        } catch (installErr: any) {
-          const stderr = installErr?.stderr || ''
-          const stdout = installErr?.stdout || ''
-          app.log.error({ err: installErr, stderr, stdout }, 'CodeRabbit CLI install failed')
-          errors.push(`Installation failed: ${stderr || stdout || installErr.message || 'unknown error'}`)
-        }
-
-        // Verify installation
-        try {
-          await execAsync(`test -f ${coderabbitPath}`)
-          installed = true
-        } catch {
-          errors.push('Installation verification failed: binary not found at expected path')
-        }
-
-        if (installed) {
-          await execAsync(`chown -R auroracraft-${user.username}:auroracraft-${user.username} ${userHome}/.local 2>/dev/null || true`)
-          await execAsync(`chown -R auroracraft-${user.username}:auroracraft-${user.username} ${userHome}/.coderabbit 2>/dev/null || true`)
-        }
-      }
-
-      if (!installed) {
-        const msg = errors.length > 0 ? errors.join('; ') : 'CodeRabbit CLI is not installed and installation failed'
+      const coderabbitPath = await resolveCoderabbitPath(userHome)
+      if (!coderabbitPath) {
+        const msg = 'CodeRabbit CLI is not installed. Please install it system-wide via: curl -fsSL https://cli.coderabbit.ai/install.sh | CODERABBIT_INSTALL_DIR=/usr/local/bin sh'
         app.log.error(msg)
         return reply.status(500).send({ error: msg })
       }
+      app.log.info(`Using CodeRabbit CLI: ${coderabbitPath}`)
 
       // Ensure tmux server is running
       await execAsync(`tmux start-server 2>/dev/null || true`)
@@ -191,7 +193,10 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
       }
 
       // Verify authentication
-      const coderabbitPath = `${processInfo.userHome}/.local/bin/coderabbit`
+      const coderabbitPath = await resolveCoderabbitPath(processInfo.userHome)
+      if (!coderabbitPath) {
+        return reply.status(500).send({ error: 'CodeRabbit CLI not found' })
+      }
       const { stdout } = await execAsync(`${coderabbitPath} auth status --agent`, {
         env: { ...process.env, HOME: processInfo.userHome }
       })
@@ -259,7 +264,11 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
       const { promisify } = await import('util')
       const execAsync = promisify(exec)
 
-      await execAsync(`cd ${userHome} && ${userHome}/.local/bin/coderabbit auth logout`, {
+      const coderabbitPath = await resolveCoderabbitPath(userHome)
+      if (!coderabbitPath) {
+        return reply.status(500).send({ error: 'CodeRabbit CLI not found' })
+      }
+      await execAsync(`cd ${userHome} && ${coderabbitPath} auth logout`, {
         env: { ...process.env, HOME: userHome }
       })
 
@@ -351,7 +360,10 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
         .returning()
 
       // Run CodeRabbit review asynchronously — the CLI can take 60+ seconds
-      const coderabbitPath = `${userHome}/.local/bin/coderabbit`
+      const coderabbitPath = await resolveCoderabbitPath(userHome)
+      if (!coderabbitPath) {
+        return reply.status(500).send({ error: 'CodeRabbit CLI not found' })
+      }
       const typeFlag = 'uncommitted'
       const systemUser = `auroracraft-${user.username}`
 
@@ -464,6 +476,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
             .set({ status, issuesJson: [{ type: 'error', message: errorMessage, details: stderr || stdout }], resolvedAt: new Date() })
             .where(eq(codeReviews.id, review.id))
             .catch((dbErr) => app.log.error({ err: dbErr }, 'Failed to update review status'))
+          setTimeout(() => cleanupCoderabbitCache(userHome).catch(() => {}), 30000)
           return
         }
 
@@ -478,6 +491,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
           .set({ status, issuesJson: issues, resolvedAt: new Date() })
           .where(eq(codeReviews.id, review.id))
           .catch((dbErr) => app.log.error({ err: dbErr }, 'Failed to update review status'))
+        setTimeout(() => cleanupCoderabbitCache(userHome).catch(() => {}), 30000)
       })
 
       // Return immediately — review is running in the background
