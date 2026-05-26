@@ -23,6 +23,8 @@ export const projects = pgTable('projects', {
   compiler: compilerEnum('compiler').default('gradle').notNull(),
   bridge: bridgeEnum('bridge').default('opencode').notNull(),
   visibility: visibilityEnum('visibility').default('private').notNull(),
+  repoUrl: text('repo_url'),
+  repoBranch: varchar('repo_branch', { length: 255 }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })

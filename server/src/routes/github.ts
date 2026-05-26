@@ -338,4 +338,300 @@ export async function githubRoutes(app: FastifyInstance) {
       return reply.status(500).send({ error: 'Failed to reset from Git' })
     }
   })
+
+  // ── Project Git Connection Management ────────────────────────────────────
+
+  // Get project git connection status
+  app.get('/api/projects/:id/git/status', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const [project] = await db.select().from(projects).where(eq(projects.id, id)).limit(1)
+    
+    if (!project || project.userId !== request.user!.id) {
+      return reply.status(404).send({ error: 'Project not found' })
+    }
+
+    const [user] = await db
+      .select({ githubAccessToken: users.githubAccessToken, githubUsername: users.githubUsername })
+      .from(users)
+      .where(eq(users.id, request.user!.id))
+      .limit(1)
+
+    const githubAuth = !!user.githubAccessToken
+
+    // Check filesystem remote as fallback
+    const projectDir = project.linkId ? `/home/auroracraft-${request.user!.username}/${project.linkId}` : null
+    let hasRemote = false
+    let currentBranch = project.repoBranch || 'main'
+    if (projectDir) {
+      try {
+        const { exec } = await import('child_process')
+        const { promisify } = await import('util')
+        const execAsync = promisify(exec)
+        try {
+          const { stdout } = await execAsync('git config --get remote.origin.url', { cwd: projectDir })
+          hasRemote = !!stdout.trim()
+        } catch {}
+        try {
+          const { stdout } = await execAsync('git rev-parse --abbrev-ref HEAD', { cwd: projectDir })
+          currentBranch = stdout.trim() || currentBranch
+        } catch {}
+      } catch {}
+    }
+
+    return {
+      connected: !!(project.repoUrl && hasRemote),
+      repoUrl: project.repoUrl || null,
+      repoBranch: currentBranch,
+      githubAuth,
+      githubUsername: user.githubUsername || null,
+    }
+  })
+
+  // List user's GitHub repositories
+  app.get('/api/github/repos', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const [user] = await db
+      .select({ githubAccessToken: users.githubAccessToken })
+      .from(users)
+      .where(eq(users.id, request.user!.id))
+      .limit(1)
+
+    if (!user.githubAccessToken) {
+      return reply.status(401).send({ error: 'GitHub not connected' })
+    }
+
+    try {
+      const response = await fetch('https://api.github.com/user/repos?sort=updated&per_page=100', {
+        headers: {
+          Authorization: `Bearer ${user.githubAccessToken}`,
+          Accept: 'application/vnd.github.v3+json',
+        },
+      })
+
+      if (!response.ok) {
+        return reply.status(500).send({ error: 'Failed to fetch repositories' })
+      }
+
+      const repos = await response.json() as Array<{ full_name: string; name: string; html_url: string; private: boolean; default_branch: string }>
+      return {
+        repos: repos.map(r => ({
+          fullName: r.full_name,
+          name: r.name,
+          url: r.html_url,
+          cloneUrl: `https://github.com/${r.full_name}.git`,
+          isPrivate: r.private,
+          defaultBranch: r.default_branch,
+        })),
+      }
+    } catch (err) {
+      app.log.error({ err }, 'Failed to fetch GitHub repos')
+      return reply.status(500).send({ error: 'Failed to fetch repositories' })
+    }
+  })
+
+  // Get branches for a specific repository
+  app.get('/api/github/repos/branches', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { repo } = request.query as { repo?: string }
+
+    if (!repo) {
+      return reply.status(400).send({ error: 'Repository name required' })
+    }
+
+    const [user] = await db
+      .select({ githubAccessToken: users.githubAccessToken })
+      .from(users)
+      .where(eq(users.id, request.user!.id))
+      .limit(1)
+
+    if (!user.githubAccessToken) {
+      return reply.status(401).send({ error: 'GitHub not connected' })
+    }
+
+    try {
+      const response = await fetch(`https://api.github.com/repos/${repo}/branches?per_page=100`, {
+        headers: {
+          Authorization: `Bearer ${user.githubAccessToken}`,
+          Accept: 'application/vnd.github.v3+json',
+        },
+      })
+
+      if (!response.ok) {
+        return reply.status(500).send({ error: 'Failed to fetch branches' })
+      }
+
+      const branches = await response.json() as Array<{ name: string }>
+      return {
+        branches: branches.map(b => b.name),
+      }
+    } catch (err) {
+      app.log.error({ err }, 'Failed to fetch branches')
+      return reply.status(500).send({ error: 'Failed to fetch branches' })
+    }
+  })
+
+  // Create a new GitHub repository
+  app.post('/api/github/repos', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { name, description, isPrivate = true } = request.body as { name: string; description?: string; isPrivate?: boolean }
+
+    const [user] = await db
+      .select({ githubAccessToken: users.githubAccessToken })
+      .from(users)
+      .where(eq(users.id, request.user!.id))
+      .limit(1)
+
+    if (!user.githubAccessToken) {
+      return reply.status(401).send({ error: 'GitHub not connected' })
+    }
+
+    try {
+      const response = await fetch('https://api.github.com/user/repos', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${user.githubAccessToken}`,
+          Accept: 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name,
+          description: description || '',
+          private: isPrivate,
+          auto_init: true,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({})) as { message?: string }
+        return reply.status(500).send({ error: error.message || 'Failed to create repository' })
+      }
+
+      const repo = await response.json() as { full_name: string; html_url: string; default_branch: string }
+      return {
+        fullName: repo.full_name,
+        cloneUrl: `https://github.com/${repo.full_name}.git`,
+        defaultBranch: repo.default_branch,
+      }
+    } catch (err) {
+      app.log.error({ err }, 'Failed to create GitHub repo')
+      return reply.status(500).send({ error: 'Failed to create repository' })
+    }
+  })
+
+  // Connect project to a GitHub repository and branch
+  app.post('/api/projects/:id/git/connect', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { repoUrl, branch } = request.body as { repoUrl: string; branch: string }
+
+    const [project] = await db.select().from(projects).where(eq(projects.id, id)).limit(1)
+    
+    if (!project || project.userId !== request.user!.id) {
+      return reply.status(404).send({ error: 'Project not found' })
+    }
+
+    const projectDir = project.linkId ? `/home/auroracraft-${request.user!.username}/${project.linkId}` : null
+    if (!projectDir) {
+      return reply.status(404).send({ error: 'Project directory not found' })
+    }
+
+    try {
+      const { exec } = await import('child_process')
+      const { promisify } = await import('util')
+      const execAsync = promisify(exec)
+
+      // Initialize git if not exists
+      try {
+        await execAsync('git rev-parse --git-dir', { cwd: projectDir })
+      } catch {
+        await execAsync('git init', { cwd: projectDir })
+      }
+
+      // Set git identity (required for commits)
+      try {
+        await execAsync('git config user.email "auroracraft@local"', { cwd: projectDir })
+        await execAsync('git config user.name "AuroraCraft"', { cwd: projectDir })
+      } catch {}
+
+      // Remove existing remote if any
+      try { await execAsync('git remote remove origin', { cwd: projectDir }) } catch {}
+
+      // Add new remote
+      await execAsync(`git remote add origin "${repoUrl}"`, { cwd: projectDir })
+
+      // Ensure branch exists locally
+      try {
+        await execAsync(`git checkout -b "${branch}"`, { cwd: projectDir })
+      } catch {
+        // Branch may already exist
+        try {
+          await execAsync(`git checkout "${branch}"`, { cwd: projectDir })
+        } catch {}
+      }
+
+      // Save to database
+      await db.update(projects)
+        .set({ repoUrl, repoBranch: branch })
+        .where(eq(projects.id, id))
+
+      return { success: true, repoUrl, branch }
+    } catch (err) {
+      app.log.error({ err }, 'Failed to connect project to git')
+      return reply.status(500).send({ error: 'Failed to connect repository' })
+    }
+  })
+
+  // Disconnect project from git repository
+  app.post('/api/projects/:id/git/disconnect', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    const [project] = await db.select().from(projects).where(eq(projects.id, id)).limit(1)
+    
+    if (!project || project.userId !== request.user!.id) {
+      return reply.status(404).send({ error: 'Project not found' })
+    }
+
+    const projectDir = project.linkId ? `/home/auroracraft-${request.user!.username}/${project.linkId}` : null
+
+    // Remove remote from filesystem
+    if (projectDir) {
+      try {
+        const { exec } = await import('child_process')
+        const { promisify } = await import('util')
+        const execAsync = promisify(exec)
+        try { await execAsync('git remote remove origin', { cwd: projectDir }) } catch {}
+      } catch {}
+    }
+
+    // Clear from database
+    await db.update(projects)
+      .set({ repoUrl: null, repoBranch: null })
+      .where(eq(projects.id, id))
+
+    return { success: true }
+  })
+
+  // Create a new branch in the project
+  app.post('/api/projects/:id/git/branch', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { branchName } = request.body as { branchName: string }
+
+    const [project] = await db.select().from(projects).where(eq(projects.id, id)).limit(1)
+    
+    if (!project || project.userId !== request.user!.id) {
+      return reply.status(404).send({ error: 'Project not found' })
+    }
+
+    const projectDir = project.linkId ? `/home/auroracraft-${request.user!.username}/${project.linkId}` : null
+    if (!projectDir) {
+      return reply.status(404).send({ error: 'Project directory not found' })
+    }
+
+    try {
+      const { exec } = await import('child_process')
+      const { promisify } = await import('util')
+      const execAsync = promisify(exec)
+      await execAsync(`git checkout -b "${branchName}"`, { cwd: projectDir })
+      return { success: true, branch: branchName }
+    } catch (err) {
+      app.log.error({ err }, 'Failed to create branch')
+      return reply.status(500).send({ error: 'Failed to create branch' })
+    }
+  })
 }

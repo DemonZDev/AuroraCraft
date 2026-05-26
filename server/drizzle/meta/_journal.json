@@ -71,6 +71,13 @@
       "when": 1777963683866,
       "tag": "0009_next_vulture",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1779781000000,
+      "tag": "0010_git_repo",
+      "breakpoints": true
     }
   ]
 }

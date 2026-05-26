@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Loader2, CheckCircle2, XCircle, Terminal, Shield } from 'lucide-react'
+import { Loader2, CheckCircle2, XCircle, Terminal, Shield, AlertCircle } from 'lucide-react'
 import { useAdminUsers } from '@/hooks/use-admin'
 import { api } from '@/lib/api'
 import type { KiroAuthStatus } from '@/types'
@@ -124,16 +124,34 @@ export default function AdminUsersPage() {
     setError(null)
   }
 
-  const handleRevoke = async (userId: string) => {
-    if (!confirm('Revoke CodeRabbit access for this user?')) return
+  const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false)
+  const [revokeUserId, setRevokeUserId] = useState<string | null>(null)
+  const [revokeError, setRevokeError] = useState('')
+
+  const openRevokeConfirm = (userId: string) => {
+    setRevokeUserId(userId)
+    setRevokeError('')
+    setRevokeConfirmOpen(true)
+  }
+
+  const handleRevoke = async () => {
+    if (!revokeUserId) return
+    setRevokeError('')
     try {
-      await fetch(`/api/admin/users/${userId}/coderabbit/revoke`, {
+      const res = await fetch(`/api/admin/users/${revokeUserId}/coderabbit/revoke`, {
         method: 'POST',
         credentials: 'include',
       })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setRevokeError(data.error || 'Failed to revoke access')
+        return
+      }
+      setRevokeConfirmOpen(false)
+      setRevokeUserId(null)
       refetch()
     } catch (err) {
-      alert('Failed to revoke access')
+      setRevokeError('Failed to revoke access')
     }
   }
 
@@ -185,7 +203,7 @@ export default function AdminUsersPage() {
                           Enabled
                         </span>
                         <button
-                          onClick={() => handleRevoke(user.id)}
+                          onClick={() => openRevokeConfirm(user.id)}
                           className="text-xs text-red-500 hover:underline"
                         >
                           Revoke
@@ -294,6 +312,38 @@ export default function AdminUsersPage() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Revoke Confirm Modal */}
+      {revokeConfirmOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={() => setRevokeConfirmOpen(false)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-[3px]" />
+          <div className="relative w-full max-w-sm mx-4 rounded-2xl border border-destructive/20 bg-surface/90 backdrop-blur-2xl shadow-2xl p-6 text-center" onClick={(e) => e.stopPropagation()}>
+            <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-destructive/30 to-transparent" />
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-destructive/10 border border-destructive/20">
+              <Shield className="h-7 w-7 text-destructive" />
+            </div>
+            <h3 className="text-sm font-semibold text-text">Revoke CodeRabbit Access?</h3>
+            <p className="mt-1.5 text-[11px] text-text-dim leading-relaxed">This user will lose access to CodeRabbit code reviews.</p>
+            {revokeError && (
+              <div className="mt-3 flex items-center gap-1.5 rounded-lg bg-destructive/5 border border-destructive/10 px-3 py-2 text-[11px] text-destructive">
+                <AlertCircle className="h-3 w-3 shrink-0" />
+                <span>{revokeError}</span>
+              </div>
+            )}
+            <div className="mt-5 flex gap-3">
+              <button onClick={() => setRevokeConfirmOpen(false)} className="flex-1 rounded-xl border border-border/60 bg-transparent px-4 py-2.5 text-sm font-medium text-text-muted hover:bg-surface-hover hover:text-text transition-all duration-200">
+                Cancel
+              </button>
+              <button
+                onClick={handleRevoke}
+                className="flex-1 rounded-xl bg-destructive px-4 py-2.5 text-sm font-medium text-white hover:bg-destructive/90 transition-all duration-200 hover:shadow-lg hover:shadow-destructive/20"
+              >
+                Revoke
+              </button>
+            </div>
           </div>
         </div>
       )}

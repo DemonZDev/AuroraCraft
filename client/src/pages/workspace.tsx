@@ -46,6 +46,9 @@ import {
   Save,
   RotateCcw,
   Shield,
+  X,
+  Info,
+  LogOut,
 } from 'lucide-react'
 import Editor from '@monaco-editor/react'
 import { cn } from '@/lib/utils'
@@ -108,11 +111,605 @@ function MarkdownContent({ content }: { content: string }) {
   )
 }
 
+// ── Glassy Modals ────────────────────────────────────────────────────
+
+function GlassyPromptModal({ isOpen, onClose, onConfirm, title, description, placeholder, defaultValue = '', icon: Icon, confirmText = 'Confirm', confirmVariant = 'primary' }: {
+  isOpen: boolean
+  onClose: () => void
+  onConfirm: (value: string) => void
+  title: string
+  description?: string
+  placeholder?: string
+  defaultValue?: string
+  icon?: React.ComponentType<{ className?: string }>
+  confirmText?: string
+  confirmVariant?: 'primary' | 'danger'
+}) {
+  const [value, setValue] = useState(defaultValue)
+  const [error, setError] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    if (isOpen) {
+      setValue(defaultValue)
+      setError('')
+      const t = setTimeout(() => { setMounted(true); inputRef.current?.focus(); inputRef.current?.select() }, 30)
+      return () => clearTimeout(t)
+    } else {
+      setMounted(false)
+    }
+  }, [isOpen, defaultValue])
+
+  if (!isOpen) return null
+
+  const handleConfirm = () => {
+    if (!value.trim()) { setError('This field is required'); return }
+    onConfirm(value.trim())
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleConfirm()
+    if (e.key === 'Escape') onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={onClose}>
+      <div className={cn("absolute inset-0 bg-black/60 backdrop-blur-[3px] transition-opacity duration-300", mounted ? "opacity-100" : "opacity-0")} />
+      <div
+        className={cn(
+          "relative w-full max-w-md mx-4 rounded-2xl border border-border/50 bg-surface/90 backdrop-blur-2xl shadow-2xl transition-all duration-300 ease-out overflow-hidden",
+          mounted ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-[0.94] translate-y-1"
+        )}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+        <div className="p-6">
+          <div className="flex items-center gap-3 mb-5">
+            {Icon && (
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 border border-primary/20">
+                <Icon className="h-5 w-5 text-primary" />
+              </div>
+            )}
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold text-text">{title}</h3>
+              {description && <p className="text-[11px] text-text-dim mt-0.5 leading-relaxed">{description}</p>}
+            </div>
+          </div>
+          <div className="relative">
+            <input
+              ref={inputRef}
+              value={value}
+              onChange={(e) => { setValue(e.target.value); if (error) setError('') }}
+              onKeyDown={handleKeyDown}
+              placeholder={placeholder}
+              className={cn(
+                "w-full rounded-xl border bg-background/50 px-4 py-3 text-sm text-text placeholder:text-text-dim/40 focus:outline-none transition-all duration-200",
+                error
+                  ? "border-destructive/50 focus:border-destructive focus:ring-2 focus:ring-destructive/10"
+                  : "border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/10"
+              )}
+            />
+            {error && (
+              <p className="mt-2 text-xs text-destructive flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" /> {error}
+              </p>
+            )}
+          </div>
+          <div className="mt-5 flex gap-3">
+            <button onClick={onClose} className="flex-1 rounded-xl border border-border/60 bg-transparent px-4 py-2.5 text-sm font-medium text-text-muted hover:bg-surface-hover hover:text-text transition-all duration-200">
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirm}
+              className={cn(
+                "flex-1 rounded-xl px-4 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:shadow-lg",
+                confirmVariant === 'danger'
+                  ? "bg-destructive hover:bg-destructive/90 hover:shadow-destructive/20"
+                  : "bg-primary hover:bg-primary/90 hover:shadow-primary/20"
+              )}
+            >
+              {confirmText}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function GlassyConfirmModal({ isOpen, onClose, onConfirm, title, description, icon: Icon, confirmText = 'Delete', itemName, error }: {
+  isOpen: boolean
+  onClose: () => void
+  onConfirm: () => void
+  title: string
+  description?: string
+  icon?: React.ComponentType<{ className?: string }>
+  confirmText?: string
+  itemName?: string
+  error?: string
+}) {
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    if (isOpen) {
+      const t = setTimeout(() => setMounted(true), 30)
+      return () => clearTimeout(t)
+    } else {
+      setMounted(false)
+    }
+  }, [isOpen])
+
+  if (!isOpen) return null
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={onClose}>
+      <div className={cn("absolute inset-0 bg-black/60 backdrop-blur-[3px] transition-opacity duration-300", mounted ? "opacity-100" : "opacity-0")} />
+      <div
+        className={cn(
+          "relative w-full max-w-sm mx-4 rounded-2xl border border-destructive/20 bg-surface/90 backdrop-blur-2xl shadow-2xl shadow-destructive/5 transition-all duration-300 ease-out overflow-hidden text-center",
+          mounted ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-[0.94] translate-y-1"
+        )}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-destructive/30 to-transparent" />
+        <div className="p-6">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-destructive/10 border border-destructive/20">
+            {Icon ? <Icon className="h-7 w-7 text-destructive" /> : <AlertCircle className="h-7 w-7 text-destructive" />}
+          </div>
+          <h3 className="text-sm font-semibold text-text">{title}</h3>
+          {description && <p className="mt-1.5 text-[11px] text-text-dim leading-relaxed">{description}</p>}
+          {itemName && (
+            <div className="mt-3 inline-flex items-center gap-2 rounded-lg bg-background/60 px-3 py-1.5 border border-border/40">
+              <File className="h-3.5 w-3.5 text-text-dim" />
+              <code className="text-[11px] text-text-muted font-mono truncate max-w-[200px]">{itemName}</code>
+            </div>
+          )}
+          {error && (
+            <div className="mt-3 flex items-center gap-1.5 rounded-lg bg-destructive/5 border border-destructive/10 px-3 py-2 text-[11px] text-destructive">
+              <AlertCircle className="h-3 w-3 shrink-0" />
+              <span className="truncate">{error}</span>
+            </div>
+          )}
+          <div className="mt-5 flex gap-3">
+            <button onClick={onClose} className="flex-1 rounded-xl border border-border/60 bg-transparent px-4 py-2.5 text-sm font-medium text-text-muted hover:bg-surface-hover hover:text-text transition-all duration-200">
+              Cancel
+            </button>
+            <button
+              onClick={onConfirm}
+              className="flex-1 rounded-xl bg-destructive px-4 py-2.5 text-sm font-medium text-white hover:bg-destructive/90 transition-all duration-200 hover:shadow-lg hover:shadow-destructive/20"
+            >
+              {confirmText}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Glassy Toast Notification ─────────────────────────────────────────
+
+type ToastType = 'success' | 'error' | 'info'
+interface Toast { id: string; message: string; type: ToastType }
+
+function GlassyToast({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }) {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { const t = setTimeout(() => setMounted(true), 30); return () => clearTimeout(t) }, [])
+  useEffect(() => { const t = setTimeout(() => onDismiss(), 4000); return () => clearTimeout(t) }, [onDismiss])
+  const Icon = toast.type === 'success' ? CheckCircle2 : toast.type === 'error' ? AlertCircle : Info
+  const colors = toast.type === 'success'
+    ? 'border-success/20 bg-success/10 text-success'
+    : toast.type === 'error'
+    ? 'border-destructive/20 bg-destructive/10 text-destructive'
+    : 'border-primary/20 bg-primary/10 text-primary'
+  return (
+    <div className={cn(
+      "pointer-events-auto flex items-center gap-2.5 rounded-xl border px-4 py-3 shadow-lg backdrop-blur-xl transition-all duration-300",
+      colors,
+      mounted ? "opacity-100 translate-x-0" : "opacity-0 translate-x-4"
+    )}>
+      <Icon className="h-4 w-4 shrink-0" />
+      <span className="text-xs font-medium">{toast.message}</span>
+      <button onClick={onDismiss} className="ml-1 rounded p-0.5 opacity-60 hover:opacity-100 hover:bg-black/5">
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  )
+}
+
+function useToasts() {
+  const [toasts, setToasts] = useState<Toast[]>([])
+  const addToast = useCallback((message: string, type: ToastType = 'info') => {
+    const id = Math.random().toString(36).slice(2)
+    setToasts(prev => [...prev, { id, message, type }])
+    return id
+  }, [])
+  const removeToast = useCallback((id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id))
+  }, [])
+  const ToastContainer = useCallback(() => (
+    <div className="fixed right-4 top-16 z-[200] flex flex-col gap-2">
+      {toasts.map(t => (
+        <GlassyToast key={t.id} toast={t} onDismiss={() => removeToast(t.id)} />
+      ))}
+    </div>
+  ), [toasts])
+  return { addToast, removeToast, ToastContainer, toasts }
+}
+
+// ── Git Connection Modal ───────────────────────────────────────────────
+
+function GitConnectionModal({ isOpen, onClose, projectId, githubConnected, githubUsername, repoConnected, repoUrl, repoBranch, onConnect, onGithubConnect, onDisconnectRepo, onDisconnectGithub }: {
+  isOpen: boolean
+  onClose: () => void
+  projectId: string
+  githubConnected: boolean
+  githubUsername: string | null
+  repoConnected: boolean
+  repoUrl: string | null
+  repoBranch: string | null
+  onConnect: () => void
+  onGithubConnect: () => void
+  onDisconnectRepo: () => void
+  onDisconnectGithub: () => void
+}) {
+  const [mounted, setMounted] = useState(false)
+  const [repos, setRepos] = useState<Array<{ fullName: string; name: string; cloneUrl: string; defaultBranch: string }>>([])
+  const [selectedRepo, setSelectedRepo] = useState('')
+  const [branches, setBranches] = useState<string[]>([])
+  const [selectedBranch, setSelectedBranch] = useState('')
+  const [isEmptyRepo, setIsEmptyRepo] = useState(false)
+  const [newBranchName, setNewBranchName] = useState('')
+  const [newRepoName, setNewRepoName] = useState('')
+  const [newRepoDescription, setNewRepoDescription] = useState('')
+  const [isPrivateRepo, setIsPrivateRepo] = useState(true)
+  const [loadingRepos, setLoadingRepos] = useState(false)
+  const [loadingBranches, setLoadingBranches] = useState(false)
+  const [connecting, setConnecting] = useState(false)
+  const [creatingRepo, setCreatingRepo] = useState(false)
+  const [creatingBranch, setCreatingBranch] = useState(false)
+  const [showCreateRepo, setShowCreateRepo] = useState(false)
+  const [showCreateBranch, setShowCreateBranch] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (isOpen) {
+      const t = setTimeout(() => setMounted(true), 30)
+      return () => clearTimeout(t)
+    }
+    setMounted(false)
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen || !githubConnected) return
+    setLoadingRepos(true)
+    setError('')
+    fetch('/api/github/repos', { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) { setError(data.error); return }
+        setRepos(data.repos || [])
+      })
+      .catch(() => setError('Failed to load repositories'))
+      .finally(() => setLoadingRepos(false))
+  }, [isOpen, githubConnected])
+
+  useEffect(() => {
+    if (!selectedRepo) { setBranches([]); setSelectedBranch(''); setIsEmptyRepo(false); return }
+    setLoadingBranches(true)
+    setError('')
+    setIsEmptyRepo(false)
+    const repo = repos.find(r => r.cloneUrl === selectedRepo)
+    // Fetch branches from the selected repo via GitHub API
+    fetch(`/api/github/repos/branches?repo=${encodeURIComponent(repo?.fullName || '')}`, { credentials: 'include' })
+      .then(r => { if (!r.ok) throw new Error(); return r.json() })
+      .then(data => {
+        const loadedBranches = data.branches || []
+        const fallbackBranch = repo?.defaultBranch || 'main'
+        if (loadedBranches.length === 0) {
+          // Empty repo (no commits yet) — GitHub API returns no branches
+          setIsEmptyRepo(true)
+        }
+        const branchesToShow = loadedBranches.length > 0 ? loadedBranches : [fallbackBranch]
+        setBranches(branchesToShow)
+        setSelectedBranch(branchesToShow[0] || fallbackBranch)
+      })
+      .catch(() => {
+        // Fallback: just use default branch
+        const fallbackBranch = repo?.defaultBranch || 'main'
+        setBranches([fallbackBranch])
+        setSelectedBranch(fallbackBranch)
+      })
+      .finally(() => setLoadingBranches(false))
+  }, [selectedRepo, repos])
+
+  if (!isOpen) return null
+
+  const handleCreateRepo = async () => {
+    if (!newRepoName.trim()) return
+    setCreatingRepo(true)
+    setError('')
+    try {
+      const res = await fetch('/api/github/repos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name: newRepoName.trim(), description: newRepoDescription, isPrivate: isPrivateRepo }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error || 'Failed to create repository'); return }
+      setRepos(prev => [...prev, { fullName: data.fullName, name: newRepoName.trim(), cloneUrl: data.cloneUrl, defaultBranch: data.defaultBranch }])
+      setSelectedRepo(data.cloneUrl)
+      setShowCreateRepo(false)
+      setNewRepoName('')
+      setNewRepoDescription('')
+    } catch {
+      setError('Failed to create repository')
+    } finally {
+      setCreatingRepo(false)
+    }
+  }
+
+  const handleCreateBranch = async () => {
+    if (!newBranchName.trim() || !selectedRepo) return
+    setCreatingBranch(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/projects/${projectId}/git/branch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ branchName: newBranchName.trim() }),
+      })
+      if (!res.ok) { setError('Failed to create branch'); return }
+      setBranches(prev => [...prev, newBranchName.trim()])
+      setSelectedBranch(newBranchName.trim())
+      setShowCreateBranch(false)
+      setNewBranchName('')
+    } catch {
+      setError('Failed to create branch')
+    } finally {
+      setCreatingBranch(false)
+    }
+  }
+
+  const handleConnect = async () => {
+    if (!selectedRepo || !selectedBranch) return
+    setConnecting(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/projects/${projectId}/git/connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ repoUrl: selectedRepo, branch: selectedBranch }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error || 'Failed to connect repository'); return }
+      onConnect()
+      onClose()
+    } catch {
+      setError('Failed to connect repository')
+    } finally {
+      setConnecting(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={onClose}>
+      <div className={cn("absolute inset-0 bg-black/60 backdrop-blur-[3px] transition-opacity duration-300", mounted ? "opacity-100" : "opacity-0")} />
+      <div
+        className={cn(
+          "relative w-full max-w-lg mx-4 rounded-2xl border border-border/50 bg-surface/90 backdrop-blur-2xl shadow-2xl transition-all duration-300 ease-out overflow-hidden",
+          mounted ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-[0.94] translate-y-1"
+        )}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+        <div className="p-6">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 border border-primary/20">
+              <GitBranch className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-text">Connect Git Repository</h3>
+              <p className="text-[11px] text-text-dim">Link your project to a GitHub repository to enable push, review, and reset features.</p>
+            </div>
+          </div>
+
+          {!githubConnected ? (
+            <div className="text-center py-6">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 border border-primary/20">
+                <GitBranch className="h-7 w-7 text-primary" />
+              </div>
+              <p className="text-sm text-text-muted mb-4">Connect your GitHub account to access your repositories.</p>
+              <button
+                onClick={onGithubConnect}
+                className="rounded-xl bg-primary px-6 py-2.5 text-sm font-medium text-white hover:bg-primary/90 transition-all duration-200 hover:shadow-lg hover:shadow-primary/20"
+              >
+                Connect GitHub Account
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {error && (
+                <div className="flex items-center gap-1.5 rounded-lg bg-destructive/5 border border-destructive/10 px-3 py-2 text-[11px] text-destructive">
+                  <AlertCircle className="h-3 w-3 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {/* Repo Selector */}
+              <div>
+                <label className="block text-xs font-medium text-text-muted mb-1.5">Repository</label>
+                <div className="flex gap-2">
+                  <select
+                    value={selectedRepo}
+                    onChange={(e) => setSelectedRepo(e.target.value)}
+                    disabled={loadingRepos}
+                    className="flex-1 rounded-xl border border-border/60 bg-background/50 px-3 py-2.5 text-sm text-text focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/10"
+                  >
+                    <option value="">{loadingRepos ? 'Loading...' : 'Select a repository'}</option>
+                    {repos.map(r => (
+                      <option key={r.cloneUrl} value={r.cloneUrl}>{r.fullName}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => { setShowCreateRepo(!showCreateRepo); setShowCreateBranch(false); setError('') }}
+                    className="rounded-xl border border-border/60 bg-background/50 px-3 py-2.5 text-sm text-text-muted hover:bg-surface-hover hover:text-text transition-all"
+                    title="Create new repository"
+                  >
+                    <FolderPlus className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Create Repo Panel */}
+              {showCreateRepo && (
+                <div className="rounded-xl border border-border/40 bg-background/30 p-4 space-y-3">
+                  <input
+                    value={newRepoName}
+                    onChange={(e) => setNewRepoName(e.target.value)}
+                    placeholder="Repository name"
+                    className="w-full rounded-lg border border-border/60 bg-background/50 px-3 py-2 text-sm text-text placeholder:text-text-dim/40 focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/10"
+                  />
+                  <input
+                    value={newRepoDescription}
+                    onChange={(e) => setNewRepoDescription(e.target.value)}
+                    placeholder="Description (optional)"
+                    className="w-full rounded-lg border border-border/60 bg-background/50 px-3 py-2 text-sm text-text placeholder:text-text-dim/40 focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/10"
+                  />
+                  <label className="flex items-center gap-2 text-xs text-text-muted">
+                    <input type="checkbox" checked={isPrivateRepo} onChange={(e) => setIsPrivateRepo(e.target.checked)} className="rounded border-border" />
+                    Private repository
+                  </label>
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowCreateRepo(false)} className="flex-1 rounded-lg border border-border/60 px-3 py-2 text-xs text-text-muted hover:bg-surface-hover">Cancel</button>
+                    <button onClick={handleCreateRepo} disabled={!newRepoName.trim() || creatingRepo} className="flex-1 rounded-lg bg-primary px-3 py-2 text-xs text-white hover:bg-primary/90 disabled:opacity-50">
+                      {creatingRepo ? 'Creating...' : 'Create'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Branch Selector */}
+              {selectedRepo && (
+                <div>
+                  <label className="block text-xs font-medium text-text-muted mb-1.5">Branch</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={selectedBranch}
+                      onChange={(e) => setSelectedBranch(e.target.value)}
+                      disabled={loadingBranches}
+                      className="flex-1 rounded-xl border border-border/60 bg-background/50 px-3 py-2.5 text-sm text-text focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/10"
+                    >
+                      {loadingBranches ? (
+                        <option>Loading branches...</option>
+                      ) : (
+                        branches.map(b => (
+                          <option key={b} value={b}>{b}</option>
+                        ))
+                      )}
+                    </select>
+                    <button
+                      onClick={() => { setShowCreateBranch(!showCreateBranch); setShowCreateRepo(false); setError('') }}
+                      className="rounded-xl border border-border/60 bg-background/50 px-3 py-2.5 text-sm text-text-muted hover:bg-surface-hover hover:text-text transition-all"
+                      title="Create new branch"
+                    >
+                      <GitBranch className="h-4 w-4" />
+                    </button>
+                  </div>
+                  {isEmptyRepo && (
+                    <div className="mt-1.5 flex items-center gap-1.5 rounded-lg bg-primary/5 border border-primary/10 px-2.5 py-1.5">
+                      <Info className="h-3 w-3 shrink-0 text-primary/70" />
+                      <span className="text-[11px] text-text-dim">Empty repository — "{selectedBranch}" will be created on first push</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Create Branch Panel */}
+              {showCreateBranch && selectedRepo && (
+                <div className="rounded-xl border border-border/40 bg-background/30 p-4 space-y-3">
+                  <input
+                    value={newBranchName}
+                    onChange={(e) => setNewBranchName(e.target.value)}
+                    placeholder="New branch name"
+                    className="w-full rounded-lg border border-border/60 bg-background/50 px-3 py-2 text-sm text-text placeholder:text-text-dim/40 focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/10"
+                  />
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowCreateBranch(false)} className="flex-1 rounded-lg border border-border/60 px-3 py-2 text-xs text-text-muted hover:bg-surface-hover">Cancel</button>
+                    <button onClick={handleCreateBranch} disabled={!newBranchName.trim() || creatingBranch} className="flex-1 rounded-lg bg-primary px-3 py-2 text-xs text-white hover:bg-primary/90 disabled:opacity-50">
+                      {creatingBranch ? 'Creating...' : 'Create Branch'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Connected Repo Card */}
+              {repoConnected && (
+                <div className="rounded-xl border border-green-500/20 bg-green-500/5 p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <GitBranch className="h-4 w-4 text-green-500" />
+                    <span className="text-sm font-medium text-text">Currently Connected</span>
+                  </div>
+                  <div className="space-y-1">
+                    <code className="block text-[11px] text-text-muted font-mono break-all">{repoUrl?.replace('https://github.com/', '')}</code>
+                    <span className="text-[11px] text-text-dim">Branch: <span className="text-text-muted font-medium">{repoBranch}</span></span>
+                  </div>
+                  <button
+                    onClick={() => { onDisconnectRepo(); onClose() }}
+                    className="w-full rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/10 transition-all"
+                  >
+                    Disconnect Repository
+                  </button>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button onClick={onClose} className="flex-1 rounded-xl border border-border/60 bg-transparent px-4 py-2.5 text-sm font-medium text-text-muted hover:bg-surface-hover hover:text-text transition-all duration-200">
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConnect}
+                  disabled={!selectedRepo || !selectedBranch || connecting}
+                  className="flex-1 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary/90 transition-all duration-200 hover:shadow-lg hover:shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {repoConnected ? (connecting ? 'Changing...' : 'Change Repository') : (connecting ? 'Connecting...' : 'Connect Repository')}
+                </button>
+              </div>
+
+              {/* Disconnect GitHub Account */}
+              <div className="pt-3 border-t border-border/30">
+                <button
+                  onClick={() => { onDisconnectGithub(); onClose() }}
+                  className="group flex w-full items-center justify-center gap-1.5 rounded-lg border border-destructive/10 bg-destructive/5 px-3 py-2.5 text-xs font-medium text-destructive/70 transition-all duration-200 hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <LogOut className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
+                  <span>Disconnect GitHub Account</span>
+                  {githubUsername && (
+                    <span className="text-[10px] opacity-60">@{githubUsername}</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── File tree ────────────────────────────────────────────────────────
 
 function FileTreeNode({ entry, depth = 0, onFileSelect, selectedFile, fileOps }: { entry: FileTreeEntry; depth?: number; onFileSelect?: (path: string) => void; selectedFile?: string | null; fileOps?: ReturnType<typeof useFileOperations> }) {
   const [expanded, setExpanded] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [renameError, setRenameError] = useState('')
+  const [deleteError, setDeleteError] = useState('')
   const pl = depth * 12 + 8
 
   useEffect(() => {
@@ -132,17 +729,20 @@ function FileTreeNode({ entry, depth = 0, onFileSelect, selectedFile, fileOps }:
     setContextMenu({ x: e.clientX, y: e.clientY })
   }, [])
 
-  const handleRename = useCallback(() => {
-    const newName = window.prompt('New name:', entry.name)
-    if (!newName || newName === entry.name) return
+  const handleRename = useCallback((newName: string) => {
+    if (!newName || newName === entry.name) { setRenameOpen(false); return }
     const parentDir = entry.path.includes('/') ? entry.path.substring(0, entry.path.lastIndexOf('/')) : ''
     const newPath = parentDir ? `${parentDir}/${newName}` : newName
-    fileOps?.renameFile({ oldPath: entry.path, newPath }).catch((err) => { window.alert(getErrorMessage(err)) })
+    fileOps?.renameFile({ oldPath: entry.path, newPath })
+      .then(() => setRenameOpen(false))
+      .catch((err) => { setRenameError(getErrorMessage(err)) })
   }, [entry.path, entry.name, fileOps])
 
   const handleDelete = useCallback(() => {
-    if (!window.confirm(`Delete ${entry.path}?`)) return
-    fileOps?.deleteFile({ path: entry.path }).catch((err) => { window.alert(getErrorMessage(err)) })
+    setDeleteError('')
+    fileOps?.deleteFile({ path: entry.path })
+      .then(() => setDeleteOpen(false))
+      .catch((err) => { setDeleteError(getErrorMessage(err)) })
   }, [entry.path, fileOps])
 
   const contextMenuEl = contextMenu && (
@@ -152,17 +752,45 @@ function FileTreeNode({ entry, depth = 0, onFileSelect, selectedFile, fileOps }:
     >
       <button
         className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-text-muted hover:bg-surface-hover hover:text-text"
-        onClick={handleRename}
+        onClick={() => { setContextMenu(null); setRenameOpen(true); setRenameError('') }}
       >
         <Pencil className="h-3 w-3" /> Rename
       </button>
       <button
         className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-destructive hover:bg-surface-hover"
-        onClick={handleDelete}
+        onClick={() => { setContextMenu(null); setDeleteOpen(true) }}
       >
         <Trash2 className="h-3 w-3" /> Delete
       </button>
     </div>
+  )
+
+  const modals = (
+    <>
+      <GlassyPromptModal
+        isOpen={renameOpen}
+        onClose={() => { setRenameOpen(false); setRenameError('') }}
+        onConfirm={(val) => { setRenameError(''); handleRename(val) }}
+        title={`Rename ${entry.type === 'directory' ? 'Folder' : 'File'}`}
+        description={`Enter a new name for "${entry.name}"`}
+        placeholder="New name..."
+        defaultValue={entry.name}
+        icon={entry.type === 'directory' ? FolderOpen : FilePenLine}
+        confirmText="Rename"
+        errorText={renameError}
+      />
+      <GlassyConfirmModal
+        isOpen={deleteOpen}
+        onClose={() => { setDeleteOpen(false); setDeleteError('') }}
+        onConfirm={handleDelete}
+        title={`Delete ${entry.type === 'directory' ? 'Folder' : 'File'}?`}
+        description={entry.type === 'directory' ? 'This folder and all its contents will be permanently removed.' : 'This file will be permanently removed.'}
+        icon={Trash2}
+        confirmText="Delete"
+        itemName={entry.path}
+        error={deleteError}
+      />
+    </>
   )
 
   if (entry.type === 'directory') {
@@ -183,6 +811,7 @@ function FileTreeNode({ entry, depth = 0, onFileSelect, selectedFile, fileOps }:
           <FileTreeNode key={child.path} entry={child} depth={depth + 1} onFileSelect={onFileSelect} selectedFile={selectedFile} fileOps={fileOps} />
         ))}
         {contextMenuEl}
+        {modals}
       </div>
     )
   }
@@ -206,6 +835,7 @@ function FileTreeNode({ entry, depth = 0, onFileSelect, selectedFile, fileOps }:
         <span className="truncate">{entry.name}</span>
       </button>
       {contextMenuEl}
+      {modals}
     </>
   )
 }
@@ -243,7 +873,7 @@ function FileOpBadge({ part, onFileSelect }: { part: Extract<MessagePart, { type
       <span className="font-medium">{config.label}</span>
       <span className="opacity-75" title={part.path}>{filename}</span>
       {part.action === 'rename' && part.newPath && (
-        <span className="opacity-75">→ {part.newPath.split('/').pop()}</span>
+        <span className="opacity-75">→ {part.newPath.split('/')}</span>
       )}
     </Wrapper>
   )
@@ -1273,16 +1903,29 @@ function FileTreePanel({ files, filesLoading, refetchFiles, onFileSelect, select
   fileOps: ReturnType<typeof useFileOperations>
   disabled?: boolean
 }) {
+  const [createFileOpen, setCreateFileOpen] = useState(false)
+  const [createFolderOpen, setCreateFolderOpen] = useState(false)
+  const [createError, setCreateError] = useState('')
+
+  const handleCreateFile = (name: string) => {
+    fileOps.createFile({ path: name, type: 'file' })
+      .then(() => setCreateFileOpen(false))
+      .catch((err) => { setCreateError(getErrorMessage(err)) })
+  }
+
+  const handleCreateFolder = (name: string) => {
+    fileOps.createFile({ path: name, type: 'directory' })
+      .then(() => setCreateFolderOpen(false))
+      .catch((err) => { setCreateError(getErrorMessage(err)) })
+  }
+
   return (
     <div className={cn("h-full overflow-y-auto bg-surface py-2", disabled && "pointer-events-none opacity-50")}>
       <div className="mb-2 flex items-center justify-between px-3">
         <p className="text-xs font-medium uppercase tracking-wider text-text-dim">Files</p>
         <div className="flex items-center gap-1">
           <button
-            onClick={() => {
-              const name = window.prompt('File path (relative):')
-              if (name) fileOps.createFile({ path: name, type: 'file' }).catch((err) => { window.alert(getErrorMessage(err)) })
-            }}
+            onClick={() => { setCreateError(''); setCreateFileOpen(true) }}
             disabled={disabled}
             className="rounded p-0.5 text-text-dim hover:text-text-muted disabled:opacity-40"
             title="New file"
@@ -1290,10 +1933,7 @@ function FileTreePanel({ files, filesLoading, refetchFiles, onFileSelect, select
             <FilePlus2 className="h-3 w-3" />
           </button>
           <button
-            onClick={() => {
-              const name = window.prompt('Folder path (relative):')
-              if (name) fileOps.createFile({ path: name, type: 'directory' }).catch((err) => { window.alert(getErrorMessage(err)) })
-            }}
+            onClick={() => { setCreateError(''); setCreateFolderOpen(true) }}
             disabled={disabled}
             className="rounded p-0.5 text-text-dim hover:text-text-muted disabled:opacity-40"
             title="New folder"
@@ -1310,6 +1950,28 @@ function FileTreePanel({ files, filesLoading, refetchFiles, onFileSelect, select
           </button>
         </div>
       </div>
+      <GlassyPromptModal
+        isOpen={createFileOpen}
+        onClose={() => { setCreateFileOpen(false); setCreateError('') }}
+        onConfirm={(val) => { setCreateError(''); handleCreateFile(val) }}
+        title="Create New File"
+        description="Enter the relative path for the new file."
+        placeholder="src/main/java/MyClass.java"
+        icon={FilePlus2}
+        confirmText="Create"
+        errorText={createError}
+      />
+      <GlassyPromptModal
+        isOpen={createFolderOpen}
+        onClose={() => { setCreateFolderOpen(false); setCreateError('') }}
+        onConfirm={(val) => { setCreateError(''); handleCreateFolder(val) }}
+        title="Create New Folder"
+        description="Enter the relative path for the new folder."
+        placeholder="src/main/resources"
+        icon={FolderPlus}
+        confirmText="Create"
+        errorText={createError}
+      />
       {filesLoading ? (
         <div className="flex justify-center py-8">
           <Loader2 className="h-4 w-4 animate-spin text-text-dim" />
@@ -1358,11 +2020,13 @@ function getLanguageFromPath(filePath: string): string {
 function EditorPanel({ projectId, selectedFile, fileOps, disabled }: { projectId: string; selectedFile: string | null; fileOps: ReturnType<typeof useFileOperations>; disabled?: boolean }) {
   const { content, isLoading, error } = useFileContent(projectId, selectedFile)
   const [editedContent, setEditedContent] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState('')
 
   const hasUnsavedChanges = editedContent !== null && editedContent !== content
 
   useEffect(() => {
     setEditedContent(null)
+    setSaveError('')
   }, [selectedFile])
 
   useEffect(() => {
@@ -1371,8 +2035,8 @@ function EditorPanel({ projectId, selectedFile, fileOps, disabled }: { projectId
         e.preventDefault()
         if (selectedFile && hasUnsavedChanges && !fileOps.isSaving) {
           fileOps.saveFile({ path: selectedFile, content: editedContent ?? content ?? '' })
-            .then(() => setEditedContent(null))
-            .catch((err) => { window.alert(getErrorMessage(err)) })
+            .then(() => { setEditedContent(null); setSaveError('') })
+            .catch((err) => { setSaveError(getErrorMessage(err)) })
         }
       }
     }
@@ -1383,8 +2047,8 @@ function EditorPanel({ projectId, selectedFile, fileOps, disabled }: { projectId
   const handleSave = useCallback(() => {
     if (!selectedFile || !hasUnsavedChanges || fileOps.isSaving) return
     fileOps.saveFile({ path: selectedFile, content: editedContent ?? content ?? '' })
-      .then(() => setEditedContent(null))
-      .catch((err) => { window.alert(getErrorMessage(err)) })
+      .then(() => { setEditedContent(null); setSaveError('') })
+      .catch((err) => { setSaveError(getErrorMessage(err)) })
   }, [selectedFile, hasUnsavedChanges, fileOps, editedContent, content])
 
   return (
@@ -1419,6 +2083,15 @@ function EditorPanel({ projectId, selectedFile, fileOps, disabled }: { projectId
           </button>
         )}
       </div>
+      {saveError && (
+        <div className="flex items-center gap-1.5 border-b border-destructive/10 bg-destructive/5 px-4 py-1.5 text-[11px] text-destructive">
+          <AlertCircle className="h-3 w-3 shrink-0" />
+          <span className="truncate">{saveError}</span>
+          <button onClick={() => setSaveError('')} className="ml-auto rounded p-0.5 opacity-60 hover:opacity-100 hover:bg-destructive/10">
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      )}
       {!selectedFile ? (
         <div className="flex flex-1 flex-col items-center justify-center text-center">
           <div className="rounded-2xl bg-primary/5 p-4">
@@ -1483,13 +2156,17 @@ export default function WorkspacePage() {
   const jarMenuRef = useRef<HTMLDivElement>(null)
   const [githubConnected, setGithubConnected] = useState(false)
   const [githubUsername, setGithubUsername] = useState<string | null>(null)
+  const [gitStatus, setGitStatus] = useState<{ connected: boolean; repoUrl: string | null; repoBranch: string | null; githubAuth: boolean } | null>(null)
+  const [gitConnectModalOpen, setGitConnectModalOpen] = useState(false)
   const [pushModalOpen, setPushModalOpen] = useState(false)
   const [branches, setBranches] = useState<string[]>([])
   const [selectedBranch, setSelectedBranch] = useState('')
   const [commitMessage, setCommitMessage] = useState('')
   const [pushing, setPushing] = useState(false)
   const [forcePush, setForcePush] = useState(false)
+  const [pushError, setPushError] = useState('')
   const [resetModalOpen, setResetModalOpen] = useState(false)
+  const [resetError, setResetError] = useState('')
   const [resetBranch, setResetBranch] = useState('')
   const [resetCommit, setResetCommit] = useState('')
   const [resetting, setResetting] = useState(false)
@@ -1515,6 +2192,9 @@ const [selectedIssues, setSelectedIssues] = useState<Array<{ reviewId: string; i
   const isReviewLocked = reviewLock?.status === 'pending'
   const isWorkspaceLocked = isReviewLocked || aiRunning
 
+  // ── Toast Notifications ─────────────────────────────────────────────
+  const { addToast, ToastContainer } = useToasts()
+
   const toggleIssueSelection = (reviewId: string, idx: number) => {
     setSelectedIssues(prev => {
       const existing = prev.find(s => s.reviewId === reviewId && s.issueIdx === idx)
@@ -1525,7 +2205,7 @@ const [selectedIssues, setSelectedIssues] = useState<Array<{ reviewId: string; i
 
 const handleAutoFix = () => {
     if (!project || selectedIssues.length === 0) {
-      if (selectedIssues.length === 0) alert('Please select at least one issue to fix')
+      if (selectedIssues.length === 0) addToast('Please select at least one issue to fix', 'error')
       return
     }
     const availableModelsForBridge = AI_MODELS.filter(m => {
@@ -1700,20 +2380,27 @@ const handleAutoFix = () => {
     setJarMenuOpen(false)
   }
 
+  const fetchGitStatus = useCallback(async () => {
+    if (!projectId) return
+    try {
+      const res = await fetch(`/api/projects/${projectId}/git/status`, { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        setGitStatus(data)
+        setGithubConnected(data.githubAuth)
+        setGithubUsername(data.githubUsername)
+      }
+    } catch {}
+  }, [projectId])
+
   useEffect(() => {
-    fetch('/api/auth/github/status', { credentials: 'include' })
-      .then(r => r.json())
-      .then(data => {
-        setGithubConnected(data.connected)
-        setGithubUsername(data.username)
-      })
-      .catch(() => {})
+    fetchGitStatus()
 
     fetch(`/api/projects/${projectId}/coderabbit/status`, { credentials: 'include' })
       .then(r => r.json())
       .then(data => setCoderabbitEnabled(data.enabled))
       .catch(() => {})
-  }, [])
+  }, [fetchGitStatus, projectId])
 
   const handleGithubConnect = () => {
     const width = 600
@@ -1732,6 +2419,7 @@ const handleAutoFix = () => {
       if (data.connected) {
         setGithubConnected(true)
         setGithubUsername(data.username)
+        fetchGitStatus()
         clearInterval(checkConnection)
       }
     }, 1000)
@@ -1741,6 +2429,21 @@ const handleAutoFix = () => {
     await fetch('/api/auth/github/disconnect', { method: 'POST', credentials: 'include' })
     setGithubConnected(false)
     setGithubUsername(null)
+    fetchGitStatus()
+  }
+
+  const handleDisconnectRepo = async () => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/git/disconnect`, { method: 'POST', credentials: 'include' })
+      if (res.ok) {
+        fetchGitStatus()
+        addToast('Repository disconnected', 'info')
+      } else {
+        addToast('Failed to disconnect repository', 'error')
+      }
+    } catch {
+      addToast('Failed to disconnect repository', 'error')
+    }
   }
 
   const handleOpenPushModal = async () => {
@@ -1772,17 +2475,17 @@ const handleAutoFix = () => {
       if (res.ok) {
         setNeedsRemote(false)
         setRepoUrl('')
-        // Reload branches
         const branchRes = await fetch(`/api/projects/${projectId}/git/branches`, { credentials: 'include' })
         const data = await branchRes.json()
         setBranches(data.branches || [])
         setSelectedBranch(data.currentBranch || '')
+        addToast('Repository connected successfully', 'success')
       } else {
         const data = await res.json()
-        alert(data.error || 'Failed to set repository')
+        addToast(data.error || 'Failed to set repository', 'error')
       }
     } catch (err) {
-      alert('Failed to set repository')
+      addToast('Failed to set repository', 'error')
     } finally {
       setSettingRemote(false)
     }
@@ -1804,14 +2507,14 @@ const handleAutoFix = () => {
         setResetModalOpen(false)
         setResetBranch('')
         setResetCommit('')
-        alert('Project reset successfully! Refreshing...')
+        addToast('Project reset successfully! Refreshing...', 'success')
         window.location.reload()
       } else {
         const data = await res.json()
-        alert(data.error || 'Failed to reset project')
+        addToast(data.error || 'Failed to reset project', 'error')
       }
     } catch (err) {
-      alert('Failed to reset project')
+      addToast('Failed to reset project', 'error')
     } finally {
       setResetting(false)
     }
@@ -1832,11 +2535,14 @@ const handleAutoFix = () => {
         if (data.status === 'pending') {
           setReviewLock({ status: 'pending', reviewId: data.reviewId })
           fetchReviewHistory()
+          addToast('Code review started — running in background', 'info')
         } else {
           setReviewResults(data)
           fetchReviewHistory()
           if (data.issuesCount > 0) {
-            alert(`Review completed! Found ${data.issuesCount} issue${data.issuesCount !== 1 ? 's' : ''} to review. Check the results below.`)
+            addToast(`Review completed — found ${data.issuesCount} issue${data.issuesCount !== 1 ? 's' : ''}`, 'info')
+          } else {
+            addToast('Review completed — no issues found!', 'success')
           }
         }
       } else {
@@ -1845,11 +2551,11 @@ const handleAutoFix = () => {
         if (errMsg.toLowerCase().includes('rate limit') || errMsg.toLowerCase().includes('quota') || errMsg.toLowerCase().includes('limit exceeded')) {
           setReviewLock({ status: 'error', reviewId: 'temp', error: errMsg })
         } else {
-          alert(errMsg)
+          addToast(errMsg, 'error')
         }
       }
     } catch (err) {
-      alert('Failed to run review')
+      addToast('Failed to run review', 'error')
     } finally {
       setReviewing(false)
     }
@@ -1869,13 +2575,13 @@ const handleAutoFix = () => {
         setPushModalOpen(false)
         setCommitMessage('')
         setForcePush(false)
-        alert('Code pushed successfully!')
+        addToast('Code pushed successfully!', 'success')
       } else {
         const data = await res.json()
-        alert(data.error || 'Failed to push code')
+        addToast(data.error || 'Failed to push code', 'error')
       }
     } catch (err) {
-      alert('Failed to push code')
+      addToast('Failed to push code', 'error')
     } finally {
       setPushing(false)
     }
@@ -1911,6 +2617,7 @@ const handleAutoFix = () => {
 
     return (
       <>
+        <ToastContainer />
         {isWorkspaceLocked && (
           <div className="shrink-0 flex items-center justify-center gap-2 bg-primary/90 py-2 px-4 text-sm font-medium text-primary-foreground backdrop-blur animate-pulse z-50">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -1942,7 +2649,7 @@ const handleAutoFix = () => {
           <span className="truncate text-sm font-medium text-text">{project.name}</span>
           <span className="shrink-0 rounded bg-accent px-1.5 py-0.5 text-[10px] text-text-dim">{project.software}</span>
           <div className="ml-auto flex items-center gap-1.5">
-            {githubConnected ? (
+            {gitStatus?.connected ? (
               <>
                 <button
                   onClick={handleOpenPushModal}
@@ -1961,25 +2668,25 @@ const handleAutoFix = () => {
                   <RotateCcw className="h-3.5 w-3.5" />
                 </button>
                 <button
-                  onClick={() => setDisconnectModalOpen(true)}
+                  onClick={() => setGitConnectModalOpen(true)}
                   disabled={isWorkspaceLocked}
-                  className="rounded-md p-1.5 text-red-500 hover:text-red-600 disabled:opacity-40 disabled:cursor-not-allowed"
-                  title={`Connected as @${githubUsername}`}
+                  className="flex items-center gap-1 rounded-md p-1.5 text-green-500 hover:text-green-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={`Connected: ${gitStatus.repoUrl?.replace('https://github.com/', '') || 'repo'}`}
                 >
                   <GitBranch className="h-3.5 w-3.5" />
                 </button>
               </>
             ) : (
               <button
-                onClick={handleGithubConnect}
+                onClick={() => setGitConnectModalOpen(true)}
                 disabled={isWorkspaceLocked}
                 className="rounded-md p-1.5 text-text-dim hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Connect GitHub"
+                title="Connect Git Repository"
               >
                 <GitBranch className="h-3.5 w-3.5" />
               </button>
             )}
-            {coderabbitEnabled && (
+            {coderabbitEnabled && gitStatus?.connected && (
               <>
                 <button
                   onClick={() => setReviewModalOpen(true)}
@@ -2074,6 +2781,7 @@ const handleAutoFix = () => {
             <MobileTabButton key={tab.id} active={mobileTab === tab.id} icon={tab.icon} label={tab.label} onClick={() => setMobileTab(tab.id)} />
           ))}
         </nav>
+      </div>
 
         {/* Push to GitHub Modal */}
         {pushModalOpen && (
@@ -2541,7 +3249,6 @@ const handleAutoFix = () => {
             </div>
           </div>
         )}
-      </div>
 
       {/* Auto-Fix AI Model Selection Modal */}
       {autoFixModalOpen && (
@@ -2592,9 +3299,7 @@ const handleAutoFix = () => {
         <div className="fixed inset-0 z-[101] flex items-center justify-center bg-black/50 p-4" onClick={() => setFixConfirmOpen(false)}>
           <div className="w-full max-w-sm rounded-lg border border-border bg-surface p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-semibold text-text mb-2">Re-fix Issues?</h2>
-            <p className="text-sm text-text-muted mb-6">
-              You selected fixed issue(s). Do you want to continue?
-            </p>
+            <p className="text-sm text-text-muted mb-6">You selected fixed issue(s). Do you want to continue?</p>
             <div className="flex gap-3">
               <button
                 onClick={() => setFixConfirmOpen(false)}
@@ -2613,12 +3318,34 @@ const handleAutoFix = () => {
         </div>
       )}
 
+      {/* Git Connection Modal */}
+      <GitConnectionModal
+        isOpen={gitConnectModalOpen}
+        onClose={() => setGitConnectModalOpen(false)}
+        projectId={projectId ?? ''}
+        githubConnected={githubConnected}
+        githubUsername={githubUsername}
+        repoConnected={gitStatus?.connected ?? false}
+        repoUrl={gitStatus?.repoUrl ?? null}
+        repoBranch={gitStatus?.repoBranch ?? null}
+        onConnect={() => {
+          fetchGitStatus()
+          addToast('Repository connected successfully', 'success')
+        }}
+        onGithubConnect={handleGithubConnect}
+        onDisconnectRepo={handleDisconnectRepo}
+        onDisconnectGithub={() => {
+          setGitConnectModalOpen(false)
+          setDisconnectModalOpen(true)
+        }}
+      />
     </>
-    )
-  }
+  )
+}
 
   return (
     <div className="flex h-screen flex-col bg-background">
+      <ToastContainer />
       {isWorkspaceLocked && (
         <div className="shrink-0 flex items-center justify-center gap-2 bg-primary/90 py-2 px-4 text-sm font-medium text-primary-foreground backdrop-blur animate-pulse z-50">
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -2652,7 +3379,7 @@ const handleAutoFix = () => {
           <span className="rounded bg-accent px-2 py-0.5 text-xs text-text-dim">{project.language}</span>
         </div>
         <div className="flex items-center gap-2">
-          {githubConnected ? (
+          {gitStatus?.connected ? (
             <>
               <button
                 onClick={handleOpenPushModal}
@@ -2671,25 +3398,26 @@ const handleAutoFix = () => {
                 <RotateCcw className="h-4 w-4" />
               </button>
               <button
-                onClick={() => setDisconnectModalOpen(true)}
+                onClick={() => setGitConnectModalOpen(true)}
                 disabled={isWorkspaceLocked}
-                className="rounded-md border border-red-500 p-1.5 text-red-500 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
-                title={`Connected as @${githubUsername}`}
+                className="flex items-center gap-1.5 rounded-md border border-green-500 p-1.5 text-green-500 hover:bg-green-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                title={`Connected: ${gitStatus.repoUrl?.replace('https://github.com/', '') || 'repo'}`}
               >
                 <GitBranch className="h-4 w-4" />
+                <span className="text-[10px] font-medium">{gitStatus.repoBranch}</span>
               </button>
             </>
           ) : (
             <button
-              onClick={handleGithubConnect}
+              onClick={() => setGitConnectModalOpen(true)}
               disabled={isWorkspaceLocked}
               className="rounded-md border border-border p-1.5 text-text-dim hover:bg-surface-hover hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Connect GitHub"
+              title="Connect Git Repository"
             >
               <GitBranch className="h-4 w-4" />
             </button>
           )}
-          {coderabbitEnabled && (
+          {coderabbitEnabled && gitStatus?.connected && (
             <>
               <button
                 onClick={() => setReviewModalOpen(true)}
@@ -3326,6 +4054,28 @@ const handleAutoFix = () => {
           </div>
         </div>
       )}
+
+      {/* Git Connection Modal - Desktop */}
+      <GitConnectionModal
+        isOpen={gitConnectModalOpen}
+        onClose={() => setGitConnectModalOpen(false)}
+        projectId={projectId ?? ''}
+        githubConnected={githubConnected}
+        githubUsername={githubUsername}
+        repoConnected={gitStatus?.connected ?? false}
+        repoUrl={gitStatus?.repoUrl ?? null}
+        repoBranch={gitStatus?.repoBranch ?? null}
+        onConnect={() => {
+          fetchGitStatus()
+          addToast('Repository connected successfully', 'success')
+        }}
+        onGithubConnect={handleGithubConnect}
+        onDisconnectRepo={handleDisconnectRepo}
+        onDisconnectGithub={() => {
+          setGitConnectModalOpen(false)
+          setDisconnectModalOpen(true)
+        }}
+      />
     </div>
   )
 }

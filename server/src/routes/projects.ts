@@ -406,14 +406,33 @@ export async function projectRoutes(app: FastifyInstance) {
         await execAsync(`git checkout "${commit}"`, { cwd: projectDir })
       }
 
+      // For private repos: auto-connect the cloned repo
+      // For public repos: user must manually connect their own repo later
+      const repoUrlToSave = isPrivate ? repoUrl : null
+      const repoBranchToSave = isPrivate ? (branch || 'main') : null
+
       const [project] = await db
         .insert(projects)
         .values({
           userId: request.user!.id,
           linkId,
+          repoUrl: repoUrlToSave,
+          repoBranch: repoBranchToSave,
           ...parsed.data,
         })
         .returning()
+
+      // Also set git remote for private repos so reset/push work immediately
+      if (isPrivate && repoUrlToSave) {
+        try {
+          const { exec } = await import('child_process')
+          const { promisify } = await import('util')
+          const execAsync = promisify(exec)
+          await execAsync(`git remote add origin "${repoUrlToSave}"`, { cwd: projectDir })
+        } catch {
+          // Non-fatal
+        }
+      }
 
       return reply.status(201).send(project)
     } catch (err) {
