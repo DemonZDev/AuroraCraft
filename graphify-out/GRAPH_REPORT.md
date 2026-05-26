@@ -1,311 +1,324 @@
-# Graph Report - .  (2026-05-25)
+# Graph Report - .  (2026-05-26)
 
 ## Corpus Check
-- 129 files · ~91,239 words
+- 134 files · ~86,880 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3208 nodes · 3756 edges · 299 communities (260 shown, 39 thin omitted)
-- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 138 edges (avg confidence: 0.8)
+- 3169 nodes · 3651 edges · 312 communities (266 shown, 46 thin omitted)
+- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 128 edges (avg confidence: 0.79)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
-- [[_COMMUNITY_Client Pages & Hooks|Client Pages & Hooks]]
-- [[_COMMUNITY_Drizzle Schema Snapshot 0009|Drizzle Schema Snapshot 0009]]
-- [[_COMMUNITY_Client Package Dependencies|Client Package Dependencies]]
-- [[_COMMUNITY_Drizzle Schema Snapshot 0005|Drizzle Schema Snapshot 0005]]
-- [[_COMMUNITY_Drizzle Schema Snapshot 0006|Drizzle Schema Snapshot 0006]]
-- [[_COMMUNITY_Drizzle Schema Snapshot 0004|Drizzle Schema Snapshot 0004]]
-- [[_COMMUNITY_Drizzle Schema Snapshot 0001|Drizzle Schema Snapshot 0001]]
-- [[_COMMUNITY_Drizzle Schema Snapshot 0003|Drizzle Schema Snapshot 0003]]
-- [[_COMMUNITY_Server Package Dependencies|Server Package Dependencies]]
-- [[_COMMUNITY_Auth & Layout Routes|Auth & Layout Routes]]
-- [[_COMMUNITY_Agent Definitions & Types|Agent Definitions & Types]]
-- [[_COMMUNITY_Root Package & Config|Root Package & Config]]
-- [[_COMMUNITY_Admin Routes & Agent Logs|Admin Routes & Agent Logs]]
-- [[_COMMUNITY_Agent Executor & Bridges|Agent Executor & Bridges]]
-- [[_COMMUNITY_SQL Migrations|SQL Migrations]]
-- [[_COMMUNITY_Client Shared Types|Client Shared Types]]
-- [[_COMMUNITY_Agent Tool Types|Agent Tool Types]]
-- [[_COMMUNITY_Agent Executor Implementation|Agent Executor Implementation]]
-- [[_COMMUNITY_Schema Snapshot FK 0001|Schema Snapshot FK 0001]]
-- [[_COMMUNITY_Schema Snapshot FK 0003|Schema Snapshot FK 0003]]
-- [[_COMMUNITY_Schema Snapshot FK 0004|Schema Snapshot FK 0004]]
-- [[_COMMUNITY_Schema Snapshot FK 0005|Schema Snapshot FK 0005]]
-- [[_COMMUNITY_Schema Snapshot FK 0006|Schema Snapshot FK 0006]]
-- [[_COMMUNITY_Schema Snapshot FK 0009|Schema Snapshot FK 0009]]
-- [[_COMMUNITY_Server DB Schema|Server DB Schema]]
-- [[_COMMUNITY_Client Config Files|Client Config Files]]
-- [[_COMMUNITY_OpenCode Bridge|OpenCode Bridge]]
-- [[_COMMUNITY_Kiro Bridge|Kiro Bridge]]
-- [[_COMMUNITY_Schema Snapshot FK 0008|Schema Snapshot FK 0008]]
-- [[_COMMUNITY_Bridge Types & Utils|Bridge Types & Utils]]
-- [[_COMMUNITY_Client UI Pages|Client UI Pages]]
-- [[_COMMUNITY_Schema Snapshot FK 0010|Schema Snapshot FK 0010]]
-- [[_COMMUNITY_Schema Snapshot FK 0002|Schema Snapshot FK 0002]]
-- [[_COMMUNITY_Schema Snapshot FK 0007|Schema Snapshot FK 0007]]
-- [[_COMMUNITY_Client Entry & Layout|Client Entry & Layout]]
-- [[_COMMUNITY_Bridge Process Managers|Bridge Process Managers]]
-- [[_COMMUNITY_Agent Tool Definitions|Agent Tool Definitions]]
-- [[_COMMUNITY_Schema Table Definitions|Schema Table Definitions]]
-- [[_COMMUNITY_Server Plugins & Middleware|Server Plugins & Middleware]]
-- [[_COMMUNITY_Schema Snapshot FK 0000|Schema Snapshot FK 0000]]
-- [[_COMMUNITY_Client Admin Pages|Client Admin Pages]]
-- [[_COMMUNITY_Schema Snapshot FK meta 0004|Schema Snapshot FK meta 0004]]
-- [[_COMMUNITY_Schema Snapshot FK meta 0003|Schema Snapshot FK meta 0003]]
-- [[_COMMUNITY_Schema Snapshot FK meta 0006|Schema Snapshot FK meta 0006]]
-- [[_COMMUNITY_Schema Snapshot FK meta 0005|Schema Snapshot FK meta 0005]]
-- [[_COMMUNITY_Schema Snapshot FK meta 0001|Schema Snapshot FK meta 0001]]
-- [[_COMMUNITY_Schema Snapshot FK meta 0000|Schema Snapshot FK meta 0000]]
-- [[_COMMUNITY_Schema Snapshot FK meta 0009|Schema Snapshot FK meta 0009]]
-- [[_COMMUNITY_Schema Snapshot FK meta 0008|Schema Snapshot FK meta 0008]]
-- [[_COMMUNITY_Schema Snapshot FK meta 0010|Schema Snapshot FK meta 0010]]
-- [[_COMMUNITY_Schema Snapshot FK meta 0002|Schema Snapshot FK meta 0002]]
-- [[_COMMUNITY_Schema Snapshot FK meta 0007|Schema Snapshot FK meta 0007]]
-- [[_COMMUNITY_Schema Snapshot FK meta journal|Schema Snapshot FK meta journal]]
-- [[_COMMUNITY_Schema Snapshot FK meta 0004 alt|Schema Snapshot FK meta 0004 alt]]
-- [[_COMMUNITY_Schema Snapshot FK meta 0003 alt|Schema Snapshot FK meta 0003 alt]]
-- [[_COMMUNITY_Schema Snapshot FK meta 0006 alt|Schema Snapshot FK meta 0006 alt]]
-- [[_COMMUNITY_Bridge Index & Session Bus|Bridge Index & Session Bus]]
-- [[_COMMUNITY_Database Schema Details|Database Schema Details]]
-- [[_COMMUNITY_Server Auth Routes|Server Auth Routes]]
-- [[_COMMUNITY_Schema Snapshot FK 0005 alt|Schema Snapshot FK 0005 alt]]
-- [[_COMMUNITY_Schema Snapshot FK 0001 alt|Schema Snapshot FK 0001 alt]]
-- [[_COMMUNITY_Schema Snapshot FK 0009 alt|Schema Snapshot FK 0009 alt]]
-- [[_COMMUNITY_Schema Snapshot FK 0004 alt|Schema Snapshot FK 0004 alt]]
-- [[_COMMUNITY_Schema Snapshot FK 0006 alt|Schema Snapshot FK 0006 alt]]
-- [[_COMMUNITY_Schema Snapshot FK 0003 alt|Schema Snapshot FK 0003 alt]]
-- [[_COMMUNITY_Schema Snapshot FK 0008 alt|Schema Snapshot FK 0008 alt]]
-- [[_COMMUNITY_Schema Snapshot FK 0010 alt|Schema Snapshot FK 0010 alt]]
-- [[_COMMUNITY_Schema Snapshot FK 0002 alt|Schema Snapshot FK 0002 alt]]
-- [[_COMMUNITY_Schema Snapshot FK 0000 alt|Schema Snapshot FK 0000 alt]]
-- [[_COMMUNITY_Schema Snapshot FK 0007 alt|Schema Snapshot FK 0007 alt]]
-- [[_COMMUNITY_Schema Snapshot FK journal alt|Schema Snapshot FK journal alt]]
-- [[_COMMUNITY_Schema Snapshot FK meta alt|Schema Snapshot FK meta alt]]
-- [[_COMMUNITY_Workspace Components|Workspace Components]]
-- [[_COMMUNITY_Community Project Schema|Community Project Schema]]
-- [[_COMMUNITY_Schema Snapshot FK 0009 alt2|Schema Snapshot FK 0009 alt2]]
-- [[_COMMUNITY_Schema Snapshot FK 0005 alt2|Schema Snapshot FK 0005 alt2]]
-- [[_COMMUNITY_Docs & Deployment|Docs & Deployment]]
-- [[_COMMUNITY_Error Screenshot|Error Screenshot]]
-- [[_COMMUNITY_Client Hooks & Utils|Client Hooks & Utils]]
-- [[_COMMUNITY_Schema Snapshot FK 0004 alt2|Schema Snapshot FK 0004 alt2]]
-- [[_COMMUNITY_Schema Snapshot FK 0006 alt2|Schema Snapshot FK 0006 alt2]]
-- [[_COMMUNITY_Schema Snapshot FK 0001 alt2|Schema Snapshot FK 0001 alt2]]
-- [[_COMMUNITY_Schema Snapshot FK 0003 alt2|Schema Snapshot FK 0003 alt2]]
-- [[_COMMUNITY_Schema Snapshot FK 0008 alt2|Schema Snapshot FK 0008 alt2]]
-- [[_COMMUNITY_Schema Snapshot FK 0010 alt2|Schema Snapshot FK 0010 alt2]]
-- [[_COMMUNITY_Schema Snapshot FK 0002 alt2|Schema Snapshot FK 0002 alt2]]
-- [[_COMMUNITY_Schema Snapshot FK 0000 alt2|Schema Snapshot FK 0000 alt2]]
-- [[_COMMUNITY_Schema Snapshot FK 0007 alt2|Schema Snapshot FK 0007 alt2]]
-- [[_COMMUNITY_Schema Snapshot FK journal alt2|Schema Snapshot FK journal alt2]]
-- [[_COMMUNITY_Project Menu Components|Project Menu Components]]
-- [[_COMMUNITY_Client Auth Pages|Client Auth Pages]]
-- [[_COMMUNITY_Client Public Pages|Client Public Pages]]
-- [[_COMMUNITY_Schema Snapshot FK 0009 alt3|Schema Snapshot FK 0009 alt3]]
-- [[_COMMUNITY_Schema Snapshot FK 0005 alt3|Schema Snapshot FK 0005 alt3]]
-- [[_COMMUNITY_Schema Snapshot FK 0004 alt3|Schema Snapshot FK 0004 alt3]]
-- [[_COMMUNITY_Schema Snapshot FK 0006 alt3|Schema Snapshot FK 0006 alt3]]
-- [[_COMMUNITY_Schema Snapshot FK 0001 alt3|Schema Snapshot FK 0001 alt3]]
-- [[_COMMUNITY_Schema Snapshot FK 0003 alt3|Schema Snapshot FK 0003 alt3]]
-- [[_COMMUNITY_Schema Snapshot FK 0008 alt3|Schema Snapshot FK 0008 alt3]]
-- [[_COMMUNITY_Schema Snapshot FK 0010 alt3|Schema Snapshot FK 0010 alt3]]
-- [[_COMMUNITY_Kiro File Watcher|Kiro File Watcher]]
-- [[_COMMUNITY_Client Community Pages|Client Community Pages]]
-- [[_COMMUNITY_Schema Snapshot FK 0002 alt3|Schema Snapshot FK 0002 alt3]]
-- [[_COMMUNITY_Bridge System Prompt|Bridge System Prompt]]
-- [[_COMMUNITY_Schema Snapshot FK 0000 alt3|Schema Snapshot FK 0000 alt3]]
-- [[_COMMUNITY_Schema Snapshot FK 0007 alt3|Schema Snapshot FK 0007 alt3]]
-- [[_COMMUNITY_Schema Snapshot FK journal alt3|Schema Snapshot FK journal alt3]]
-- [[_COMMUNITY_Schema Snapshot FK 0009 alt4|Schema Snapshot FK 0009 alt4]]
-- [[_COMMUNITY_Schema Snapshot FK 0005 alt4|Schema Snapshot FK 0005 alt4]]
-- [[_COMMUNITY_Schema Snapshot FK 0004 alt4|Schema Snapshot FK 0004 alt4]]
-- [[_COMMUNITY_Schema Snapshot FK 0006 alt4|Schema Snapshot FK 0006 alt4]]
-- [[_COMMUNITY_Schema Snapshot FK 0001 alt4|Schema Snapshot FK 0001 alt4]]
-- [[_COMMUNITY_Schema Snapshot FK 0003 alt4|Schema Snapshot FK 0003 alt4]]
-- [[_COMMUNITY_Schema Snapshot FK 0008 alt4|Schema Snapshot FK 0008 alt4]]
-- [[_COMMUNITY_Schema Snapshot FK 0010 alt4|Schema Snapshot FK 0010 alt4]]
-- [[_COMMUNITY_Schema Snapshot FK 0002 alt4|Schema Snapshot FK 0002 alt4]]
-- [[_COMMUNITY_Schema Snapshot FK 0000 alt4|Schema Snapshot FK 0000 alt4]]
-- [[_COMMUNITY_Schema Snapshot FK 0007 alt4|Schema Snapshot FK 0007 alt4]]
-- [[_COMMUNITY_Schema Snapshot FK journal alt4|Schema Snapshot FK journal alt4]]
-- [[_COMMUNITY_Schema Snapshot FK 0009 alt5|Schema Snapshot FK 0009 alt5]]
-- [[_COMMUNITY_Schema Snapshot FK 0005 alt5|Schema Snapshot FK 0005 alt5]]
-- [[_COMMUNITY_Schema Snapshot FK 0004 alt5|Schema Snapshot FK 0004 alt5]]
-- [[_COMMUNITY_Schema Snapshot FK 0006 alt5|Schema Snapshot FK 0006 alt5]]
-- [[_COMMUNITY_Schema Snapshot FK 0001 alt5|Schema Snapshot FK 0001 alt5]]
-- [[_COMMUNITY_Schema Snapshot FK 0003 alt5|Schema Snapshot FK 0003 alt5]]
-- [[_COMMUNITY_Schema Snapshot FK 0008 alt5|Schema Snapshot FK 0008 alt5]]
-- [[_COMMUNITY_Schema Snapshot FK 0010 alt5|Schema Snapshot FK 0010 alt5]]
-- [[_COMMUNITY_Schema Snapshot FK 0002 alt5|Schema Snapshot FK 0002 alt5]]
-- [[_COMMUNITY_Schema Snapshot FK 0000 alt5|Schema Snapshot FK 0000 alt5]]
-- [[_COMMUNITY_Schema Snapshot FK 0007 alt5|Schema Snapshot FK 0007 alt5]]
-- [[_COMMUNITY_Schema Snapshot FK journal alt5|Schema Snapshot FK journal alt5]]
-- [[_COMMUNITY_Schema Snapshot FK 0009 alt6|Schema Snapshot FK 0009 alt6]]
-- [[_COMMUNITY_Schema Snapshot FK 0005 alt6|Schema Snapshot FK 0005 alt6]]
-- [[_COMMUNITY_Schema Snapshot FK 0004 alt6|Schema Snapshot FK 0004 alt6]]
-- [[_COMMUNITY_Schema Snapshot FK 0006 alt6|Schema Snapshot FK 0006 alt6]]
-- [[_COMMUNITY_Schema Snapshot FK 0001 alt6|Schema Snapshot FK 0001 alt6]]
-- [[_COMMUNITY_Schema Snapshot FK 0003 alt6|Schema Snapshot FK 0003 alt6]]
-- [[_COMMUNITY_Server DB Migrations|Server DB Migrations]]
-- [[_COMMUNITY_Client Auth Hook|Client Auth Hook]]
-- [[_COMMUNITY_Client API Layer|Client API Layer]]
-- [[_COMMUNITY_Favicon SVG|Favicon SVG]]
-- [[_COMMUNITY_Schema Snapshot FK 0008 alt6|Schema Snapshot FK 0008 alt6]]
-- [[_COMMUNITY_Schema Snapshot FK 0010 alt6|Schema Snapshot FK 0010 alt6]]
-- [[_COMMUNITY_Schema Snapshot FK 0002 alt6|Schema Snapshot FK 0002 alt6]]
-- [[_COMMUNITY_Schema Snapshot FK 0000 alt6|Schema Snapshot FK 0000 alt6]]
-- [[_COMMUNITY_Schema Snapshot FK 0007 alt6|Schema Snapshot FK 0007 alt6]]
-- [[_COMMUNITY_Schema Snapshot FK journal alt6|Schema Snapshot FK journal alt6]]
-- [[_COMMUNITY_Schema Snapshot FK 0009 alt7|Schema Snapshot FK 0009 alt7]]
-- [[_COMMUNITY_Schema Snapshot FK 0005 alt7|Schema Snapshot FK 0005 alt7]]
-- [[_COMMUNITY_Schema Snapshot FK 0004 alt7|Schema Snapshot FK 0004 alt7]]
-- [[_COMMUNITY_Schema Snapshot FK 0006 alt7|Schema Snapshot FK 0006 alt7]]
-- [[_COMMUNITY_Schema Snapshot FK 0001 alt7|Schema Snapshot FK 0001 alt7]]
-- [[_COMMUNITY_Schema Snapshot FK 0003 alt7|Schema Snapshot FK 0003 alt7]]
-- [[_COMMUNITY_Schema Snapshot FK 0008 alt7|Schema Snapshot FK 0008 alt7]]
-- [[_COMMUNITY_Schema Snapshot FK 0010 alt7|Schema Snapshot FK 0010 alt7]]
-- [[_COMMUNITY_Schema Snapshot FK 0002 alt7|Schema Snapshot FK 0002 alt7]]
-- [[_COMMUNITY_Schema Snapshot FK 0000 alt7|Schema Snapshot FK 0000 alt7]]
-- [[_COMMUNITY_Schema Snapshot FK 0007 alt7|Schema Snapshot FK 0007 alt7]]
-- [[_COMMUNITY_Schema Snapshot FK journal alt7|Schema Snapshot FK journal alt7]]
-- [[_COMMUNITY_Schema Snapshot FK 0009 alt8|Schema Snapshot FK 0009 alt8]]
-- [[_COMMUNITY_Schema Snapshot FK 0005 alt8|Schema Snapshot FK 0005 alt8]]
-- [[_COMMUNITY_Schema Snapshot FK 0004 alt8|Schema Snapshot FK 0004 alt8]]
-- [[_COMMUNITY_Schema Snapshot FK 0006 alt8|Schema Snapshot FK 0006 alt8]]
-- [[_COMMUNITY_Schema Snapshot FK 0001 alt8|Schema Snapshot FK 0001 alt8]]
-- [[_COMMUNITY_Schema Snapshot FK 0003 alt8|Schema Snapshot FK 0003 alt8]]
-- [[_COMMUNITY_Schema Snapshot FK 0008 alt8|Schema Snapshot FK 0008 alt8]]
-- [[_COMMUNITY_Schema Snapshot FK 0010 alt8|Schema Snapshot FK 0010 alt8]]
-- [[_COMMUNITY_Schema Snapshot FK 0002 alt8|Schema Snapshot FK 0002 alt8]]
-- [[_COMMUNITY_Schema Snapshot FK 0000 alt8|Schema Snapshot FK 0000 alt8]]
-- [[_COMMUNITY_Schema Snapshot FK 0007 alt8|Schema Snapshot FK 0007 alt8]]
-- [[_COMMUNITY_Schema Snapshot FK journal alt8|Schema Snapshot FK journal alt8]]
-- [[_COMMUNITY_Kiro Process Manager|Kiro Process Manager]]
-- [[_COMMUNITY_Schema Snapshot FK 0009 alt9|Schema Snapshot FK 0009 alt9]]
-- [[_COMMUNITY_Schema Snapshot FK 0005 alt9|Schema Snapshot FK 0005 alt9]]
-- [[_COMMUNITY_Schema Snapshot FK 0004 alt9|Schema Snapshot FK 0004 alt9]]
-- [[_COMMUNITY_Schema Snapshot FK 0006 alt9|Schema Snapshot FK 0006 alt9]]
-- [[_COMMUNITY_Schema Snapshot FK 0001 alt9|Schema Snapshot FK 0001 alt9]]
-- [[_COMMUNITY_Schema Snapshot FK 0003 alt9|Schema Snapshot FK 0003 alt9]]
-- [[_COMMUNITY_Schema Snapshot FK 0008 alt9|Schema Snapshot FK 0008 alt9]]
-- [[_COMMUNITY_Schema Snapshot FK 0010 alt9|Schema Snapshot FK 0010 alt9]]
-- [[_COMMUNITY_Schema Snapshot FK 0002 alt9|Schema Snapshot FK 0002 alt9]]
-- [[_COMMUNITY_Schema Snapshot FK 0000 alt9|Schema Snapshot FK 0000 alt9]]
-- [[_COMMUNITY_Schema Snapshot FK 0007 alt9|Schema Snapshot FK 0007 alt9]]
-- [[_COMMUNITY_Schema Snapshot FK journal alt9|Schema Snapshot FK journal alt9]]
-- [[_COMMUNITY_Schema Snapshot FK 0009 alt10|Schema Snapshot FK 0009 alt10]]
-- [[_COMMUNITY_Schema Snapshot FK 0005 alt10|Schema Snapshot FK 0005 alt10]]
-- [[_COMMUNITY_Schema Snapshot FK 0004 alt10|Schema Snapshot FK 0004 alt10]]
-- [[_COMMUNITY_Schema Snapshot FK 0006 alt10|Schema Snapshot FK 0006 alt10]]
-- [[_COMMUNITY_Schema Snapshot FK 0001 alt10|Schema Snapshot FK 0001 alt10]]
-- [[_COMMUNITY_Schema Snapshot FK 0003 alt10|Schema Snapshot FK 0003 alt10]]
-- [[_COMMUNITY_Schema Snapshot FK 0008 alt10|Schema Snapshot FK 0008 alt10]]
-- [[_COMMUNITY_Schema Snapshot FK 0010 alt10|Schema Snapshot FK 0010 alt10]]
-- [[_COMMUNITY_Schema Snapshot FK 0002 alt10|Schema Snapshot FK 0002 alt10]]
-- [[_COMMUNITY_Schema Snapshot FK 0000 alt10|Schema Snapshot FK 0000 alt10]]
-- [[_COMMUNITY_Schema Snapshot FK 0007 alt10|Schema Snapshot FK 0007 alt10]]
-- [[_COMMUNITY_Schema Snapshot FK journal alt10|Schema Snapshot FK journal alt10]]
-- [[_COMMUNITY_Schema Snapshot FK 0009 alt11|Schema Snapshot FK 0009 alt11]]
-- [[_COMMUNITY_Schema Snapshot FK 0005 alt11|Schema Snapshot FK 0005 alt11]]
-- [[_COMMUNITY_Schema Snapshot FK 0004 alt11|Schema Snapshot FK 0004 alt11]]
-- [[_COMMUNITY_Schema Snapshot FK 0006 alt11|Schema Snapshot FK 0006 alt11]]
-- [[_COMMUNITY_OpenCode Process Manager|OpenCode Process Manager]]
-- [[_COMMUNITY_Client Dev Config|Client Dev Config]]
-- [[_COMMUNITY_Schema Snapshot FK 0001 alt11|Schema Snapshot FK 0001 alt11]]
-- [[_COMMUNITY_Schema Snapshot FK 0003 alt11|Schema Snapshot FK 0003 alt11]]
-- [[_COMMUNITY_Schema Snapshot FK 0008 alt11|Schema Snapshot FK 0008 alt11]]
-- [[_COMMUNITY_Schema Snapshot FK 0010 alt11|Schema Snapshot FK 0010 alt11]]
-- [[_COMMUNITY_Schema Snapshot FK 0002 alt11|Schema Snapshot FK 0002 alt11]]
-- [[_COMMUNITY_Schema Snapshot FK 0000 alt11|Schema Snapshot FK 0000 alt11]]
-- [[_COMMUNITY_Schema Snapshot FK 0007 alt11|Schema Snapshot FK 0007 alt11]]
-- [[_COMMUNITY_Schema Snapshot FK journal alt11|Schema Snapshot FK journal alt11]]
-- [[_COMMUNITY_Schema Snapshot FK 0009 alt12|Schema Snapshot FK 0009 alt12]]
-- [[_COMMUNITY_Schema Snapshot FK 0005 alt12|Schema Snapshot FK 0005 alt12]]
-- [[_COMMUNITY_Schema Snapshot FK 0004 alt12|Schema Snapshot FK 0004 alt12]]
-- [[_COMMUNITY_Schema Snapshot FK 0006 alt12|Schema Snapshot FK 0006 alt12]]
-- [[_COMMUNITY_Schema Snapshot FK 0001 alt12|Schema Snapshot FK 0001 alt12]]
-- [[_COMMUNITY_Schema Snapshot FK 0003 alt12|Schema Snapshot FK 0003 alt12]]
-- [[_COMMUNITY_Schema Snapshot FK 0008 alt12|Schema Snapshot FK 0008 alt12]]
-- [[_COMMUNITY_Schema Snapshot FK 0010 alt12|Schema Snapshot FK 0010 alt12]]
-- [[_COMMUNITY_Schema Snapshot FK 0002 alt12|Schema Snapshot FK 0002 alt12]]
-- [[_COMMUNITY_Schema Snapshot FK 0000 alt12|Schema Snapshot FK 0000 alt12]]
-- [[_COMMUNITY_Schema Snapshot FK 0007 alt12|Schema Snapshot FK 0007 alt12]]
-- [[_COMMUNITY_Schema Snapshot FK journal alt12|Schema Snapshot FK journal alt12]]
-- [[_COMMUNITY_Schema Snapshot FK 0009 alt13|Schema Snapshot FK 0009 alt13]]
-- [[_COMMUNITY_Schema Snapshot FK 0005 alt13|Schema Snapshot FK 0005 alt13]]
-- [[_COMMUNITY_Schema Snapshot FK 0004 alt13|Schema Snapshot FK 0004 alt13]]
-- [[_COMMUNITY_Schema Snapshot FK 0006 alt13|Schema Snapshot FK 0006 alt13]]
-- [[_COMMUNITY_Schema Snapshot FK 0001 alt13|Schema Snapshot FK 0001 alt13]]
-- [[_COMMUNITY_Schema Snapshot FK 0003 alt13|Schema Snapshot FK 0003 alt13]]
-- [[_COMMUNITY_Schema Snapshot FK 0008 alt13|Schema Snapshot FK 0008 alt13]]
-- [[_COMMUNITY_Schema Snapshot FK 0010 alt13|Schema Snapshot FK 0010 alt13]]
-- [[_COMMUNITY_Server Health Route|Server Health Route]]
-- [[_COMMUNITY_Schema Snapshot FK 0002 alt13|Schema Snapshot FK 0002 alt13]]
-- [[_COMMUNITY_Schema Snapshot FK 0000 alt13|Schema Snapshot FK 0000 alt13]]
-- [[_COMMUNITY_Schema Snapshot FK 0007 alt13|Schema Snapshot FK 0007 alt13]]
-- [[_COMMUNITY_Schema Snapshot FK journal alt13|Schema Snapshot FK journal alt13]]
-- [[_COMMUNITY_Schema Snapshot FK 0009 alt14|Schema Snapshot FK 0009 alt14]]
-- [[_COMMUNITY_Schema Snapshot FK 0005 alt14|Schema Snapshot FK 0005 alt14]]
-- [[_COMMUNITY_Schema Snapshot FK 0004 alt14|Schema Snapshot FK 0004 alt14]]
-- [[_COMMUNITY_Schema Snapshot FK 0006 alt14|Schema Snapshot FK 0006 alt14]]
-- [[_COMMUNITY_Schema Snapshot FK 0001 alt14|Schema Snapshot FK 0001 alt14]]
-- [[_COMMUNITY_Schema Snapshot FK 0003 alt14|Schema Snapshot FK 0003 alt14]]
-- [[_COMMUNITY_Schema Snapshot FK 0008 alt14|Schema Snapshot FK 0008 alt14]]
-- [[_COMMUNITY_Schema Snapshot FK 0010 alt14|Schema Snapshot FK 0010 alt14]]
-- [[_COMMUNITY_Schema Snapshot FK 0002 alt14|Schema Snapshot FK 0002 alt14]]
-- [[_COMMUNITY_Schema Snapshot FK 0000 alt14|Schema Snapshot FK 0000 alt14]]
-- [[_COMMUNITY_Schema Snapshot FK 0007 alt14|Schema Snapshot FK 0007 alt14]]
-- [[_COMMUNITY_Schema Snapshot FK journal alt14|Schema Snapshot FK journal alt14]]
-- [[_COMMUNITY_Schema Snapshot FK 0009 alt15|Schema Snapshot FK 0009 alt15]]
-- [[_COMMUNITY_Devcontainer Config|Devcontainer Config]]
-- [[_COMMUNITY_Schema Snapshot FK 0005 alt15|Schema Snapshot FK 0005 alt15]]
-- [[_COMMUNITY_Client Community Hook|Client Community Hook]]
-- [[_COMMUNITY_Client Project Pages|Client Project Pages]]
-- [[_COMMUNITY_Client Admin Hook|Client Admin Hook]]
-- [[_COMMUNITY_Client App Shell|Client App Shell]]
-- [[_COMMUNITY_Client Community Pages|Client Community Pages]]
-- [[_COMMUNITY_Client Lib Utils|Client Lib Utils]]
-- [[_COMMUNITY_Server Auth Middleware|Server Auth Middleware]]
-- [[_COMMUNITY_Client Project Hooks|Client Project Hooks]]
-- [[_COMMUNITY_Client Mobile Hook|Client Mobile Hook]]
-- [[_COMMUNITY_Agent Util Types|Agent Util Types]]
-- [[_COMMUNITY_Utility 262|Utility 262]]
-- [[_COMMUNITY_Utility 263|Utility 263]]
-- [[_COMMUNITY_Utility 265|Utility 265]]
-- [[_COMMUNITY_Utility 267|Utility 267]]
-- [[_COMMUNITY_Utility 268|Utility 268]]
-- [[_COMMUNITY_Utility 269|Utility 269]]
-- [[_COMMUNITY_Utility 270|Utility 270]]
-- [[_COMMUNITY_Utility 275|Utility 275]]
-- [[_COMMUNITY_Utility 276|Utility 276]]
-- [[_COMMUNITY_Utility 278|Utility 278]]
-- [[_COMMUNITY_Utility 279|Utility 279]]
-- [[_COMMUNITY_Utility 280|Utility 280]]
-- [[_COMMUNITY_Utility 281|Utility 281]]
-- [[_COMMUNITY_Utility 282|Utility 282]]
-- [[_COMMUNITY_Utility 283|Utility 283]]
-- [[_COMMUNITY_Utility 284|Utility 284]]
-- [[_COMMUNITY_Utility 285|Utility 285]]
-- [[_COMMUNITY_Utility 286|Utility 286]]
-- [[_COMMUNITY_Utility 287|Utility 287]]
-- [[_COMMUNITY_Utility 288|Utility 288]]
-- [[_COMMUNITY_Utility 289|Utility 289]]
-- [[_COMMUNITY_Utility 290|Utility 290]]
-- [[_COMMUNITY_Utility 291|Utility 291]]
-- [[_COMMUNITY_Utility 292|Utility 292]]
-- [[_COMMUNITY_Utility 293|Utility 293]]
-- [[_COMMUNITY_Utility 294|Utility 294]]
-- [[_COMMUNITY_Utility 295|Utility 295]]
-- [[_COMMUNITY_Utility 296|Utility 296]]
-- [[_COMMUNITY_Utility 297|Utility 297]]
-- [[_COMMUNITY_Utility 298|Utility 298]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_Authentication|Authentication]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_UI Components|UI Components]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_client|client]]
+- [[_COMMUNITY_API Routes|API Routes]]
+- [[_COMMUNITY_dependencies|dependencies]]
+- [[_COMMUNITY_API Routes|API Routes]]
+- [[_COMMUNITY_App Pages|App Pages]]
+- [[_COMMUNITY_API Routes|API Routes]]
+- [[_COMMUNITY_tools.ts|tools.ts]]
+- [[_COMMUNITY_File System|File System]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_columns|columns]]
+- [[_COMMUNITY_columns|columns]]
+- [[_COMMUNITY_columns|columns]]
+- [[_COMMUNITY_columnsFrom|columnsFrom]]
+- [[_COMMUNITY_columns|columns]]
+- [[_COMMUNITY_columnsFrom|columnsFrom]]
+- [[_COMMUNITY_DB Schema|DB Schema]]
+- [[_COMMUNITY_compilerOptions|compilerOptions]]
+- [[_COMMUNITY_default|default]]
+- [[_COMMUNITY_File System|File System]]
+- [[_COMMUNITY_App Pages|App Pages]]
+- [[_COMMUNITY_Project Management|Project Management]]
+- [[_COMMUNITY_Project Management|Project Management]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_cleanAssistantText()|cleanAssistantText()]]
+- [[_COMMUNITY_compilerOptions|compilerOptions]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_kiroBridge|kiroBridge]]
+- [[_COMMUNITY_compiler|compiler]]
+- [[_COMMUNITY_API Routes|API Routes]]
+- [[_COMMUNITY_API Routes|API Routes]]
+- [[_COMMUNITY_Streaming System|Streaming System]]
+- [[_COMMUNITY_Project Management|Project Management]]
+- [[_COMMUNITY_Project Management|Project Management]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_description|description]]
+- [[_COMMUNITY_content|content]]
+- [[_COMMUNITY_content|content]]
+- [[_COMMUNITY_compiler|compiler]]
+- [[_COMMUNITY_Type Definitions|Type Definitions]]
+- [[_COMMUNITY_KiroBridge|KiroBridge]]
+- [[_COMMUNITY_expires_at|expires_at]]
+- [[_COMMUNITY_description|description]]
+- [[_COMMUNITY_created_at|created_at]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_description|description]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_expires_at|expires_at]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_Project Management|Project Management]]
+- [[_COMMUNITY_expires_at|expires_at]]
+- [[_COMMUNITY_Type Definitions|Type Definitions]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_columns|columns]]
+- [[_COMMUNITY_columns|columns]]
+- [[_COMMUNITY_Type Definitions|Type Definitions]]
+- [[_COMMUNITY_expires_at|expires_at]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_Type Definitions|Type Definitions]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_expires_at|expires_at]]
+- [[_COMMUNITY_Type Definitions|Type Definitions]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_link_id|link_id]]
+- [[_COMMUNITY_Type Definitions|Type Definitions]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_Type Definitions|Type Definitions]]
+- [[_COMMUNITY_glassy.tsx|glassy.tsx]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_compilerOptions|compilerOptions]]
+- [[_COMMUNITY_dialect|dialect]]
+- [[_COMMUNITY_dialect|dialect]]
+- [[_COMMUNITY_API Routes|API Routes]]
+- [[_COMMUNITY_App Pages|App Pages]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_content|content]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_columns|columns]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_columns|columns]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_UI Components|UI Components]]
+- [[_COMMUNITY_Project Management|Project Management]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_Project Management|Project Management]]
+- [[_COMMUNITY_Project Management|Project Management]]
+- [[_COMMUNITY_Project Management|Project Management]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_content|content]]
+- [[_COMMUNITY_content|content]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_content|content]]
+- [[_COMMUNITY_Project Config|Project Config]]
+- [[_COMMUNITY_dialect|dialect]]
+- [[_COMMUNITY_Streaming System|Streaming System]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_columnsFrom|columnsFrom]]
+- [[_COMMUNITY_columnsFrom|columnsFrom]]
+- [[_COMMUNITY_columnsFrom|columnsFrom]]
+- [[_COMMUNITY_Project Management|Project Management]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_columnsFrom|columnsFrom]]
+- [[_COMMUNITY_columnsFrom|columnsFrom]]
+- [[_COMMUNITY_columnsFrom|columnsFrom]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_Project Management|Project Management]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_columnsFrom|columnsFrom]]
+- [[_COMMUNITY_columnsFrom|columnsFrom]]
+- [[_COMMUNITY_columnsFrom|columnsFrom]]
+- [[_COMMUNITY_columnsFrom|columnsFrom]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_columnsFrom|columnsFrom]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_columnsFrom|columnsFrom]]
+- [[_COMMUNITY_Project Management|Project Management]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_Type Definitions|Type Definitions]]
+- [[_COMMUNITY_App Pages|App Pages]]
+- [[_COMMUNITY_App Pages|App Pages]]
+- [[_COMMUNITY_Dark rounded background|Dark rounded background]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_columns|columns]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_columns|columns]]
+- [[_COMMUNITY_columns|columns]]
+- [[_COMMUNITY_columns|columns]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_columns|columns]]
+- [[_COMMUNITY_columns|columns]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_columns|columns]]
+- [[_COMMUNITY_columns|columns]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_columns|columns]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_columns|columns]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_seed()|seed()]]
+- [[_COMMUNITY_BridgeRegistry|BridgeRegistry]]
+- [[_COMMUNITY_Streaming System|Streaming System]]
+- [[_COMMUNITY_role|role]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_language|language]]
+- [[_COMMUNITY_status|status]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_language|language]]
+- [[_COMMUNITY_role|role]]
+- [[_COMMUNITY_status|status]]
+- [[_COMMUNITY_compiler|compiler]]
+- [[_COMMUNITY_compiler|compiler]]
+- [[_COMMUNITY_role|role]]
+- [[_COMMUNITY_status|status]]
+- [[_COMMUNITY_compiler|compiler]]
+- [[_COMMUNITY_language|language]]
+- [[_COMMUNITY_role|role]]
+- [[_COMMUNITY_status|status]]
+- [[_COMMUNITY_visibility|visibility]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_language|language]]
+- [[_COMMUNITY_status|status]]
+- [[_COMMUNITY_visibility|visibility]]
+- [[_COMMUNITY_compiler|compiler]]
+- [[_COMMUNITY_language|language]]
+- [[_COMMUNITY_status|status]]
+- [[_COMMUNITY_visibility|visibility]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_compilerOptions|compilerOptions]]
+- [[_COMMUNITY_created_at|created_at]]
+- [[_COMMUNITY_password_hash|password_hash]]
+- [[_COMMUNITY_token|token]]
+- [[_COMMUNITY_updated_at|updated_at]]
+- [[_COMMUNITY_id|id]]
+- [[_COMMUNITY_created_at|created_at]]
+- [[_COMMUNITY_java_version|java_version]]
+- [[_COMMUNITY_created_at|created_at]]
+- [[_COMMUNITY_id|id]]
+- [[_COMMUNITY_java_version|java_version]]
+- [[_COMMUNITY_updated_at|updated_at]]
+- [[_COMMUNITY_java_version|java_version]]
+- [[_COMMUNITY_id|id]]
+- [[_COMMUNITY_software|software]]
+- [[_COMMUNITY_updated_at|updated_at]]
+- [[_COMMUNITY_created_at|created_at]]
+- [[_COMMUNITY_id|id]]
+- [[_COMMUNITY_java_version|java_version]]
+- [[_COMMUNITY_java_version|java_version]]
+- [[_COMMUNITY_UI Components|UI Components]]
+- [[_COMMUNITY_software|software]]
+- [[_COMMUNITY_created_at|created_at]]
+- [[_COMMUNITY_UI Components|UI Components]]
+- [[_COMMUNITY_software|software]]
+- [[_COMMUNITY_created_at|created_at]]
+- [[_COMMUNITY_java_version|java_version]]
+- [[_COMMUNITY_Chrome Android Browser|Chrome Android Browser]]
+- [[_COMMUNITY_AuroraCraft README|AuroraCraft README]]
+- [[_COMMUNITY_start()|start()]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_expires_at|expires_at]]
+- [[_COMMUNITY_user_id|user_id]]
+- [[_COMMUNITY_username|username]]
+- [[_COMMUNITY_enums|enums]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_name|name]]
+- [[_COMMUNITY_user_id|user_id]]
+- [[_COMMUNITY_name|name]]
+- [[_COMMUNITY_user_id|user_id]]
+- [[_COMMUNITY_link_id|link_id]]
+- [[_COMMUNITY_description|description]]
+- [[_COMMUNITY_logo|logo]]
+- [[_COMMUNITY_user_id|user_id]]
+- [[_COMMUNITY_description|description]]
+- [[_COMMUNITY_user_id|user_id]]
+- [[_COMMUNITY_name|name]]
+- [[_COMMUNITY_versions|versions]]
+- [[_COMMUNITY_AI Models|AI Models]]
+- [[_COMMUNITY_DB Schema|DB Schema]]
+- [[_COMMUNITY_DB Schema|DB Schema]]
+- [[_COMMUNITY_DB Schema|DB Schema]]
+- [[_COMMUNITY_DB Schema|DB Schema]]
+- [[_COMMUNITY_DB Schema|DB Schema]]
+- [[_COMMUNITY_DB Schema|DB Schema]]
+- [[_COMMUNITY_dialect|dialect]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_App Pages|App Pages]]
+- [[_COMMUNITY_Project Config|Project Config]]
+- [[_COMMUNITY_CodeRabbit Integration Complete|CodeRabbit Integration Complete]]
+- [[_COMMUNITY_api.ts|api.ts]]
+- [[_COMMUNITY_Package Dependencies|Package Dependencies]]
+- [[_COMMUNITY_App Pages|App Pages]]
+- [[_COMMUNITY_App Pages|App Pages]]
+- [[_COMMUNITY_Package Dependencies|Package Dependencies]]
+- [[_COMMUNITY_DB Migrations|DB Migrations]]
+- [[_COMMUNITY_Project Config|Project Config]]
+- [[_COMMUNITY_DB Migrations|DB Migrations]]
+- [[_COMMUNITY_UI Components|UI Components]]
+- [[_COMMUNITY_restart.sh|restart.sh]]
+- [[_COMMUNITY_start.sh|start.sh]]
+- [[_COMMUNITY_status.sh|status.sh]]
+- [[_COMMUNITY_Project Config|Project Config]]
+- [[_COMMUNITY_Type Definitions|Type Definitions]]
+- [[_COMMUNITY_Streaming System|Streaming System]]
+- [[_COMMUNITY_formatRelativeDate Helper|formatRelativeDate Helper]]
+- [[_COMMUNITY_UI Components|UI Components]]
+- [[_COMMUNITY_UI Components|UI Components]]
+- [[_COMMUNITY_UI Components|UI Components]]
+- [[_COMMUNITY_UI Components|UI Components]]
+- [[_COMMUNITY_UI Components|UI Components]]
+- [[_COMMUNITY_UI Components|UI Components]]
+- [[_COMMUNITY_getLanguageFromPath Helper|getLanguageFromPath Helper]]
+- [[_COMMUNITY_UI Components|UI Components]]
+- [[_COMMUNITY_UI Components|UI Components]]
+- [[_COMMUNITY_cn Utility|cn Utility]]
+- [[_COMMUNITY_Footer Links Data|Footer Links Data]]
+- [[_COMMUNITY_DB Schema|DB Schema]]
+- [[_COMMUNITY_Fastify Application|Fastify Application]]
+- [[_COMMUNITY_API Routes|API Routes]]
+- [[_COMMUNITY_Project Management|Project Management]]
+- [[_COMMUNITY_Project Management|Project Management]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_Bridge Task|Bridge Task]]
+- [[_COMMUNITY_Bridge Result|Bridge Result]]
+- [[_COMMUNITY_websocket Plugin|websocket Plugin]]
+- [[_COMMUNITY_cors Plugin|cors Plugin]]
+- [[_COMMUNITY_cookie Plugin|cookie Plugin]]
+- [[_COMMUNITY_Agent System|Agent System]]
+- [[_COMMUNITY_Project Management|Project Management]]
+- [[_COMMUNITY_Project Management|Project Management]]
+- [[_COMMUNITY_Project Config|Project Config]]
+- [[_COMMUNITY_Type Definitions|Type Definitions]]
+- [[_COMMUNITY_App Pages|App Pages]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `api HTTP Client` - 22 edges
+1. `cn()` - 27 edges
 2. `compilerOptions` - 21 edges
 3. `SSEConnection` - 21 edges
-4. `cn()` - 19 edges
+4. `api HTTP Client` - 21 edges
 5. `compilerOptions` - 18 edges
 6. `columns` - 18 edges
 7. `OpenCodeBridge` - 18 edges
@@ -314,1067 +327,1085 @@
 10. `columns` - 14 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `Deployment Documentation` --semantically_similar_to--> `Restart Notes`  [INFERRED] [semantically similar]
-  DEPLOYMENT.md → RESTART_NOTES.md
-- `Project README` --semantically_similar_to--> `Project Knowledge`  [INFERRED] [semantically similar]
-  README.md → knowledge.md
 - `Restart Script` --semantically_similar_to--> `Start Script`  [INFERRED] [semantically similar]
   restart.sh → start.sh
+- `Status Check Script` --references--> `PostgreSQL Database`  [EXTRACTED]
+  status.sh → POSTGRES_GUIDE.md
+- `Status Check Script` --references--> `PM2 Process Manager`  [EXTRACTED]
+  status.sh → DEPLOYMENT.md
+- `DevContainer Configuration` --references--> `PM2 Process Manager`  [EXTRACTED]
+  .devcontainer/devcontainer.json → DEPLOYMENT.md
 - `Deployment Documentation` --semantically_similar_to--> `PostgreSQL Guide`  [INFERRED] [semantically similar]
   DEPLOYMENT.md → POSTGRES_GUIDE.md
-- `CodeRabbit Integration Complete` --semantically_similar_to--> `CodeRabbit Implementation Steps`  [INFERRED] [semantically similar]
-  CODERABBIT_COMPLETE.md → CODERABBIT_IMPLEMENTATION.md
 
 ## Hyperedges (group relationships)
 - **Backend Startup Orchestration** — restart_restart-script, start_start-script, backend_backend-manager, server_entry_point [EXTRACTED 1.00]
-- **Operational Documentation Cluster** — deployment_deployment-docs, postgres-guide_postgres-guide, restart-notes_restart-notes [INFERRED 0.70]
 - **Agent Type System** — agent-definition_AgentDefinition, agent-definition_AgentState, tools_ToolName, util-types_Message [EXTRACTED 1.00]
-- **Auth Route Guard System** — protected_route_ProtectedRoute, protected_route_AdminRoute, protected_route_GuestRoute [INFERRED 0.90]
-- **Application Layout Hierarchy** — root_layout, public_layout, app_layout, admin_layout [INFERRED 0.80]
 - **@ Alias Configuration** — tsconfig_app, vite_config, vite_config_alias_config [INFERRED 0.85]
 - **Agent Session Lifecycle** — use-agent_useAgentSessions, use-agent_useAgentSession, use-agent_useStreamingAgent, use-agent_useAgentLogs [INFERRED 0.85]
-- **Project Workspace Layout Pattern** — workspace_WorkspacePage, community-project_CommunityProjectPage, workspace_FileTreePanel, community-project_FileTreePanel, workspace_EditorPanel, community-project_ReadOnlyEditorPanel [INFERRED 0.80]
-- **Streaming Message Render Pipeline** — use-agent_useStreamingAgent, workspace_buildRenderBlocksFromStreaming, workspace_StreamingMessage, workspace_RenderMessageBlocks [INFERRED 0.85]
-- **Admin Panel Pages** — routes_index_AppRoutes, overview_AdminOverviewPage, users_AdminUsersPage, ai-runtime_AdminAIRuntimePage, projects_AdminProjectsPage [EXTRACTED 1.00]
-- **Project Data Shapes** — types_index_Project, types_index_CreateProjectInput, types_index_UpdateProjectInput, types_index_CommunityProject, types_index_AdminProject [INFERRED 0.85]
+- **Admin Panel Pages** — routes_index_AppRoutes, overview_AdminOverviewPage, ai-runtime_AdminAIRuntimePage [EXTRACTED 1.00]
+- **Application Layout Hierarchy** — root_layout, public_layout, app_layout, admin_layout [INFERRED 0.80]
+- **Auth Route Guard System** — protected_route_ProtectedRoute, protected_route_AdminRoute, protected_route_GuestRoute [INFERRED 0.90]
 - **Bridge Tracking Evolution** — 0002_opencode_bridge, 0008_add_kiro_bridge, 0009_next_vulture, feature_opencode_bridge, feature_kiro_bridge [INFERRED 0.80]
 - **Third-Party Service Integrations** — 0004_add_coderabbit, 0010_github_oauth, feature_coderabbit, feature_github_oauth, table_users [INFERRED 0.75]
-- **Duplicate or Unapplied Migrations** — 0003_wakeful_mesmero, 0002_opencode_bridge, 0005_add_visibility, 0005_heavy_scorpion [INFERRED 0.85]
-- **AI Bridge Abstraction Layer** — bridges_index_BridgeRegistry, bridges_opencode_OpenCodeBridge, bridges_kiro_KiroBridge, bridges_types_BridgeInterface [INFERRED 0.85]
-- **External CLI Process Lifecycle Management** — bridges_opencodeProcessManager_OpenCodeProcessManager, bridges_kiroProcessManager_KiroProcessManager, index_fastifyApp [INFERRED 0.80]
-- **Shared Output Sanitization Pipeline** — agents_executor_cleanBadgeMarkers, bridges_opencode_cleanAssistantText, bridges_kiro_normalizeAssistantText, bridges_kiroOutputParser_stripAnsi [INFERRED 0.80]
-- **Agent Session Lifecycle** — agent_routes, agent_sessions_table, agent_messages_table, agent_logs_table [INFERRED 0.80]
-- **External CLI Tool Integrations** — coderabbit_routes, github_routes, admin_routes [INFERRED 0.75]
+- **External CLI Process Lifecycle Management** — bridges_kiroProcessManager_KiroProcessManager, index_fastifyApp [INFERRED 0.80]
 - **Session-Based Auth System** — auth_middleware, admin_guard, sessions_table, users_table, auth_routes [INFERRED 0.80]
-- **Code Review Findings** — gitignore_file, gradle_directory, major_finding_cache_properties, critical_finding_gc_properties [EXTRACTED 1.00]
-- **Auto-generated Gradle Files** — gradle_build_output_cleanup_cache_properties, gradle_921_gc_properties, auto_generated_gradle_cache_file [EXTRACTED 1.00]
+- **Agent Session Lifecycle** — agent_routes, agent_sessions_table, agent_messages_table, agent_logs_table [INFERRED 0.80]
+- **Shared Output Sanitization Pipeline** — agents_executor_cleanBadgeMarkers, bridges_opencode_cleanAssistantText, bridges_kiro_normalizeAssistantText, bridges_kiroOutputParser_stripAnsi [INFERRED 0.80]
+- **AI Bridge Abstraction Layer** — bridges_index_BridgeRegistry, bridges_opencode_OpenCodeBridge, bridges_kiro_KiroBridge, bridges_types_BridgeInterface [INFERRED 0.85]
+- **Operational Documentation Cluster** — deployment_deployment-docs, postgres-guide_postgres-guide, restart-notes_restart-notes [INFERRED 0.70]
 - **Favicon visual composition** — favicon_background_element, favicon_geometric_mark, favicon_svg_file [EXTRACTED 1.00]
+- **Mobile Browser Connection Error Scenario** — screenshot_chrome_mobile_error, error_connection_refused, chrome_android_browser, localhost_server, network_connection_failure [EXTRACTED 1.00]
 
-## Communities (299 total, 39 thin omitted)
+## Communities (312 total, 46 thin omitted)
 
-### Community 0 - "Client Pages & Hooks"
-Cohesion: 0.06
-Nodes (52): api HTTP Client, apiClient Axios Instance, ChatHistoryPanel Component, CommunityProjectPage Component, FileTreePanel Component, ReadOnlyEditorPanel Component, ReadOnlyFileTreeNode Component, getLanguageFromPath Helper (+44 more)
-
-### Community 1 - "Drizzle Schema Snapshot 0009"
+### Community 0 - "Agent System"
 Cohesion: 0.04
 Nodes (46): dialect, enums, public.agent_status, public.message_role, public.project_bridge, public.project_compiler, public.project_language, public.project_status (+38 more)
 
-### Community 2 - "Client Package Dependencies"
+### Community 1 - "Authentication"
 Cohesion: 0.05
 Nodes (43): dependencies, axios, class-variance-authority, clsx, lucide-react, monaco-editor, @monaco-editor/react, react (+35 more)
 
-### Community 3 - "Drizzle Schema Snapshot 0005"
+### Community 2 - "Agent System"
 Cohesion: 0.05
 Nodes (42): dialect, enums, public.agent_status, public.message_role, public.project_compiler, public.project_language, public.project_status, public.project_visibility (+34 more)
 
-### Community 4 - "Drizzle Schema Snapshot 0006"
-Cohesion: 0.05
-Nodes (42): dialect, enums, public.agent_status, public.message_role, public.project_compiler, public.project_language, public.project_status, public.project_visibility (+34 more)
+### Community 3 - "UI Components"
+Cohesion: 0.06
+Nodes (40): api HTTP Client, apiClient Axios Instance, ChatHistoryPanel Component, CommunityProjectPage Component, FileTreePanel Component, ReadOnlyEditorPanel Component, CommunityPage Component, DashboardPage Component (+32 more)
 
-### Community 5 - "Drizzle Schema Snapshot 0004"
-Cohesion: 0.05
-Nodes (38): dialect, enums, public.agent_status, public.message_role, public.project_compiler, public.project_language, public.project_status, public.user_role (+30 more)
-
-### Community 6 - "Drizzle Schema Snapshot 0001"
+### Community 4 - "Agent System"
 Cohesion: 0.05
 Nodes (38): dialect, enums, public.agent_status, public.message_role, public.project_compiler, public.project_language, public.project_status, public.user_role (+30 more)
 
-### Community 7 - "Drizzle Schema Snapshot 0003"
+### Community 5 - "Agent System"
 Cohesion: 0.05
 Nodes (38): dialect, enums, public.agent_status, public.message_role, public.project_compiler, public.project_language, public.project_status, public.user_role (+30 more)
 
-### Community 8 - "Server Package Dependencies"
+### Community 6 - "client"
+Cohesion: 0.12
+Nodes (25): client, Database, db, adminGuard(), authMiddleware(), FastifyRequest, adminRoutes(), githubRoutes() (+17 more)
+
+### Community 7 - "API Routes"
+Cohesion: 0.10
+Nodes (24): opencodeBridge, agentRoutes(), createSessionSchema, sendMessageSchema, sessionModelTracker, communityProjectSelect, communityRoutes(), createProjectSchema (+16 more)
+
+### Community 8 - "dependencies"
 Cohesion: 0.06
 Nodes (33): dependencies, archiver, argon2, dotenv, drizzle-orm, fastify, @fastify/cookie, @fastify/cors (+25 more)
 
-### Community 9 - "Auth & Layout Routes"
-Cohesion: 0.08
-Nodes (19): AdminRoute(), GuestRoute(), ProtectedRoute(), LoginInput, RegisterInput, useAuth(), sidebarItems, Footer() (+11 more)
-
-### Community 10 - "Agent Definitions & Types"
-Cohesion: 0.11
-Nodes (33): AgentDefinition Interface, AgentState Interface, AgentStepContext Interface, ModelName Type, AuroraCraft Platform, Backend Manager Script, Deployment Documentation, DevContainer Configuration (+25 more)
-
-### Community 11 - "Root Package & Config"
+### Community 9 - "API Routes"
 Cohesion: 0.06
 Nodes (23): AppRoutes, devDependencies, @tailwindcss/vite, @types/node, @types/react-dom, typescript, vite, @vitejs/plugin-react (+15 more)
 
-### Community 12 - "Admin Routes & Agent Logs"
-Cohesion: 0.13
-Nodes (31): adminGuard, adminRoutes, agentLogs Table, messageRoleEnum, agentMessages Table, agentRoutes, agentStatusEnum, agentSessions Table (+23 more)
-
-### Community 13 - "Agent Executor & Bridges"
-Cohesion: 0.11
-Nodes (29): Agent Executor, Badge Marker Cleaner, Agent Execution Context, Agent Stream Callback, Bridge Registry, Kiro File Watcher, Kiro Text Extractor, Kiro Output Parser (+21 more)
-
-### Community 14 - "SQL Migrations"
-Cohesion: 0.12
-Nodes (28): Migration 0000: Initial Auth Schema, Migration 0001: Core Domain Tables, Migration 0002: Opencode Bridge, Migration 0003: No-op Duplicate, Migration 0004: CodeRabbit Integration, Migration 0004: Project Link ID, Migration 0005: Project Visibility (Unapplied), Migration 0005: Project Visibility (+20 more)
-
-### Community 15 - "Client Shared Types"
+### Community 10 - "App Pages"
 Cohesion: 0.07
-Nodes (27): AdminProject, AdminStats, AgentLog, AgentMessage, AgentSession, AgentSessionWithMessages, AgentStatus, AI_MODELS (+19 more)
+Nodes (32): Admin AI Runtime Page, Auth State, useAuthStore, Admin Overview Page, App Routes, AdminProject, AdminStats, AgentLog (+24 more)
 
-### Community 16 - "Agent Tool Types"
+### Community 11 - "API Routes"
+Cohesion: 0.09
+Nodes (19): AdminRoute(), GuestRoute(), ProtectedRoute(), LoginInput, RegisterInput, useAuth(), sidebarItems, Footer() (+11 more)
+
+### Community 12 - "tools.ts"
 Cohesion: 0.07
 Nodes (27): AddMessageParams, ApplyPatchParams, AskUserParams, CodeSearchParams, EndTurnParams, FindFilesParams, GlobParams, ListDirectoryParams (+19 more)
 
-### Community 17 - "Agent Executor Implementation"
+### Community 13 - "File System"
+Cohesion: 0.15
+Nodes (5): extractFilePath(), extractNewPath(), isBuildArtifactPath(), SSEConnection, StreamEvent
+
+### Community 14 - "Agent System"
 Cohesion: 0.13
-Nodes (15): AgentExecutor, cleanBadgeMarkers(), AgentExecutionContext, AgentStreamCallback, agentRoutes(), createSessionSchema, sendMessageSchema, sessionModelTracker (+7 more)
+Nodes (25): Agent Executor, Badge Marker Cleaner, Agent Execution Context, Agent Stream Callback, Bridge Registry, Kiro File Watcher, Kiro Text Extractor, Kiro Output Parser (+17 more)
 
-### Community 18 - "Schema Snapshot FK 0001"
-Cohesion: 0.08
-Nodes (25): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, columns (+17 more)
-
-### Community 19 - "Schema Snapshot FK 0003"
-Cohesion: 0.08
-Nodes (25): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, columns (+17 more)
-
-### Community 20 - "Schema Snapshot FK 0004"
+### Community 15 - "columns"
 Cohesion: 0.08
 Nodes (25): columns, concurrently, isUnique, method, name, with, columnsFrom, columnsTo (+17 more)
 
-### Community 21 - "Schema Snapshot FK 0005"
+### Community 16 - "columns"
+Cohesion: 0.08
+Nodes (25): columns, concurrently, isUnique, method, name, with, columnsFrom, columnsTo (+17 more)
+
+### Community 17 - "columns"
+Cohesion: 0.08
+Nodes (25): columns, concurrently, isUnique, method, name, with, columnsFrom, columnsTo (+17 more)
+
+### Community 18 - "columnsFrom"
 Cohesion: 0.08
 Nodes (25): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, columns (+17 more)
 
-### Community 22 - "Schema Snapshot FK 0006"
+### Community 19 - "columns"
+Cohesion: 0.08
+Nodes (25): columns, concurrently, isUnique, method, name, with, columnsFrom, columnsTo (+17 more)
+
+### Community 20 - "columnsFrom"
 Cohesion: 0.08
 Nodes (25): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, columns (+17 more)
 
-### Community 23 - "Schema Snapshot FK 0009"
-Cohesion: 0.08
-Nodes (25): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, columns (+17 more)
+### Community 21 - "DB Schema"
+Cohesion: 0.12
+Nodes (25): Migration 0000: Initial Auth Schema, Migration 0001: Core Domain Tables, Migration 0002: Opencode Bridge, Migration 0003: No-op Duplicate, Migration 0004: CodeRabbit Integration, Migration 0004: Project Link ID, Migration 0005: Project Visibility (Unapplied), Migration 0005: Project Visibility (+17 more)
 
-### Community 24 - "Server DB Schema"
-Cohesion: 0.18
-Nodes (15): client, Database, db, Drizzle ORM, adminGuard(), authMiddleware(), FastifyRequest, loginSchema (+7 more)
-
-### Community 25 - "Client Config Files"
+### Community 22 - "compilerOptions"
 Cohesion: 0.08
 Nodes (23): compilerOptions, allowImportingTsExtensions, baseUrl, erasableSyntaxOnly, jsx, lib, module, moduleDetection (+15 more)
 
-### Community 26 - "OpenCode Bridge"
-Cohesion: 0.14
-Nodes (17): AgentExecutionResult, AgentStatus, kiroBridge, BUILD_ARTIFACT_RE, FileAction, OpenCodeEvent, OpenCodeMessage, OpenCodePart (+9 more)
-
-### Community 27 - "Kiro Bridge"
-Cohesion: 0.16
-Nodes (8): chownRecursive(), execFileAsync, OpenCodeInstance, OpenCodeProcessManager, processManager, resolveUserIds(), shellQuote(), userIdCache
-
-### Community 28 - "Schema Snapshot FK 0008"
+### Community 23 - "default"
 Cohesion: 0.09
 Nodes (23): default, name, notNull, primaryKey, type, typeSchema, bridge, kiro_session_id (+15 more)
 
-### Community 29 - "Bridge Types & Utils"
-Cohesion: 0.15
-Nodes (4): extractFilePath(), extractNewPath(), isBuildArtifactPath(), SSEConnection
+### Community 24 - "File System"
+Cohesion: 0.16
+Nodes (8): chownRecursive(), execFileAsync, OpenCodeInstance, OpenCodeProcessManager, processManager, resolveUserIds(), shellQuote(), userIdCache
 
-### Community 30 - "Client UI Pages"
+### Community 25 - "App Pages"
 Cohesion: 0.11
-Nodes (11): useFileContent(), buildRenderBlocksFromMetadata(), buildRenderBlocksFromStreaming(), ChatInput, EditorPanel(), getLanguageFromPath(), MarkdownContent(), MessageContent() (+3 more)
+Nodes (12): useFileContent(), buildRenderBlocksFromMetadata(), buildRenderBlocksFromStreaming(), ChatInput, EditorPanel(), getLanguageFromPath(), MarkdownContent(), MessageContent() (+4 more)
 
-### Community 31 - "Schema Snapshot FK 0010"
+### Community 26 - "Project Management"
 Cohesion: 0.09
 Nodes (22): projects_user_id_users_id_fk, columns, name, nullsNotDistinct, columnsFrom, columnsTo, name, onDelete (+14 more)
 
-### Community 32 - "Schema Snapshot FK 0002"
+### Community 27 - "Project Management"
 Cohesion: 0.09
 Nodes (22): projects_user_id_users_id_fk, columns, name, nullsNotDistinct, columnsFrom, columnsTo, name, onDelete (+14 more)
 
-### Community 33 - "Schema Snapshot FK 0007"
+### Community 28 - "AI Models"
 Cohesion: 0.09
 Nodes (22): email, password_hash, updated_at, username, name, notNull, primaryKey, type (+14 more)
 
-### Community 34 - "Client Entry & Layout"
-Cohesion: 0.10
-Nodes (19): compilerOptions, allowImportingTsExtensions, erasableSyntaxOnly, lib, module, moduleDetection, moduleResolution, noEmit (+11 more)
-
-### Community 35 - "Bridge Process Managers"
+### Community 29 - "cleanAssistantText()"
 Cohesion: 0.15
 Nodes (3): cleanAssistantText(), OpenCodeBridge, SubscriptionManager
 
-### Community 36 - "Agent Tool Definitions"
-Cohesion: 0.12
-Nodes (19): Admin AI Runtime Page, Auth State, useAuthStore, Admin Overview Page, Admin Projects Page, App Routes, AIModel, AI_MODELS (+11 more)
+### Community 30 - "compilerOptions"
+Cohesion: 0.10
+Nodes (19): compilerOptions, allowImportingTsExtensions, erasableSyntaxOnly, lib, module, moduleDetection, moduleResolution, noEmit (+11 more)
 
-### Community 37 - "Schema Table Definitions"
+### Community 31 - "Agent System"
 Cohesion: 0.13
 Nodes (18): AgentDefinition, AgentStepContext, AgentTools, CodeAnalysisTools, FileEditingTools, GenerateN, ModelName, OutputTools (+10 more)
 
-### Community 38 - "Server Plugins & Middleware"
-Cohesion: 0.14
-Nodes (13): opencodeBridge, communityProjectSelect, communityRoutes(), createProjectSchema, FileTreeEntry, generateLinkId(), projectRoutes(), readFileTree() (+5 more)
+### Community 32 - "kiroBridge"
+Cohesion: 0.19
+Nodes (9): kiroBridge, escapeForSingleQuotes(), KiroExecution, KiroProcessManager, BridgeResult, BridgeStreamEvent, MessagePart, StreamTodoItem (+1 more)
 
-### Community 39 - "Schema Snapshot FK 0000"
+### Community 33 - "compiler"
+Cohesion: 0.11
+Nodes (19): compiler, description, software, default, name, notNull, primaryKey, type (+11 more)
+
+### Community 34 - "API Routes"
+Cohesion: 0.15
+Nodes (9): authRoutes(), loginSchema, registerSchema, healthRoutes(), env, envSchema, app, clientDist (+1 more)
+
+### Community 35 - "API Routes"
+Cohesion: 0.19
+Nodes (18): adminGuard, adminRoutes, agentLogs Table, messageRoleEnum, agentMessages Table, agentRoutes, agentStatusEnum, agentSessions Table (+10 more)
+
+### Community 36 - "Streaming System"
 Cohesion: 0.15
 Nodes (5): BUILD_ARTIFACT_PATTERNS, FileChangeEvent, IGNORED_DIRS, KiroFileWatcher, OnChangeCallback
 
-### Community 40 - "Client Admin Pages"
+### Community 37 - "Project Management"
 Cohesion: 0.14
-Nodes (14): useCommunityFileContent(), cn(), ChatMessage(), DownloadDropdown(), getLanguageFromPath(), MobileTabButton(), ReadOnlyEditorPanel(), ReadOnlyFileTreeNode() (+6 more)
+Nodes (14): CommunityProjectsParams, useCommunityFileContent(), useCommunityMessages(), useCommunityProject(), useCommunityProjectFiles(), useForkProject(), ChatHistoryPanel(), ChatMessage() (+6 more)
 
-### Community 41 - "Schema Snapshot FK meta 0004"
+### Community 38 - "Project Management"
 Cohesion: 0.11
 Nodes (18): projects_user_id_users_id_fk, columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo (+10 more)
 
-### Community 42 - "Schema Snapshot FK meta 0003"
-Cohesion: 0.11
-Nodes (18): content, metadata, role, name, notNull, primaryKey, type, name (+10 more)
-
-### Community 43 - "Schema Snapshot FK meta 0006"
+### Community 39 - "AI Models"
 Cohesion: 0.11
 Nodes (18): checkConstraints, compositePrimaryKeys, foreignKeys, indexes, isRLSEnabled, name, policies, schema (+10 more)
 
-### Community 44 - "Schema Snapshot FK meta 0005"
+### Community 40 - "description"
 Cohesion: 0.11
 Nodes (18): description, language, link_id, name, notNull, primaryKey, type, default (+10 more)
 
-### Community 45 - "Schema Snapshot FK meta 0001"
-Cohesion: 0.11
-Nodes (18): checkConstraints, compositePrimaryKeys, foreignKeys, indexes, isRLSEnabled, name, policies, schema (+10 more)
-
-### Community 46 - "Schema Snapshot FK meta 0000"
+### Community 41 - "content"
 Cohesion: 0.11
 Nodes (18): content, metadata, role, name, notNull, primaryKey, type, name (+10 more)
 
-### Community 47 - "Schema Snapshot FK meta 0009"
+### Community 42 - "content"
 Cohesion: 0.11
 Nodes (18): content, metadata, role, name, notNull, primaryKey, type, name (+10 more)
 
-### Community 48 - "Schema Snapshot FK meta 0008"
+### Community 43 - "compiler"
 Cohesion: 0.11
 Nodes (18): compiler, link_id, logo, default, name, notNull, primaryKey, type (+10 more)
 
-### Community 49 - "Schema Snapshot FK meta 0010"
-Cohesion: 0.12
-Nodes (17): created_at, expires_at, token, default, name, notNull, primaryKey, type (+9 more)
-
-### Community 50 - "Schema Snapshot FK meta 0002"
-Cohesion: 0.12
-Nodes (17): description, name, software, name, notNull, primaryKey, type, name (+9 more)
-
-### Community 51 - "Schema Snapshot FK meta 0007"
-Cohesion: 0.12
-Nodes (17): opencode_session_id, project_id, updated_at, name, notNull, primaryKey, type, name (+9 more)
-
-### Community 52 - "Schema Snapshot FK meta journal"
-Cohesion: 0.12
-Nodes (17): expires_at, id, token, name, notNull, primaryKey, type, default (+9 more)
-
-### Community 53 - "Schema Snapshot FK meta 0004 alt"
-Cohesion: 0.12
-Nodes (17): opencode_session_id, project_id, updated_at, name, notNull, primaryKey, type, name (+9 more)
-
-### Community 54 - "Schema Snapshot FK meta 0003 alt"
-Cohesion: 0.12
-Nodes (17): created_at, expires_at, token, default, name, notNull, primaryKey, type (+9 more)
-
-### Community 55 - "Schema Snapshot FK meta 0006 alt"
-Cohesion: 0.12
-Nodes (17): id, log_type, message, default, name, notNull, primaryKey, type (+9 more)
-
-### Community 56 - "Bridge Index & Session Bus"
-Cohesion: 0.23
-Nodes (9): KiroStreamFilter, normalizeAssistantText(), extractResponseText(), extractTextContent(), isKiroMetadataLine(), normalizeAssistantText(), parseKiroOutput(), stripAnsi() (+1 more)
-
-### Community 57 - "Database Schema Details"
+### Community 44 - "Type Definitions"
 Cohesion: 0.12
 Nodes (16): AssistantMessage, AuxiliaryMessageData, DataContent, FilePart, ImagePart, JSONArray, JSONObject, JsonSchema (+8 more)
 
-### Community 58 - "Server Auth Routes"
-Cohesion: 0.16
-Nodes (9): adminRoutes(), authRoutes(), githubRoutes(), healthRoutes(), env, envSchema, app, clientDist (+1 more)
+### Community 45 - "KiroBridge"
+Cohesion: 0.21
+Nodes (8): KiroBridge, extractResponseText(), extractTextContent(), isKiroMetadataLine(), normalizeAssistantText(), parseKiroOutput(), stripAnsi(), BridgeTask
 
-### Community 59 - "Schema Snapshot FK 0005 alt"
+### Community 46 - "expires_at"
 Cohesion: 0.12
-Nodes (16): email, password_hash, username, name, notNull, primaryKey, type, name (+8 more)
+Nodes (17): expires_at, id, token, name, notNull, primaryKey, type, default (+9 more)
 
-### Community 60 - "Schema Snapshot FK 0001 alt"
+### Community 47 - "description"
 Cohesion: 0.12
-Nodes (16): expires_at, token, user_id, name, notNull, primaryKey, type, columns (+8 more)
+Nodes (17): description, name, software, name, notNull, primaryKey, type, name (+9 more)
 
-### Community 61 - "Schema Snapshot FK 0009 alt"
+### Community 48 - "created_at"
+Cohesion: 0.12
+Nodes (17): created_at, expires_at, token, default, name, notNull, primaryKey, type (+9 more)
+
+### Community 49 - "Agent System"
+Cohesion: 0.12
+Nodes (17): enums, public.agent_status, public.message_role, public.project_compiler, public.project_status, name, schema, values (+9 more)
+
+### Community 50 - "description"
+Cohesion: 0.12
+Nodes (17): description, name, software, name, notNull, primaryKey, type, name (+9 more)
+
+### Community 51 - "Agent System"
+Cohesion: 0.12
+Nodes (17): opencode_session_id, project_id, updated_at, name, notNull, primaryKey, type, name (+9 more)
+
+### Community 52 - "expires_at"
+Cohesion: 0.12
+Nodes (17): expires_at, id, token, name, notNull, primaryKey, type, default (+9 more)
+
+### Community 53 - "Agent System"
+Cohesion: 0.12
+Nodes (17): opencode_session_id, project_id, updated_at, name, notNull, primaryKey, type, name (+9 more)
+
+### Community 54 - "Project Management"
+Cohesion: 0.12
+Nodes (17): enums, public.message_role, public.project_compiler, public.project_language, public.project_visibility, name, schema, values (+9 more)
+
+### Community 55 - "expires_at"
+Cohesion: 0.12
+Nodes (17): expires_at, id, token, name, notNull, primaryKey, type, default (+9 more)
+
+### Community 56 - "Type Definitions"
 Cohesion: 0.12
 Nodes (16): log_type, message, session_id, name, notNull, primaryKey, type, name (+8 more)
 
-### Community 62 - "Schema Snapshot FK 0004 alt"
+### Community 57 - "AI Models"
 Cohesion: 0.12
 Nodes (16): email, password_hash, username, name, notNull, primaryKey, type, name (+8 more)
 
-### Community 63 - "Schema Snapshot FK 0006 alt"
+### Community 58 - "columns"
 Cohesion: 0.12
-Nodes (16): expires_at, token, user_id, name, notNull, primaryKey, type, columns (+8 more)
+Nodes (16): columns, concurrently, isUnique, method, name, with, agent_messages_session_id_idx, checkConstraints (+8 more)
 
-### Community 64 - "Schema Snapshot FK 0003 alt"
+### Community 59 - "columns"
+Cohesion: 0.12
+Nodes (16): columns, concurrently, isUnique, method, name, with, agent_sessions_project_id_idx, checkConstraints (+8 more)
+
+### Community 60 - "Type Definitions"
 Cohesion: 0.12
 Nodes (16): log_type, message, session_id, name, notNull, primaryKey, type, name (+8 more)
 
-### Community 65 - "Schema Snapshot FK 0008 alt"
-Cohesion: 0.12
-Nodes (16): email, password_hash, username, name, notNull, primaryKey, type, name (+8 more)
-
-### Community 66 - "Schema Snapshot FK 0010 alt"
+### Community 61 - "expires_at"
 Cohesion: 0.12
 Nodes (16): expires_at, token, user_id, name, notNull, primaryKey, type, columns (+8 more)
 
-### Community 67 - "Schema Snapshot FK 0002 alt"
-Cohesion: 0.12
-Nodes (16): log_type, message, session_id, name, notNull, primaryKey, type, name (+8 more)
-
-### Community 68 - "Schema Snapshot FK 0000 alt"
+### Community 62 - "AI Models"
 Cohesion: 0.12
 Nodes (16): email, password_hash, username, name, notNull, primaryKey, type, name (+8 more)
 
-### Community 69 - "Schema Snapshot FK 0007 alt"
+### Community 63 - "Type Definitions"
+Cohesion: 0.12
+Nodes (16): log_type, message, session_id, name, notNull, primaryKey, type, name (+8 more)
+
+### Community 64 - "AI Models"
+Cohesion: 0.12
+Nodes (16): email, password_hash, username, name, notNull, primaryKey, type, name (+8 more)
+
+### Community 65 - "expires_at"
+Cohesion: 0.12
+Nodes (16): expires_at, token, user_id, name, notNull, primaryKey, type, columns (+8 more)
+
+### Community 66 - "Type Definitions"
+Cohesion: 0.12
+Nodes (16): log_type, message, session_id, name, notNull, primaryKey, type, name (+8 more)
+
+### Community 67 - "AI Models"
+Cohesion: 0.12
+Nodes (16): email, password_hash, username, name, notNull, primaryKey, type, name (+8 more)
+
+### Community 68 - "link_id"
 Cohesion: 0.12
 Nodes (16): link_id, name, versions, name, notNull, primaryKey, type, name (+8 more)
 
-### Community 70 - "Schema Snapshot FK journal alt"
+### Community 69 - "Type Definitions"
 Cohesion: 0.12
 Nodes (16): log_type, message, session_id, name, notNull, primaryKey, type, name (+8 more)
 
-### Community 71 - "Schema Snapshot FK meta alt"
+### Community 70 - "AI Models"
 Cohesion: 0.12
 Nodes (16): email, password_hash, username, name, notNull, primaryKey, type, name (+8 more)
 
-### Community 72 - "Workspace Components"
-Cohesion: 0.13
-Nodes (16): MarkdownContent Component, FileOpBadge Component, MarkdownContent Component, MessageContent Component, RenderMessageBlocks Component, StreamingFileOpBadge Component, StreamingMessage Component, StreamingQuestionBadge Component (+8 more)
+### Community 71 - "Type Definitions"
+Cohesion: 0.12
+Nodes (16): log_type, message, session_id, name, notNull, primaryKey, type, name (+8 more)
 
-### Community 73 - "Community Project Schema"
-Cohesion: 0.17
-Nodes (11): CodeReview, codeReviews, NewCodeReview, bridgeEnum, compilerEnum, languageEnum, NewProject, Project (+3 more)
+### Community 72 - "glassy.tsx"
+Cohesion: 0.15
+Nodes (13): cn(), FileOpBadge(), FileTreeNode(), FileTreePanel(), GitConnectionModal(), MobileTabButton(), ModelSelector(), StreamingThinkingBadge() (+5 more)
 
-### Community 74 - "Schema Snapshot FK 0009 alt2"
-Cohesion: 0.13
-Nodes (15): sessions_token_idx, sessions_user_id_idx, indexes, columns, concurrently, isUnique, method, name (+7 more)
-
-### Community 75 - "Schema Snapshot FK 0005 alt2"
+### Community 73 - "Agent System"
 Cohesion: 0.13
 Nodes (15): sessions_token_idx, sessions_user_id_idx, indexes, columns, concurrently, isUnique, method, name (+7 more)
 
-### Community 76 - "Docs & Deployment"
+### Community 74 - "Agent System"
+Cohesion: 0.13
+Nodes (15): sessions_token_idx, sessions_user_id_idx, indexes, columns, concurrently, isUnique, method, name (+7 more)
+
+### Community 75 - "Agent System"
+Cohesion: 0.13
+Nodes (15): sessions_token_idx, sessions_user_id_idx, indexes, columns, concurrently, isUnique, method, name (+7 more)
+
+### Community 76 - "compilerOptions"
 Cohesion: 0.14
 Nodes (13): compilerOptions, declaration, declarationMap, esModuleInterop, forceConsistentCasingInFileNames, isolatedModules, module, moduleResolution (+5 more)
 
-### Community 77 - "Error Screenshot"
-Cohesion: 0.20
-Nodes (14): AI Assistant Interface, Android Chrome Browser, Auto-generated Gradle Cache File, codeaurora.online Website, Critical Finding: gc.properties, Floating Action Buttons, .gitignore File, .gradle/9.2.1/gc.properties (+6 more)
+### Community 77 - "dialect"
+Cohesion: 0.14
+Nodes (13): dialect, id, _meta, columns, schemas, tables, policies, prevId (+5 more)
 
-### Community 78 - "Client Hooks & Utils"
+### Community 78 - "dialect"
+Cohesion: 0.14
+Nodes (13): dialect, id, _meta, columns, schemas, tables, policies, prevId (+5 more)
+
+### Community 79 - "API Routes"
+Cohesion: 0.16
+Nodes (14): Admin Users Page, CodeRabbit Routes, GitHub Routes, Glassy UI Components, Home Page, New Project Page, OpenCode Process Manager, Projects Routes (+6 more)
+
+### Community 80 - "App Pages"
 Cohesion: 0.15
 Nodes (6): AdminOverviewPage(), AdminProjectsPage(), AdminUsersPage(), useAdminProjects(), useAdminStats(), useAdminUsers()
 
-### Community 79 - "Schema Snapshot FK 0004 alt2"
+### Community 81 - "Agent System"
 Cohesion: 0.18
 Nodes (9): createEmptyAccumulator(), EMPTY_STREAMING_STATE, PendingTransition, StreamAccumulator, useAgentSession(), useAgentSessions(), useStreamingAgent(), ChatPanel() (+1 more)
 
-### Community 80 - "Schema Snapshot FK 0006 alt2"
+### Community 82 - "content"
+Cohesion: 0.15
+Nodes (13): content, role, name, notNull, primaryKey, type, columns, default (+5 more)
+
+### Community 83 - "AI Models"
 Cohesion: 0.15
 Nodes (13): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, columns (+5 more)
 
-### Community 81 - "Schema Snapshot FK 0001 alt2"
+### Community 84 - "AI Models"
 Cohesion: 0.15
 Nodes (13): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, columns (+5 more)
 
-### Community 82 - "Schema Snapshot FK 0003 alt2"
+### Community 85 - "AI Models"
+Cohesion: 0.15
+Nodes (13): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, columns (+5 more)
+
+### Community 86 - "columns"
 Cohesion: 0.15
 Nodes (13): columns, name, nullsNotDistinct, checkConstraints, compositePrimaryKeys, indexes, isRLSEnabled, name (+5 more)
 
-### Community 83 - "Schema Snapshot FK 0008 alt2"
+### Community 87 - "AI Models"
 Cohesion: 0.15
 Nodes (13): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, columns (+5 more)
 
-### Community 84 - "Schema Snapshot FK 0010 alt2"
+### Community 88 - "AI Models"
+Cohesion: 0.15
+Nodes (13): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, columns (+5 more)
+
+### Community 89 - "columns"
 Cohesion: 0.15
 Nodes (13): columns, name, nullsNotDistinct, checkConstraints, compositePrimaryKeys, indexes, isRLSEnabled, name (+5 more)
 
-### Community 85 - "Schema Snapshot FK 0002 alt2"
+### Community 90 - "AI Models"
 Cohesion: 0.15
 Nodes (13): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, columns (+5 more)
 
-### Community 86 - "Schema Snapshot FK 0000 alt2"
-Cohesion: 0.15
-Nodes (13): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, columns (+5 more)
+### Community 91 - "Agent System"
+Cohesion: 0.26
+Nodes (6): AgentExecutor, cleanBadgeMarkers(), AgentExecutionContext, AgentExecutionResult, AgentStatus, AgentStreamCallback
 
-### Community 87 - "Schema Snapshot FK 0007 alt2"
-Cohesion: 0.15
-Nodes (13): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, columns (+5 more)
+### Community 92 - "UI Components"
+Cohesion: 0.27
+Nodes (4): Admin Layout, Navbar, AppRoutes(), queryClient
 
-### Community 88 - "Schema Snapshot FK journal alt2"
+### Community 93 - "Project Management"
 Cohesion: 0.17
 Nodes (12): project_id, updated_at, name, notNull, primaryKey, type, columns, default (+4 more)
 
-### Community 90 - "Client Auth Pages"
-Cohesion: 0.18
-Nodes (8): useProjects(), DashboardPage(), SortKey, compilers, javaVersions, NewProjectPage(), softwareOptions, steps
+### Community 95 - "Project Management"
+Cohesion: 0.20
+Nodes (9): useFileOperations(), useProjectFiles(), useIsMobile(), useProject(), useProjectStats(), ProjectMenuPage(), StatsTab(), WorkspacePage() (+1 more)
 
-### Community 91 - "Client Public Pages"
+### Community 96 - "Project Management"
 Cohesion: 0.22
 Nodes (10): compilersToValue(), CompilerTab(), javaVersions, OverviewForm, OverviewTab(), parseCompilers(), SettingsTab(), softwareOptions (+2 more)
 
-### Community 92 - "Schema Snapshot FK 0009 alt3"
+### Community 97 - "Project Management"
 Cohesion: 0.18
-Nodes (11): content, session_id, name, notNull, primaryKey, type, columns, name (+3 more)
+Nodes (8): useProjects(), DashboardPage(), SortKey, compilers, javaVersions, NewProjectPage(), softwareOptions, steps
 
-### Community 93 - "Schema Snapshot FK 0005 alt3"
-Cohesion: 0.18
-Nodes (11): description, name, name, notNull, primaryKey, type, name, notNull (+3 more)
-
-### Community 94 - "Schema Snapshot FK 0004 alt3"
-Cohesion: 0.18
-Nodes (11): log_type, message, name, notNull, primaryKey, type, name, notNull (+3 more)
-
-### Community 95 - "Schema Snapshot FK 0006 alt3"
-Cohesion: 0.18
-Nodes (11): description, name, name, notNull, primaryKey, type, name, notNull (+3 more)
-
-### Community 96 - "Schema Snapshot FK 0001 alt3"
+### Community 98 - "Agent System"
 Cohesion: 0.18
 Nodes (11): opencode_session_id, project_id, name, notNull, primaryKey, type, name, notNull (+3 more)
 
-### Community 97 - "Schema Snapshot FK 0003 alt3"
+### Community 99 - "content"
 Cohesion: 0.18
 Nodes (11): content, metadata, name, notNull, primaryKey, type, name, notNull (+3 more)
 
-### Community 98 - "Schema Snapshot FK 0008 alt3"
+### Community 100 - "content"
+Cohesion: 0.18
+Nodes (11): content, metadata, name, notNull, primaryKey, type, name, notNull (+3 more)
+
+### Community 101 - "Agent System"
 Cohesion: 0.18
 Nodes (11): opencode_session_id, project_id, name, notNull, primaryKey, type, name, notNull (+3 more)
 
-### Community 99 - "Schema Snapshot FK 0010 alt3"
+### Community 102 - "content"
 Cohesion: 0.18
 Nodes (11): content, metadata, name, notNull, primaryKey, type, name, notNull (+3 more)
 
-### Community 100 - "Kiro File Watcher"
-Cohesion: 0.31
-Nodes (3): KiroBridge, BridgeResult, BridgeTask
+### Community 103 - "Project Config"
+Cohesion: 0.33
+Nodes (11): Backend Manager Script, Deployment Documentation, DevContainer Configuration, PM2 Process Manager, PostgreSQL Guide, PostgreSQL Database, Restart Notes, Restart Script (+3 more)
 
-### Community 101 - "Client Community Pages"
-Cohesion: 0.22
-Nodes (8): useFileOperations(), useProjectFiles(), useIsMobile(), useProject(), useProjectStats(), ProjectMenuPage(), StatsTab(), WorkspacePage()
-
-### Community 102 - "Schema Snapshot FK 0002 alt3"
+### Community 104 - "dialect"
 Cohesion: 0.20
 Nodes (9): dialect, id, policies, prevId, roles, schemas, sequences, version (+1 more)
 
-### Community 104 - "Schema Snapshot FK 0000 alt3"
+### Community 105 - "Streaming System"
+Cohesion: 0.22
+Nodes (8): BUILD_ARTIFACT_RE, FileAction, OpenCodeEvent, OpenCodeMessage, OpenCodePart, OpenCodeSession, OpenCodeTodo, TOOL_TO_FILE_ACTION
+
+### Community 106 - "Agent System"
 Cohesion: 0.22
 Nodes (9): sessions_user_id_users_id_fk, foreignKeys, columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom (+1 more)
 
-### Community 105 - "Schema Snapshot FK 0007 alt3"
+### Community 107 - "AI Models"
 Cohesion: 0.22
 Nodes (9): checkConstraints, compositePrimaryKeys, foreignKeys, indexes, isRLSEnabled, name, policies, schema (+1 more)
 
-### Community 106 - "Schema Snapshot FK journal alt3"
+### Community 108 - "AI Models"
 Cohesion: 0.22
 Nodes (9): uniqueConstraints, users_email_unique, users_username_unique, columns, name, nullsNotDistinct, columns, name (+1 more)
 
-### Community 107 - "Schema Snapshot FK 0009 alt4"
-Cohesion: 0.22
-Nodes (9): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, agent_logs_session_id_agent_sessions_id_fk (+1 more)
-
-### Community 108 - "Schema Snapshot FK 0005 alt4"
-Cohesion: 0.22
-Nodes (9): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, agent_sessions_project_id_projects_id_fk (+1 more)
-
-### Community 109 - "Schema Snapshot FK 0004 alt4"
-Cohesion: 0.22
-Nodes (9): sessions_user_id_users_id_fk, foreignKeys, columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom (+1 more)
-
-### Community 110 - "Schema Snapshot FK 0006 alt4"
-Cohesion: 0.22
-Nodes (9): checkConstraints, compositePrimaryKeys, foreignKeys, indexes, isRLSEnabled, name, policies, schema (+1 more)
-
-### Community 111 - "Schema Snapshot FK 0001 alt4"
-Cohesion: 0.22
-Nodes (9): uniqueConstraints, users_email_unique, users_username_unique, columns, name, nullsNotDistinct, columns, name (+1 more)
-
-### Community 112 - "Schema Snapshot FK 0003 alt4"
+### Community 109 - "columnsFrom"
 Cohesion: 0.22
 Nodes (9): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, agent_messages_session_id_agent_sessions_id_fk (+1 more)
 
-### Community 113 - "Schema Snapshot FK 0008 alt4"
+### Community 110 - "columnsFrom"
 Cohesion: 0.22
 Nodes (9): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, agent_sessions_project_id_projects_id_fk (+1 more)
 
-### Community 114 - "Schema Snapshot FK 0010 alt4"
+### Community 111 - "columnsFrom"
+Cohesion: 0.22
+Nodes (9): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, agent_logs_session_id_agent_sessions_id_fk (+1 more)
+
+### Community 112 - "Project Management"
 Cohesion: 0.22
 Nodes (9): projects_user_id_users_id_fk, columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo (+1 more)
 
-### Community 115 - "Schema Snapshot FK 0002 alt4"
+### Community 113 - "Agent System"
 Cohesion: 0.22
 Nodes (9): sessions_user_id_users_id_fk, foreignKeys, columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom (+1 more)
 
-### Community 116 - "Schema Snapshot FK 0000 alt4"
+### Community 114 - "AI Models"
 Cohesion: 0.22
 Nodes (9): checkConstraints, compositePrimaryKeys, indexes, isRLSEnabled, name, policies, schema, uniqueConstraints (+1 more)
 
-### Community 117 - "Schema Snapshot FK 0007 alt4"
-Cohesion: 0.22
-Nodes (9): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, agent_messages_session_id_agent_sessions_id_fk (+1 more)
-
-### Community 118 - "Schema Snapshot FK journal alt4"
-Cohesion: 0.22
-Nodes (9): projects_user_id_users_id_fk, columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo (+1 more)
-
-### Community 119 - "Schema Snapshot FK 0009 alt5"
-Cohesion: 0.22
-Nodes (9): sessions_user_id_users_id_fk, foreignKeys, columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom (+1 more)
-
-### Community 120 - "Schema Snapshot FK 0005 alt5"
+### Community 115 - "AI Models"
 Cohesion: 0.22
 Nodes (9): checkConstraints, compositePrimaryKeys, foreignKeys, indexes, isRLSEnabled, name, policies, schema (+1 more)
 
-### Community 121 - "Schema Snapshot FK 0004 alt5"
+### Community 116 - "AI Models"
 Cohesion: 0.22
 Nodes (9): uniqueConstraints, users_email_unique, users_username_unique, columns, name, nullsNotDistinct, columns, name (+1 more)
 
-### Community 122 - "Schema Snapshot FK 0006 alt5"
-Cohesion: 0.22
-Nodes (9): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, agent_messages_session_id_agent_sessions_id_fk (+1 more)
-
-### Community 123 - "Schema Snapshot FK 0001 alt5"
-Cohesion: 0.22
-Nodes (9): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, agent_sessions_project_id_projects_id_fk (+1 more)
-
-### Community 124 - "Schema Snapshot FK 0003 alt5"
-Cohesion: 0.22
-Nodes (9): projects_user_id_users_id_fk, columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo (+1 more)
-
-### Community 125 - "Schema Snapshot FK 0008 alt5"
-Cohesion: 0.22
-Nodes (9): sessions_user_id_users_id_fk, foreignKeys, columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom (+1 more)
-
-### Community 126 - "Schema Snapshot FK 0010 alt5"
-Cohesion: 0.22
-Nodes (9): checkConstraints, compositePrimaryKeys, foreignKeys, indexes, isRLSEnabled, name, policies, schema (+1 more)
-
-### Community 127 - "Schema Snapshot FK 0002 alt5"
-Cohesion: 0.22
-Nodes (9): uniqueConstraints, users_email_unique, users_username_unique, columns, name, nullsNotDistinct, columns, name (+1 more)
-
-### Community 128 - "Schema Snapshot FK 0000 alt5"
+### Community 117 - "columnsFrom"
 Cohesion: 0.22
 Nodes (9): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, agent_logs_session_id_agent_sessions_id_fk (+1 more)
 
-### Community 129 - "Schema Snapshot FK 0007 alt5"
-Cohesion: 0.22
-Nodes (9): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, agent_sessions_project_id_projects_id_fk (+1 more)
-
-### Community 130 - "Schema Snapshot FK journal alt5"
-Cohesion: 0.22
-Nodes (9): sessions_user_id_users_id_fk, foreignKeys, columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom (+1 more)
-
-### Community 131 - "Schema Snapshot FK 0009 alt6"
-Cohesion: 0.22
-Nodes (9): checkConstraints, compositePrimaryKeys, foreignKeys, indexes, isRLSEnabled, name, policies, schema (+1 more)
-
-### Community 132 - "Schema Snapshot FK 0005 alt6"
-Cohesion: 0.22
-Nodes (9): uniqueConstraints, users_email_unique, users_username_unique, columns, name, nullsNotDistinct, columns, name (+1 more)
-
-### Community 133 - "Schema Snapshot FK 0004 alt6"
-Cohesion: 0.22
-Nodes (9): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, agent_logs_session_id_agent_sessions_id_fk (+1 more)
-
-### Community 134 - "Schema Snapshot FK 0006 alt6"
+### Community 118 - "columnsFrom"
 Cohesion: 0.22
 Nodes (9): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, agent_messages_session_id_agent_sessions_id_fk (+1 more)
 
-### Community 135 - "Schema Snapshot FK 0001 alt6"
+### Community 119 - "columnsFrom"
 Cohesion: 0.22
 Nodes (9): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, agent_sessions_project_id_projects_id_fk (+1 more)
 
-### Community 136 - "Schema Snapshot FK 0003 alt6"
+### Community 120 - "Agent System"
 Cohesion: 0.22
 Nodes (9): sessions_user_id_users_id_fk, foreignKeys, columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom (+1 more)
 
-### Community 137 - "Server DB Migrations"
-Cohesion: 0.54
-Nodes (6): seed(), changeSystemUserPassword(), createSystemUser(), execFileAsync, setSystemUserPassword(), systemUserExists()
+### Community 121 - "Project Management"
+Cohesion: 0.22
+Nodes (9): projects_user_id_users_id_fk, columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo (+1 more)
 
-### Community 138 - "Client Auth Hook"
+### Community 122 - "Agent System"
+Cohesion: 0.22
+Nodes (9): sessions_user_id_users_id_fk, foreignKeys, columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom (+1 more)
+
+### Community 123 - "AI Models"
+Cohesion: 0.22
+Nodes (9): checkConstraints, compositePrimaryKeys, foreignKeys, indexes, isRLSEnabled, name, policies, schema (+1 more)
+
+### Community 124 - "AI Models"
+Cohesion: 0.22
+Nodes (9): uniqueConstraints, users_email_unique, users_username_unique, columns, name, nullsNotDistinct, columns, name (+1 more)
+
+### Community 125 - "columnsFrom"
+Cohesion: 0.22
+Nodes (9): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, agent_logs_session_id_agent_sessions_id_fk (+1 more)
+
+### Community 126 - "columnsFrom"
+Cohesion: 0.22
+Nodes (9): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, agent_messages_session_id_agent_sessions_id_fk (+1 more)
+
+### Community 127 - "columnsFrom"
+Cohesion: 0.22
+Nodes (9): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, agent_logs_session_id_agent_sessions_id_fk (+1 more)
+
+### Community 128 - "columnsFrom"
+Cohesion: 0.22
+Nodes (9): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, agent_messages_session_id_agent_sessions_id_fk (+1 more)
+
+### Community 129 - "Agent System"
+Cohesion: 0.22
+Nodes (9): sessions_user_id_users_id_fk, foreignKeys, columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom (+1 more)
+
+### Community 130 - "AI Models"
+Cohesion: 0.22
+Nodes (9): checkConstraints, compositePrimaryKeys, foreignKeys, indexes, isRLSEnabled, name, policies, schema (+1 more)
+
+### Community 131 - "AI Models"
+Cohesion: 0.22
+Nodes (9): uniqueConstraints, users_email_unique, users_username_unique, columns, name, nullsNotDistinct, columns, name (+1 more)
+
+### Community 132 - "columnsFrom"
+Cohesion: 0.22
+Nodes (9): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, agent_messages_session_id_agent_sessions_id_fk (+1 more)
+
+### Community 133 - "Agent System"
+Cohesion: 0.22
+Nodes (9): sessions_user_id_users_id_fk, foreignKeys, columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom (+1 more)
+
+### Community 134 - "AI Models"
+Cohesion: 0.22
+Nodes (9): checkConstraints, compositePrimaryKeys, foreignKeys, indexes, isRLSEnabled, name, policies, schema (+1 more)
+
+### Community 135 - "AI Models"
+Cohesion: 0.22
+Nodes (9): uniqueConstraints, users_email_unique, users_username_unique, columns, name, nullsNotDistinct, columns, name (+1 more)
+
+### Community 136 - "columnsFrom"
+Cohesion: 0.22
+Nodes (9): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, agent_logs_session_id_agent_sessions_id_fk (+1 more)
+
+### Community 137 - "Project Management"
+Cohesion: 0.22
+Nodes (9): projects_user_id_users_id_fk, columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo (+1 more)
+
+### Community 138 - "Agent System"
+Cohesion: 0.22
+Nodes (9): sessions_user_id_users_id_fk, foreignKeys, columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom (+1 more)
+
+### Community 139 - "AI Models"
+Cohesion: 0.22
+Nodes (9): checkConstraints, compositePrimaryKeys, foreignKeys, indexes, isRLSEnabled, name, policies, schema (+1 more)
+
+### Community 140 - "AI Models"
+Cohesion: 0.22
+Nodes (9): uniqueConstraints, users_email_unique, users_username_unique, columns, name, nullsNotDistinct, columns, name (+1 more)
+
+### Community 141 - "Type Definitions"
+Cohesion: 0.33
+Nodes (9): AgentDefinition Interface, AgentState Interface, AgentStepContext Interface, ModelName Type, ToolName Union, ToolParamsMap Interface, Logger Interface, MCPConfig Type (+1 more)
+
+### Community 142 - "App Pages"
 Cohesion: 0.29
 Nodes (7): useCommunityProjects(), CommunityPage(), formatDate(), languageOptions, ProjectCard(), softwareOptions, sortOptions
 
-### Community 139 - "Client API Layer"
-Cohesion: 0.32
-Nodes (7): CommunityProjectsParams, useCommunityMessages(), useCommunityProject(), useCommunityProjectFiles(), useForkProject(), ChatHistoryPanel(), CommunityProjectPage()
+### Community 143 - "App Pages"
+Cohesion: 0.29
+Nodes (5): features, HomePage(), TerminalSnippet(), useScrollReveal(), workflowSteps
 
-### Community 140 - "Favicon SVG"
+### Community 144 - "Dark rounded background"
 Cohesion: 0.29
 Nodes (8): Dark rounded background element, Blue accent color (#3b82f6), AuroraCraft brand identity mark, Dark theme (#09090b), Blue geometric path mark, Rounded rectangle container (rx=8), favicon.svg file, Web application favicon icon
 
-### Community 141 - "Schema Snapshot FK 0008 alt6"
+### Community 145 - "Agent System"
 Cohesion: 0.25
 Nodes (8): sessions_token_idx, indexes, columns, concurrently, isUnique, method, name, with
 
-### Community 142 - "Schema Snapshot FK 0010 alt6"
+### Community 146 - "AI Models"
 Cohesion: 0.25
 Nodes (8): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, tables, public.sessions
 
-### Community 143 - "Schema Snapshot FK 0002 alt6"
+### Community 147 - "columns"
 Cohesion: 0.25
 Nodes (8): columns, concurrently, isUnique, method, name, with, agent_logs_session_id_idx, indexes
 
-### Community 144 - "Schema Snapshot FK 0000 alt6"
+### Community 148 - "Agent System"
 Cohesion: 0.25
-Nodes (8): columns, concurrently, isUnique, method, name, with, agent_sessions_project_id_idx, indexes
+Nodes (8): sessions_user_id_idx, indexes, columns, concurrently, isUnique, method, name, with
 
-### Community 145 - "Schema Snapshot FK 0007 alt6"
-Cohesion: 0.25
-Nodes (8): sessions_token_idx, indexes, columns, concurrently, isUnique, method, name, with
-
-### Community 146 - "Schema Snapshot FK journal alt6"
+### Community 149 - "AI Models"
 Cohesion: 0.25
 Nodes (8): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, public.agent_logs
 
-### Community 147 - "Schema Snapshot FK 0009 alt7"
-Cohesion: 0.25
-Nodes (8): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, public.agent_sessions
-
-### Community 148 - "Schema Snapshot FK 0005 alt7"
-Cohesion: 0.25
-Nodes (8): columns, concurrently, isUnique, method, name, with, agent_messages_session_id_idx, indexes
-
-### Community 149 - "Schema Snapshot FK 0004 alt7"
-Cohesion: 0.25
-Nodes (8): columns, concurrently, isUnique, method, name, with, agent_sessions_project_id_idx, indexes
-
-### Community 150 - "Schema Snapshot FK 0006 alt7"
-Cohesion: 0.25
-Nodes (8): sessions_token_idx, indexes, columns, concurrently, isUnique, method, name, with
-
-### Community 151 - "Schema Snapshot FK 0001 alt7"
-Cohesion: 0.25
-Nodes (8): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, public.agent_messages
-
-### Community 152 - "Schema Snapshot FK 0003 alt7"
-Cohesion: 0.25
-Nodes (8): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, public.agent_sessions
-
-### Community 153 - "Schema Snapshot FK 0008 alt7"
-Cohesion: 0.25
-Nodes (8): columns, concurrently, isUnique, method, name, with, agent_messages_session_id_idx, indexes
-
-### Community 154 - "Schema Snapshot FK 0010 alt7"
-Cohesion: 0.25
-Nodes (8): sessions_token_idx, indexes, columns, concurrently, isUnique, method, name, with
-
-### Community 155 - "Schema Snapshot FK 0002 alt7"
-Cohesion: 0.25
-Nodes (8): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, public.agent_messages
-
-### Community 156 - "Schema Snapshot FK 0000 alt7"
-Cohesion: 0.25
-Nodes (8): columns, concurrently, isUnique, method, name, with, agent_messages_session_id_idx, indexes
-
-### Community 157 - "Schema Snapshot FK 0007 alt7"
-Cohesion: 0.25
-Nodes (8): columns, concurrently, isUnique, method, name, with, agent_sessions_project_id_idx, indexes
-
-### Community 158 - "Schema Snapshot FK journal alt7"
-Cohesion: 0.25
-Nodes (8): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, public.agent_messages
-
-### Community 159 - "Schema Snapshot FK 0009 alt8"
-Cohesion: 0.25
-Nodes (8): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, public.agent_sessions
-
-### Community 160 - "Schema Snapshot FK 0005 alt8"
+### Community 150 - "columns"
 Cohesion: 0.25
 Nodes (8): columns, concurrently, isUnique, method, name, with, agent_logs_session_id_idx, indexes
 
-### Community 161 - "Schema Snapshot FK 0004 alt8"
-Cohesion: 0.25
-Nodes (8): columns, concurrently, isUnique, method, name, with, agent_sessions_project_id_idx, indexes
-
-### Community 162 - "Schema Snapshot FK 0006 alt8"
-Cohesion: 0.25
-Nodes (8): sessions_token_idx, indexes, columns, concurrently, isUnique, method, name, with
-
-### Community 163 - "Schema Snapshot FK 0001 alt8"
-Cohesion: 0.25
-Nodes (8): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, public.agent_logs
-
-### Community 164 - "Schema Snapshot FK 0003 alt8"
-Cohesion: 0.25
-Nodes (8): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, public.agent_sessions
-
-### Community 165 - "Schema Snapshot FK 0008 alt8"
-Cohesion: 0.25
-Nodes (8): columns, concurrently, isUnique, method, name, with, agent_logs_session_id_idx, indexes
-
-### Community 166 - "Schema Snapshot FK 0010 alt8"
+### Community 151 - "columns"
 Cohesion: 0.25
 Nodes (8): columns, concurrently, isUnique, method, name, with, agent_messages_session_id_idx, indexes
 
-### Community 167 - "Schema Snapshot FK 0002 alt8"
+### Community 152 - "columns"
 Cohesion: 0.25
 Nodes (8): columns, concurrently, isUnique, method, name, with, agent_sessions_project_id_idx, indexes
 
-### Community 168 - "Schema Snapshot FK 0000 alt8"
+### Community 153 - "AI Models"
 Cohesion: 0.25
 Nodes (8): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, public.agent_logs
 
-### Community 169 - "Schema Snapshot FK 0007 alt8"
+### Community 154 - "AI Models"
 Cohesion: 0.25
 Nodes (8): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, public.agent_messages
 
-### Community 170 - "Schema Snapshot FK journal alt8"
+### Community 155 - "AI Models"
 Cohesion: 0.25
 Nodes (8): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, public.agent_sessions
 
-### Community 171 - "Kiro Process Manager"
-Cohesion: 0.29
-Nodes (3): escapeForSingleQuotes(), KiroExecution, KiroProcessManager
+### Community 156 - "columns"
+Cohesion: 0.25
+Nodes (8): columns, concurrently, isUnique, method, name, with, agent_logs_session_id_idx, indexes
 
-### Community 172 - "Schema Snapshot FK 0009 alt9"
+### Community 157 - "columns"
+Cohesion: 0.25
+Nodes (8): columns, concurrently, isUnique, method, name, with, agent_messages_session_id_idx, indexes
+
+### Community 158 - "AI Models"
+Cohesion: 0.25
+Nodes (8): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, public.agent_logs
+
+### Community 159 - "AI Models"
+Cohesion: 0.25
+Nodes (8): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, public.agent_messages
+
+### Community 160 - "columns"
+Cohesion: 0.25
+Nodes (8): columns, concurrently, isUnique, method, name, with, agent_messages_session_id_idx, indexes
+
+### Community 161 - "columns"
+Cohesion: 0.25
+Nodes (8): columns, concurrently, isUnique, method, name, with, agent_logs_session_id_idx, indexes
+
+### Community 162 - "Agent System"
+Cohesion: 0.25
+Nodes (8): sessions_token_idx, indexes, columns, concurrently, isUnique, method, name, with
+
+### Community 163 - "AI Models"
+Cohesion: 0.25
+Nodes (8): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, public.agent_logs
+
+### Community 164 - "AI Models"
+Cohesion: 0.25
+Nodes (8): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, public.agent_messages
+
+### Community 165 - "columns"
+Cohesion: 0.25
+Nodes (8): columns, concurrently, isUnique, method, name, with, agent_messages_session_id_idx, indexes
+
+### Community 166 - "AI Models"
+Cohesion: 0.25
+Nodes (8): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, public.agent_messages
+
+### Community 167 - "columns"
+Cohesion: 0.25
+Nodes (8): columns, concurrently, isUnique, method, name, with, agent_logs_session_id_idx, indexes
+
+### Community 168 - "Agent System"
+Cohesion: 0.25
+Nodes (8): sessions_token_idx, indexes, columns, concurrently, isUnique, method, name, with
+
+### Community 169 - "AI Models"
+Cohesion: 0.25
+Nodes (8): checkConstraints, compositePrimaryKeys, isRLSEnabled, name, policies, schema, uniqueConstraints, public.agent_logs
+
+### Community 170 - "seed()"
+Cohesion: 0.54
+Nodes (6): seed(), changeSystemUserPassword(), createSystemUser(), execFileAsync, setSystemUserPassword(), systemUserExists()
+
+### Community 172 - "Streaming System"
+Cohesion: 0.48
+Nodes (3): KiroStreamFilter, normalizeAssistantText(), stripInlineActionTags()
+
+### Community 173 - "role"
 Cohesion: 0.29
 Nodes (7): role, default, name, notNull, primaryKey, type, typeSchema
 
-### Community 173 - "Schema Snapshot FK 0005 alt9"
+### Community 174 - "Agent System"
 Cohesion: 0.29
 Nodes (7): sessions_user_id_idx, columns, concurrently, isUnique, method, name, with
 
-### Community 174 - "Schema Snapshot FK 0004 alt9"
-Cohesion: 0.29
-Nodes (7): compiler, default, name, notNull, primaryKey, type, typeSchema
-
-### Community 175 - "Schema Snapshot FK 0006 alt9"
+### Community 175 - "language"
 Cohesion: 0.29
 Nodes (7): language, default, name, notNull, primaryKey, type, typeSchema
 
-### Community 176 - "Schema Snapshot FK 0001 alt9"
-Cohesion: 0.29
-Nodes (7): role, default, name, notNull, primaryKey, type, typeSchema
-
-### Community 177 - "Schema Snapshot FK 0003 alt9"
+### Community 176 - "status"
 Cohesion: 0.29
 Nodes (7): status, default, name, notNull, primaryKey, type, typeSchema
 
-### Community 178 - "Schema Snapshot FK 0008 alt9"
+### Community 177 - "Agent System"
 Cohesion: 0.29
-Nodes (7): sessions_user_id_idx, columns, concurrently, isUnique, method, name, with
+Nodes (7): sessions_token_idx, columns, concurrently, isUnique, method, name, with
 
-### Community 179 - "Schema Snapshot FK 0010 alt9"
-Cohesion: 0.29
-Nodes (7): compiler, default, name, notNull, primaryKey, type, typeSchema
-
-### Community 180 - "Schema Snapshot FK 0002 alt9"
+### Community 178 - "language"
 Cohesion: 0.29
 Nodes (7): language, default, name, notNull, primaryKey, type, typeSchema
 
-### Community 181 - "Schema Snapshot FK 0000 alt9"
-Cohesion: 0.29
-Nodes (7): status, default, name, notNull, primaryKey, type, typeSchema
-
-### Community 182 - "Schema Snapshot FK 0007 alt9"
-Cohesion: 0.29
-Nodes (7): sessions_user_id_idx, columns, concurrently, isUnique, method, name, with
-
-### Community 183 - "Schema Snapshot FK journal alt9"
-Cohesion: 0.29
-Nodes (7): compiler, default, name, notNull, primaryKey, type, typeSchema
-
-### Community 184 - "Schema Snapshot FK 0009 alt10"
+### Community 179 - "role"
 Cohesion: 0.29
 Nodes (7): role, default, name, notNull, primaryKey, type, typeSchema
 
-### Community 185 - "Schema Snapshot FK 0005 alt10"
+### Community 180 - "status"
 Cohesion: 0.29
 Nodes (7): status, default, name, notNull, primaryKey, type, typeSchema
 
-### Community 186 - "Schema Snapshot FK 0004 alt10"
+### Community 181 - "compiler"
 Cohesion: 0.29
 Nodes (7): compiler, default, name, notNull, primaryKey, type, typeSchema
 
-### Community 187 - "Schema Snapshot FK 0006 alt10"
+### Community 182 - "compiler"
+Cohesion: 0.29
+Nodes (7): compiler, default, name, notNull, primaryKey, type, typeSchema
+
+### Community 183 - "role"
+Cohesion: 0.29
+Nodes (7): role, default, name, notNull, primaryKey, type, typeSchema
+
+### Community 184 - "status"
+Cohesion: 0.29
+Nodes (7): status, default, name, notNull, primaryKey, type, typeSchema
+
+### Community 185 - "compiler"
+Cohesion: 0.29
+Nodes (7): compiler, default, name, notNull, primaryKey, type, typeSchema
+
+### Community 186 - "language"
 Cohesion: 0.29
 Nodes (7): language, default, name, notNull, primaryKey, type, typeSchema
 
-### Community 188 - "Schema Snapshot FK 0001 alt10"
+### Community 187 - "role"
 Cohesion: 0.29
 Nodes (7): role, default, name, notNull, primaryKey, type, typeSchema
 
-### Community 189 - "Schema Snapshot FK 0003 alt10"
+### Community 188 - "status"
 Cohesion: 0.29
 Nodes (7): status, default, name, notNull, primaryKey, type, typeSchema
 
-### Community 190 - "Schema Snapshot FK 0008 alt10"
+### Community 189 - "visibility"
 Cohesion: 0.29
 Nodes (7): visibility, default, name, notNull, primaryKey, type, typeSchema
 
-### Community 191 - "Schema Snapshot FK 0010 alt10"
+### Community 190 - "Agent System"
 Cohesion: 0.29
 Nodes (7): sessions_user_id_idx, columns, concurrently, isUnique, method, name, with
 
-### Community 192 - "Schema Snapshot FK 0002 alt10"
+### Community 191 - "language"
 Cohesion: 0.29
 Nodes (7): language, default, name, notNull, primaryKey, type, typeSchema
 
-### Community 193 - "Schema Snapshot FK 0000 alt10"
+### Community 192 - "status"
 Cohesion: 0.29
 Nodes (7): status, default, name, notNull, primaryKey, type, typeSchema
 
-### Community 194 - "Schema Snapshot FK 0007 alt10"
+### Community 193 - "visibility"
 Cohesion: 0.29
 Nodes (7): visibility, default, name, notNull, primaryKey, type, typeSchema
 
-### Community 195 - "Schema Snapshot FK journal alt10"
+### Community 194 - "compiler"
 Cohesion: 0.29
 Nodes (7): compiler, default, name, notNull, primaryKey, type, typeSchema
 
-### Community 196 - "Schema Snapshot FK 0009 alt11"
+### Community 195 - "language"
 Cohesion: 0.29
 Nodes (7): language, default, name, notNull, primaryKey, type, typeSchema
 
-### Community 197 - "Schema Snapshot FK 0005 alt11"
+### Community 196 - "status"
 Cohesion: 0.29
 Nodes (7): status, default, name, notNull, primaryKey, type, typeSchema
 
-### Community 198 - "Schema Snapshot FK 0004 alt11"
+### Community 197 - "visibility"
 Cohesion: 0.29
 Nodes (7): visibility, default, name, notNull, primaryKey, type, typeSchema
 
-### Community 199 - "Schema Snapshot FK 0006 alt11"
+### Community 198 - "Agent System"
 Cohesion: 0.29
 Nodes (7): sessions_user_id_idx, columns, concurrently, isUnique, method, name, with
 
-### Community 201 - "Client Dev Config"
+### Community 199 - "compilerOptions"
 Cohesion: 0.29
 Nodes (6): compilerOptions, noEmit, outDir, rootDir, extends, include
 
-### Community 202 - "Schema Snapshot FK 0001 alt11"
+### Community 200 - "created_at"
 Cohesion: 0.33
 Nodes (6): created_at, default, name, notNull, primaryKey, type
 
-### Community 203 - "Schema Snapshot FK 0003 alt11"
-Cohesion: 0.33
-Nodes (6): id, default, name, notNull, primaryKey, type
-
-### Community 204 - "Schema Snapshot FK 0008 alt11"
+### Community 201 - "password_hash"
 Cohesion: 0.33
 Nodes (6): password_hash, name, notNull, primaryKey, type, columns
 
-### Community 205 - "Schema Snapshot FK 0010 alt11"
+### Community 202 - "token"
 Cohesion: 0.33
 Nodes (6): token, columns, name, notNull, primaryKey, type
 
-### Community 206 - "Schema Snapshot FK 0002 alt11"
+### Community 203 - "updated_at"
 Cohesion: 0.33
 Nodes (6): updated_at, default, name, notNull, primaryKey, type
 
-### Community 207 - "Schema Snapshot FK 0000 alt11"
-Cohesion: 0.33
-Nodes (6): created_at, default, name, notNull, primaryKey, type
-
-### Community 208 - "Schema Snapshot FK 0007 alt11"
-Cohesion: 0.33
-Nodes (6): java_version, default, name, notNull, primaryKey, type
-
-### Community 209 - "Schema Snapshot FK journal alt11"
-Cohesion: 0.33
-Nodes (6): software, default, name, notNull, primaryKey, type
-
-### Community 210 - "Schema Snapshot FK 0009 alt12"
+### Community 204 - "id"
 Cohesion: 0.33
 Nodes (6): id, default, name, notNull, primaryKey, type
 
-### Community 211 - "Schema Snapshot FK 0005 alt12"
+### Community 205 - "created_at"
 Cohesion: 0.33
 Nodes (6): created_at, default, name, notNull, primaryKey, type
 
-### Community 212 - "Schema Snapshot FK 0004 alt12"
-Cohesion: 0.33
-Nodes (6): id, default, name, notNull, primaryKey, type
-
-### Community 213 - "Schema Snapshot FK 0006 alt12"
+### Community 206 - "java_version"
 Cohesion: 0.33
 Nodes (6): java_version, default, name, notNull, primaryKey, type
 
-### Community 214 - "Schema Snapshot FK 0001 alt12"
+### Community 207 - "created_at"
 Cohesion: 0.33
-Nodes (6): software, default, name, notNull, primaryKey, type
+Nodes (6): created_at, default, name, notNull, primaryKey, type
 
-### Community 215 - "Schema Snapshot FK 0003 alt12"
+### Community 208 - "id"
+Cohesion: 0.33
+Nodes (6): id, default, name, notNull, primaryKey, type
+
+### Community 209 - "java_version"
+Cohesion: 0.33
+Nodes (6): java_version, default, name, notNull, primaryKey, type
+
+### Community 210 - "updated_at"
 Cohesion: 0.33
 Nodes (6): updated_at, default, name, notNull, primaryKey, type
 
-### Community 216 - "Schema Snapshot FK 0008 alt12"
+### Community 211 - "java_version"
 Cohesion: 0.33
 Nodes (6): java_version, default, name, notNull, primaryKey, type
 
-### Community 217 - "Schema Snapshot FK 0010 alt12"
+### Community 212 - "id"
 Cohesion: 0.33
 Nodes (6): id, default, name, notNull, primaryKey, type
 
-### Community 218 - "Schema Snapshot FK 0002 alt12"
+### Community 213 - "software"
 Cohesion: 0.33
 Nodes (6): software, default, name, notNull, primaryKey, type
 
-### Community 219 - "Schema Snapshot FK 0000 alt12"
+### Community 214 - "updated_at"
 Cohesion: 0.33
 Nodes (6): updated_at, default, name, notNull, primaryKey, type
 
-### Community 220 - "Schema Snapshot FK 0007 alt12"
+### Community 215 - "created_at"
 Cohesion: 0.33
 Nodes (6): created_at, default, name, notNull, primaryKey, type
 
-### Community 221 - "Schema Snapshot FK journal alt12"
+### Community 216 - "id"
 Cohesion: 0.33
 Nodes (6): id, default, name, notNull, primaryKey, type
 
-### Community 222 - "Schema Snapshot FK 0009 alt13"
+### Community 217 - "java_version"
 Cohesion: 0.33
 Nodes (6): java_version, default, name, notNull, primaryKey, type
 
-### Community 223 - "Schema Snapshot FK 0005 alt13"
+### Community 218 - "java_version"
 Cohesion: 0.33
 Nodes (6): java_version, default, name, notNull, primaryKey, type
 
-### Community 224 - "Schema Snapshot FK 0004 alt13"
+### Community 219 - "UI Components"
 Cohesion: 0.33
 Nodes (6): layout_mode, default, name, notNull, primaryKey, type
 
-### Community 225 - "Schema Snapshot FK 0006 alt13"
+### Community 220 - "software"
 Cohesion: 0.33
 Nodes (6): software, default, name, notNull, primaryKey, type
 
-### Community 226 - "Schema Snapshot FK 0001 alt13"
+### Community 221 - "created_at"
 Cohesion: 0.33
 Nodes (6): created_at, default, name, notNull, primaryKey, type
 
-### Community 227 - "Schema Snapshot FK 0003 alt13"
+### Community 222 - "UI Components"
 Cohesion: 0.33
 Nodes (6): layout_mode, default, name, notNull, primaryKey, type
 
-### Community 228 - "Schema Snapshot FK 0008 alt13"
+### Community 223 - "software"
 Cohesion: 0.33
 Nodes (6): software, default, name, notNull, primaryKey, type
 
-### Community 229 - "Schema Snapshot FK 0010 alt13"
+### Community 224 - "created_at"
+Cohesion: 0.33
+Nodes (6): created_at, default, name, notNull, primaryKey, type
+
+### Community 225 - "java_version"
 Cohesion: 0.33
 Nodes (6): java_version, default, name, notNull, primaryKey, type
 
-### Community 230 - "Server Health Route"
+### Community 226 - "Chrome Android Browser"
+Cohesion: 0.47
+Nodes (6): Chrome Android Browser, ERR_CONNECTION_REFUSED, Localhost Server (127.0.0.1:8080), Network Connection Failure, Chrome Mobile Error Screenshot, Web App Deployment Issue
+
+### Community 227 - "AuroraCraft README"
+Cohesion: 0.40
+Nodes (4): AuroraCraft README, PATH, start-all.sh script, web.sh script
+
+### Community 228 - "start()"
 Cohesion: 0.70
 Nodes (4): start(), status(), stop(), backend.sh script
 
-### Community 231 - "Schema Snapshot FK 0002 alt13"
+### Community 229 - "AI Models"
 Cohesion: 0.40
 Nodes (5): email, name, notNull, primaryKey, type
 
-### Community 232 - "Schema Snapshot FK 0000 alt13"
+### Community 230 - "expires_at"
 Cohesion: 0.40
 Nodes (5): expires_at, name, notNull, primaryKey, type
 
-### Community 233 - "Schema Snapshot FK 0007 alt13"
+### Community 231 - "user_id"
 Cohesion: 0.40
 Nodes (5): user_id, name, notNull, primaryKey, type
 
-### Community 234 - "Schema Snapshot FK journal alt13"
+### Community 232 - "username"
 Cohesion: 0.40
 Nodes (5): username, name, notNull, primaryKey, type
 
-### Community 235 - "Schema Snapshot FK 0009 alt14"
+### Community 233 - "enums"
 Cohesion: 0.40
 Nodes (5): enums, public.user_role, name, schema, values
 
-### Community 236 - "Schema Snapshot FK 0005 alt14"
+### Community 234 - "AI Models"
 Cohesion: 0.40
 Nodes (5): uniqueConstraints, columns, name, nullsNotDistinct, sessions_token_unique
 
-### Community 237 - "Schema Snapshot FK 0004 alt14"
+### Community 235 - "name"
 Cohesion: 0.40
 Nodes (5): name, name, notNull, primaryKey, type
 
-### Community 238 - "Schema Snapshot FK 0006 alt14"
+### Community 236 - "user_id"
 Cohesion: 0.40
 Nodes (5): user_id, name, notNull, primaryKey, type
 
-### Community 239 - "Schema Snapshot FK 0001 alt14"
+### Community 237 - "name"
+Cohesion: 0.40
+Nodes (5): name, name, notNull, primaryKey, type
+
+### Community 238 - "user_id"
+Cohesion: 0.40
+Nodes (5): user_id, name, notNull, primaryKey, type
+
+### Community 239 - "link_id"
 Cohesion: 0.40
 Nodes (5): link_id, name, notNull, primaryKey, type
 
-### Community 240 - "Schema Snapshot FK 0003 alt14"
+### Community 240 - "description"
 Cohesion: 0.40
 Nodes (5): description, name, notNull, primaryKey, type
 
-### Community 241 - "Schema Snapshot FK 0008 alt14"
+### Community 241 - "logo"
 Cohesion: 0.40
 Nodes (5): logo, name, notNull, primaryKey, type
 
-### Community 242 - "Schema Snapshot FK 0010 alt14"
+### Community 242 - "user_id"
 Cohesion: 0.40
 Nodes (5): user_id, name, notNull, primaryKey, type
 
-### Community 243 - "Schema Snapshot FK 0002 alt14"
+### Community 243 - "description"
 Cohesion: 0.40
 Nodes (5): description, name, notNull, primaryKey, type
 
-### Community 244 - "Schema Snapshot FK 0000 alt14"
-Cohesion: 0.40
-Nodes (5): name, name, notNull, primaryKey, type
-
-### Community 245 - "Schema Snapshot FK 0007 alt14"
-Cohesion: 0.40
-Nodes (5): session_id, name, notNull, primaryKey, type
-
-### Community 246 - "Schema Snapshot FK journal alt14"
+### Community 244 - "user_id"
 Cohesion: 0.40
 Nodes (5): user_id, name, notNull, primaryKey, type
 
-### Community 247 - "Schema Snapshot FK 0009 alt15"
+### Community 245 - "name"
+Cohesion: 0.40
+Nodes (5): name, name, notNull, primaryKey, type
+
+### Community 246 - "versions"
 Cohesion: 0.40
 Nodes (5): versions, name, notNull, primaryKey, type
 
-### Community 248 - "Devcontainer Config"
+### Community 247 - "AI Models"
 Cohesion: 0.50
 Nodes (3): forwardPorts, name, postStartCommand
 
-### Community 249 - "Schema Snapshot FK 0005 alt15"
+### Community 248 - "DB Schema"
 Cohesion: 0.50
 Nodes (4): _meta, columns, schemas, tables
 
-### Community 250 - "Client Community Hook"
+### Community 249 - "DB Schema"
+Cohesion: 0.50
+Nodes (4): public.project_language, name, schema, values
+
+### Community 250 - "DB Schema"
+Cohesion: 0.50
+Nodes (4): public.user_role, name, schema, values
+
+### Community 251 - "DB Schema"
+Cohesion: 0.50
+Nodes (4): public.project_status, name, schema, values
+
+### Community 252 - "DB Schema"
+Cohesion: 0.50
+Nodes (4): public.agent_status, name, schema, values
+
+### Community 253 - "DB Schema"
+Cohesion: 0.50
+Nodes (4): public.user_role, name, schema, values
+
+### Community 254 - "dialect"
 Cohesion: 0.50
 Nodes (3): dialect, entries, version
 
-### Community 254 - "Client Community Pages"
-Cohesion: 1.00
-Nodes (3): CodeRabbit Integration Complete, CodeRabbit Implementation Steps, CodeRabbit Code Review
-
-### Community 256 - "Server Auth Middleware"
-Cohesion: 0.67
-Nodes (3): Drizzle Config, Server Package Configuration, Server TSConfig
-
-### Community 259 - "Agent Util Types"
+### Community 255 - "Agent System"
 Cohesion: 0.67
 Nodes (3): AgentState, SetMessagesParams, Message
 
+### Community 258 - "CodeRabbit Integration Complete"
+Cohesion: 1.00
+Nodes (3): CodeRabbit Integration Complete, CodeRabbit Implementation Steps, CodeRabbit Code Review
+
+### Community 260 - "Package Dependencies"
+Cohesion: 0.67
+Nodes (3): Drizzle Config, Server Package Configuration, Server TSConfig
+
+### Community 263 - "Package Dependencies"
+Cohesion: 0.67
+Nodes (3): Root Package Configuration, Shared TypeScript Configuration, TypeScript ES2024
+
 ## Knowledge Gaps
-- **2143 isolated node(s):** `name`, `version`, `private`, `workspaces`, `dev` (+2138 more)
+- **2135 isolated node(s):** `name`, `version`, `private`, `workspaces`, `dev` (+2130 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **39 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **46 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `tables` connect `Schema Snapshot FK 0001 alt2` to `Drizzle Schema Snapshot 0003`, `Schema Snapshot FK meta 0006`, `Schema Snapshot FK 0003`, `Schema Snapshot FK 0000 alt4`, `Schema Snapshot FK 0001 alt7`, `Schema Snapshot FK 0003 alt7`?**
+- **Why does `tables` connect `AI Models` to `Agent System`, `AI Models`, `AI Models`, `AI Models`, `columns`, `columns`?**
+  _High betweenness centrality (0.007) - this node is a cross-community bridge._
+- **Why does `columns` connect `link_id` to `status`, `visibility`, `compiler`, `UI Components`, `description`, `logo`, `user_id`, `expires_at`, `Agent System`, `java_version`, `Project Management`, `software`, `created_at`, `language`?**
   _High betweenness centrality (0.006) - this node is a cross-community bridge._
-- **Why does `Drizzle ORM` connect `Server DB Schema` to `Server Plugins & Middleware`, `Server Package Dependencies`, `Server DB Migrations`, `Community Project Schema`, `Agent Definitions & Types`, `Agent Executor Implementation`?**
+- **Why does `tables` connect `AI Models` to `Agent System`, `Project Management`, `AI Models`, `AI Models`, `AI Models`, `AI Models`?**
   _High betweenness centrality (0.006) - this node is a cross-community bridge._
-- **Why does `tables` connect `Schema Snapshot FK 0006 alt2` to `Drizzle Schema Snapshot 0001`, `Schema Snapshot FK meta 0004`, `Schema Snapshot FK 0006 alt4`, `Schema Snapshot FK journal alt6`, `Schema Snapshot FK 0001`, `Schema Snapshot FK 0009 alt7`?**
-  _High betweenness centrality (0.006) - this node is a cross-community bridge._
-- **Are the 18 inferred relationships involving `cn()` (e.g. with `NewProjectPage()` and `DashboardPage()`) actually correct?**
-  _`cn()` has 18 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 26 inferred relationships involving `cn()` (e.g. with `NewProjectPage()` and `DashboardPage()`) actually correct?**
+  _`cn()` has 26 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `name`, `version`, `private` to the rest of the system?**
-  _2143 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `Client Pages & Hooks` be split into smaller, more focused modules?**
-  _Cohesion score 0.05580693815987934 - nodes in this community are weakly interconnected._
-- **Should `Drizzle Schema Snapshot 0009` be split into smaller, more focused modules?**
+  _2135 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `Agent System` be split into smaller, more focused modules?**
   _Cohesion score 0.0425531914893617 - nodes in this community are weakly interconnected._
+- **Should `Authentication` be split into smaller, more focused modules?**
+  _Cohesion score 0.045454545454545456 - nodes in this community are weakly interconnected._

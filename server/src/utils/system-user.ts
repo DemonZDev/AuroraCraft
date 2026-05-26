@@ -1,5 +1,6 @@
 import { execFile, spawn } from 'child_process'
 import { promisify } from 'util'
+import { setupUserSharedCaches } from './shared-cache.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -44,6 +45,14 @@ export async function createSystemUser(username: string, password: string): Prom
     await execFileAsync('sudo', ['chmod', '750', `/home/${systemUsername}`])
   } catch (err) {
     console.warn(`[SystemUser] Failed to set permissions on /home/${systemUsername}:`, err)
+  }
+
+  // Set up shared cache symlinks (OpenCode, Gradle, Maven) to prevent per-user duplication
+  try {
+    await setupUserSharedCaches(systemUsername)
+  } catch (err) {
+    console.warn(`[SystemUser] Failed to set up shared caches for ${systemUsername}:`, err)
+    // Non-fatal: shared caches are an optimization, not a requirement
   }
 
   console.log(`[SystemUser] System user ${systemUsername} created successfully`)

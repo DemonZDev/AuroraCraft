@@ -5,6 +5,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { env } from './env.js'
 import { processManager } from './bridges/opencode-process-manager.js'
+import { initializeSharedCaches } from './utils/shared-cache.js'
 import corsPlugin from './plugins/cors.js'
 import cookiePlugin from './plugins/cookie.js'
 import websocketPlugin from './plugins/websocket.js'
@@ -27,6 +28,8 @@ const app = Fastify({
       : undefined,
   },
 })
+
+await initializeSharedCaches()
 
 // Plugins
 await app.register(corsPlugin)

@@ -488,29 +488,21 @@ export async function projectRoutes(app: FastifyInstance) {
       return reply.status(404).send({ message: 'Project not found', statusCode: 404 })
     }
 
-    // Clean up OpenCode sessions before deleting the project
-    const sessions = await db
-      .select({ opencodeSessionId: agentSessions.opencodeSessionId })
-      .from(agentSessions)
-      .where(eq(agentSessions.projectId, id))
+    const systemUsername = `auroracraft-${request.user!.username}`
+    const projectDir = existing.linkId
+      ? `/home/${systemUsername}/${existing.linkId}`
+      : null
 
-    const ocSessionIds = sessions
-      .map((s) => s.opencodeSessionId)
-      .filter((ocId): ocId is string => !!ocId)
-
-    if (ocSessionIds.length > 0) {
-      await Promise.allSettled(
-        ocSessionIds.map((ocId) => opencodeBridge.deleteSession(ocId)),
-      )
+    if (projectDir) {
+      await opencodeBridge.cleanupProject(systemUsername, projectDir).catch((err) => {
+        app.log.warn({ err, projectDir }, 'Failed to clean up OpenCode data')
+      })
     }
 
     await db.delete(projects).where(eq(projects.id, id))
 
     // Clean up project directory (non-blocking)
-    if (existing.linkId) {
-      const username = request.user!.username
-      const projectDir = `/home/auroracraft-${username}/${existing.linkId}`
-      // Use sudo to delete directory since it's owned by auroracraft-admin
+    if (projectDir) {
       import('child_process').then(({ exec }) => {
         exec(`sudo rm -rf "${projectDir}"`, (err) => {
           if (err) {

@@ -224,11 +224,12 @@ export class OpenCodeProcessManager {
         }, null, 2)
 
         // User-level config: /home/{user}/.config/opencode/opencode.json
-        const userConfigDir = `/home/${systemUser}/.config/opencode`
-        const userConfigPath = `${userConfigDir}/opencode.json`
-        await mkdir(userConfigDir, { recursive: true })
+        // The .config/opencode/ directory and shared symlinks (node_modules, package.json,
+        // package-lock.json) are set up once during user creation via setupUserSharedCaches().
+        // We only need to write the per-user opencode.json here.
+        const userConfigPath = `/home/${systemUser}/.config/opencode/opencode.json`
         await writeFile(userConfigPath, configContent, 'utf8')
-        await chownRecursive(`/home/${systemUser}/.config/opencode`, uid, gid)
+        await chown(userConfigPath, uid, gid)
 
         // Project-level config: {directory}/opencode.json
         const projectConfigPath = `${directory}/opencode.json`
@@ -346,6 +347,10 @@ export class OpenCodeProcessManager {
     instance.status = 'ready'
     console.log(`[ProcessManager] OpenCode ready for ${directory} on port ${port}`)
     return instance
+  }
+
+  async forceStop(directory: string): Promise<void> {
+    return this.stopInstance(directory)
   }
 
   private async stopInstance(directory: string): Promise<void> {

@@ -1218,6 +1218,15 @@ export class OpenCodeBridge implements BridgeInterface {
     // The process manager's idle timeout handles cleanup automatically.
   }
 
+  async cleanupProject(systemUsername: string, projectDir: string): Promise<void> {
+    // 1. Force-stop any running OpenCode instance for this project
+    await processManager.forceStop(projectDir)
+
+    // 2. Clean up SQLite DB and filesystem artifacts
+    const { cleanupOpenCodeProject } = await import('../utils/opencode-cleanup.js')
+    await cleanupOpenCodeProject(systemUsername, projectDir)
+  }
+
   // ── Private helpers ──────────────────────────────────────────────
 
   private async pollPermissions(baseUrl: string, sessionId: string, signal: AbortSignal): Promise<void> {
