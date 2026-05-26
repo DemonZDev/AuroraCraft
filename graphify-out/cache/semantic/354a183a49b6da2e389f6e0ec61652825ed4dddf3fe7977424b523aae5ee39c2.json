@@ -1,0 +1,1 @@
+{"nodes": [{"id": "bridges_systemPrompt_AGENT_SYSTEM_PROMPT", "label": "Agent System Prompt", "file_type": "code", "source_file": "server/src/bridges/system-prompt.ts", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null}], "edges": [], "hyperedges": []}

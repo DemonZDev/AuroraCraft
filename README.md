@@ -5,7 +5,7 @@ AI-powered Minecraft plugin development platform. Describe what you want and an 
 ## Features
 
 - **AI Plugin Generation** — Chat with an AI coding agent (OpenCode) that writes, edits, and scaffolds Minecraft plugins
-- **Multi-Model Support** — Choose from free AI models (MiniMax M2.5, Mimo V2 Flash, Nemotron 3 Super, GPT-5 Nano, Big Pickle)
+- **Multi-Model Support** — Choose from free AI models (DeepSeek V4 Flash Free, Nemotron 3 Super Free, Big Pickle)
 - **Project Management** — Create, configure, and manage multiple plugin projects
 - **Real-Time Streaming** — Live streaming of AI responses with thinking blocks, file operations, and progress tracking
 - **Monaco Code Editor** — Built-in code editor with syntax highlighting and file tree navigation
@@ -190,7 +190,7 @@ This creates the default **admin user**:
 
 > **Change the admin password** after your first login.
 
-> **AI Models** are built into the application and appear automatically on the Admin → AI Runtime page. No additional model configuration is needed — OpenCode's free models (MiniMax M2.5, Mimo V2 Flash, Nemotron 3 Super, GPT-5 Nano, Big Pickle) are available out of the box once OpenCode is running.
+> **AI Models** are built into the application and appear automatically on the Admin → AI Runtime page. No additional model configuration is needed — OpenCode's verified free models (DeepSeek V4 Flash Free, Nemotron 3 Super Free, Big Pickle) are available out of the box once OpenCode is running.
 
 ---
 

@@ -114,6 +114,15 @@ export function Navbar() {
                 >
                   Dashboard
                 </Link>
+                {user?.role === 'admin' && (
+                  <Link
+                    to="/admin"
+                    onClick={() => setMobileOpen(false)}
+                    className="rounded-md px-3 py-2 text-sm text-text-muted transition-colors hover:text-text"
+                  >
+                    Admin Panel
+                  </Link>
+                )}
                 <button
                   onClick={() => { logout(); setMobileOpen(false) }}
                   className="rounded-md px-3 py-2 text-left text-sm text-text-muted transition-colors hover:text-text"

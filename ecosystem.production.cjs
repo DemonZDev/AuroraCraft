@@ -8,7 +8,7 @@ module.exports = {
     {
       name: 'auroracraft-server',
       cwd: ROOT,
-      script: '/usr/local/share/nvm/versions/node/v24.11.1/bin/tsx',
+      script: '/home/codespace/.local/share/pnpm/tsx',
       args: 'server/src/index.ts',
       instances: 1,
       exec_mode: 'fork',
@@ -22,6 +22,7 @@ module.exports = {
       min_uptime: 5000,
       env: {
         NODE_ENV: 'production',
+        PATH: '/home/codespace/nvm/current/bin:/home/codespace/.local/share/pnpm:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
       },
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       error_file: path.resolve(LOGS, 'server-error.log'),

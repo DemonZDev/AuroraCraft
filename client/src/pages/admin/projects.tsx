@@ -18,8 +18,8 @@ export default function AdminProjectsPage() {
           <p className="text-sm text-text-dim">No projects found</p>
         </div>
       ) : (
-        <div className="mt-6 overflow-hidden rounded-xl border border-border">
-          <table className="w-full text-sm">
+        <div className="mt-6 overflow-x-auto rounded-xl border border-border">
+          <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-surface">
                 <th className="px-4 py-3 text-left font-medium text-text-muted">Name</th>

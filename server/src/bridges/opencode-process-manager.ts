@@ -249,7 +249,9 @@ export class OpenCodeProcessManager {
     // Spawn OpenCode as the project owner using runuser -l (consistent with the Kiro bridge).
     // runuser -l resets env, so OPENCODE_DANGEROUSLY_SKIP_PERMISSIONS must be set in the
     // shell command itself rather than via spawn's `env` option.
-    const opencodePath = '/home/codespace/nvm/current/bin/opencode'
+    // IMPORTANT: The binary must be in a path accessible to all system users (e.g. /usr/local/share/nvm),
+    // NOT in a user-specific home directory (e.g. /home/codespace/nvm) which other users cannot access.
+    const opencodePath = '/usr/local/share/nvm/current/bin/opencode'
 
     let child: ChildProcess
     if (systemUser) {

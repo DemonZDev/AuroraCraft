@@ -779,13 +779,16 @@ function getBridgeFromModel(modelId: string): 'opencode' | 'kiro' {
   return modelId.startsWith('kiro/') ? 'kiro' : 'opencode'
 }
 
-function ChatPanel({ projectId, projectBridge, onRefreshFiles, onFileSelect, autoFixPayload, onAutoFixComplete }: { 
+function ChatPanel({ projectId, projectBridge, onRefreshFiles, onFileSelect, autoFixPayload, onAutoFixComplete, workspaceDisabled, onAiRunningChange, stopAiRef }: {
   projectId: string
   projectBridge?: 'opencode' | 'kiro'
   onRefreshFiles?: () => void
   onFileSelect?: (path: string) => void
   autoFixPayload?: { prompt: string; model: string } | null
   onAutoFixComplete?: () => void
+  workspaceDisabled?: boolean
+  onAiRunningChange?: (running: boolean) => void
+  stopAiRef?: React.MutableRefObject<(() => void) | null>
 }) {
   const { sessions, isLoading: sessionsLoading, createSession } = useAgentSessions(projectId)
 
@@ -850,6 +853,9 @@ function ChatPanel({ projectId, projectBridge, onRefreshFiles, onFileSelect, aut
       availableModels={availableModels}
       onRefreshFiles={onRefreshFiles}
       onFileSelect={onFileSelect}
+      workspaceDisabled={workspaceDisabled}
+      onAiRunningChange={onAiRunningChange}
+      stopAiRef={stopAiRef}
     />
   )
 }
@@ -960,7 +966,7 @@ function ChatEmptyState({ onSessionCreated, createSession, selectedModel, onMode
   )
 }
 
-function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSent, selectedModel, onModelChange, availableModels, onRefreshFiles, onFileSelect }: {
+function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSent, selectedModel, onModelChange, availableModels, onRefreshFiles, onFileSelect, workspaceDisabled, onAiRunningChange, stopAiRef }: {
   projectId: string
   sessionId: string
   pendingMessage?: { content: string; model: string } | null
@@ -970,6 +976,9 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
   availableModels?: typeof AI_MODELS
   onRefreshFiles?: () => void
   onFileSelect?: (path: string) => void
+  workspaceDisabled?: boolean
+  onAiRunningChange?: (running: boolean) => void
+  stopAiRef?: React.MutableRefObject<(() => void) | null>
 }) {
   const { session, messages, isLoading, sendMessage, isSending, sendError, invalidateAndRefetch, cancelSession, isCancelling } = useAgentSession(projectId, sessionId)
   const [awaitingStream, setAwaitingStream] = useState(false)
@@ -1087,6 +1096,10 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
 
   const isRunning = session?.status === 'running'
 
+  useEffect(() => {
+    onAiRunningChange?.(isRunning || awaitingStream)
+  }, [isRunning, awaitingStream, onAiRunningChange])
+
   const handleSend = useCallback(async (message: string) => {
     if (!message || isSending || session?.status === 'running') return
     setAwaitingStream(true)
@@ -1105,6 +1118,12 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
   const handleCancel = useCallback(() => {
     cancelSession().catch(() => {})
   }, [cancelSession])
+
+  useEffect(() => {
+    if (stopAiRef) {
+      stopAiRef.current = handleCancel
+    }
+  }, [handleCancel, stopAiRef])
 
   const handleAnswer = useCallback(async (questionId: string, answer: string) => {
     await api.post(`/projects/${projectId}/agent/sessions/${sessionId}/answer`, { questionId, answer })
@@ -1206,14 +1225,14 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
         )}
         <ChatInput
           onSend={handleSend}
-          disabled={isSending || session?.status === 'running'}
+          disabled={isSending || session?.status === 'running' || workspaceDisabled}
           isRunning={isRunning || awaitingStream}
           isCancelling={isCancelling}
           onCancel={handleCancel}
           selectedModel={selectedModel}
           onModelChange={onModelChange}
           availableModels={availableModels}
-          modelDisabled={isSending || session?.status === 'running'}
+          modelDisabled={isSending || session?.status === 'running' || workspaceDisabled}
         />
       </div>
     </>
@@ -1245,16 +1264,17 @@ function MobileTabButton({ active, icon: Icon, label, onClick }: {
 
 // ── File tree panel (shared between mobile & desktop) ────────────────
 
-function FileTreePanel({ files, filesLoading, refetchFiles, onFileSelect, selectedFile, fileOps }: {
+function FileTreePanel({ files, filesLoading, refetchFiles, onFileSelect, selectedFile, fileOps, disabled }: {
   files: FileTreeEntry[]
   filesLoading: boolean
   refetchFiles: () => void
   onFileSelect?: (path: string) => void
   selectedFile?: string | null
   fileOps: ReturnType<typeof useFileOperations>
+  disabled?: boolean
 }) {
   return (
-    <div className="h-full overflow-y-auto bg-surface py-2">
+    <div className={cn("h-full overflow-y-auto bg-surface py-2", disabled && "pointer-events-none opacity-50")}>
       <div className="mb-2 flex items-center justify-between px-3">
         <p className="text-xs font-medium uppercase tracking-wider text-text-dim">Files</p>
         <div className="flex items-center gap-1">
@@ -1263,7 +1283,8 @@ function FileTreePanel({ files, filesLoading, refetchFiles, onFileSelect, select
               const name = window.prompt('File path (relative):')
               if (name) fileOps.createFile({ path: name, type: 'file' }).catch((err) => { window.alert(getErrorMessage(err)) })
             }}
-            className="rounded p-0.5 text-text-dim hover:text-text-muted"
+            disabled={disabled}
+            className="rounded p-0.5 text-text-dim hover:text-text-muted disabled:opacity-40"
             title="New file"
           >
             <FilePlus2 className="h-3 w-3" />
@@ -1273,14 +1294,16 @@ function FileTreePanel({ files, filesLoading, refetchFiles, onFileSelect, select
               const name = window.prompt('Folder path (relative):')
               if (name) fileOps.createFile({ path: name, type: 'directory' }).catch((err) => { window.alert(getErrorMessage(err)) })
             }}
-            className="rounded p-0.5 text-text-dim hover:text-text-muted"
+            disabled={disabled}
+            className="rounded p-0.5 text-text-dim hover:text-text-muted disabled:opacity-40"
             title="New folder"
           >
             <FolderPlus className="h-3 w-3" />
           </button>
           <button
             onClick={() => refetchFiles()}
-            className="rounded p-0.5 text-text-dim hover:text-text-muted"
+            disabled={disabled}
+            className="rounded p-0.5 text-text-dim hover:text-text-muted disabled:opacity-40"
             title="Refresh files"
           >
             <RefreshCw className="h-3 w-3" />
@@ -1332,7 +1355,7 @@ function getLanguageFromPath(filePath: string): string {
   return map[ext] ?? 'plaintext'
 }
 
-function EditorPanel({ projectId, selectedFile, fileOps }: { projectId: string; selectedFile: string | null; fileOps: ReturnType<typeof useFileOperations> }) {
+function EditorPanel({ projectId, selectedFile, fileOps, disabled }: { projectId: string; selectedFile: string | null; fileOps: ReturnType<typeof useFileOperations>; disabled?: boolean }) {
   const { content, isLoading, error } = useFileContent(projectId, selectedFile)
   const [editedContent, setEditedContent] = useState<string | null>(null)
 
@@ -1365,7 +1388,7 @@ function EditorPanel({ projectId, selectedFile, fileOps }: { projectId: string; 
   }, [selectedFile, hasUnsavedChanges, fileOps, editedContent, content])
 
   return (
-    <div className="flex h-full flex-col">
+    <div className={cn("flex h-full flex-col", disabled && "pointer-events-none opacity-50")}>
       <div className="flex h-9 items-center justify-between border-b border-border bg-surface px-4">
         <div className="flex min-w-0 items-center gap-2 text-xs text-text-dim">
           <File className="h-3 w-3 shrink-0" />
@@ -1387,7 +1410,7 @@ function EditorPanel({ projectId, selectedFile, fileOps }: { projectId: string; 
         {selectedFile && hasUnsavedChanges && (
           <button
             onClick={handleSave}
-            disabled={fileOps.isSaving}
+            disabled={fileOps.isSaving || disabled}
             className="flex shrink-0 items-center gap-1.5 rounded-md bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary transition-colors hover:bg-primary/20 disabled:opacity-50"
             title="Save (Ctrl+S)"
           >
@@ -1482,6 +1505,15 @@ export default function WorkspacePage() {
   const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL_ID)
 const [selectedIssues, setSelectedIssues] = useState<Array<{ reviewId: string; issueIdx: number }>>([])
   const [autoFixPayload, setAutoFixPayload] = useState<{ prompt: string; model: string } | null>(null)
+  const [fixConfirmOpen, setFixConfirmOpen] = useState(false)
+
+  const [aiRunning, setAiRunning] = useState(false)
+  const stopAiRef = useRef<(() => void) | null>(null)
+
+  // ── Review Lock System ──────────────────────────────────────────────
+  const [reviewLock, setReviewLock] = useState<{ status: 'pending' | 'error' | 'completed'; reviewId: string; error?: string } | null>(null)
+  const isReviewLocked = reviewLock?.status === 'pending'
+  const isWorkspaceLocked = isReviewLocked || aiRunning
 
   const toggleIssueSelection = (reviewId: string, idx: number) => {
     setSelectedIssues(prev => {
@@ -1506,7 +1538,18 @@ const handleAutoFix = () => {
     setAutoFixModalOpen(true)
   }
 
-  const confirmAutoFix = async () => {
+  const confirmAutoFix = async (skipConfirmation = false) => {
+    if (!skipConfirmation) {
+      const hasFixed = selectedIssues.some(({ reviewId, issueIdx }) => {
+        const review = reviewHistory.find(r => r.id === reviewId)
+        return review?.issuesJson?.[issueIdx]?._fixed === true
+      })
+      if (hasFixed) {
+        setFixConfirmOpen(true)
+        return
+      }
+    }
+
     const issues = selectedIssues.map(({ reviewId, issueIdx }) => {
       const review = reviewHistory.find(r => r.id === reviewId) ?? null
       return review?.issuesJson?.[issueIdx] ?? null
@@ -1520,7 +1563,29 @@ const handleAutoFix = () => {
       `${i + 1}. [${issue.severity}] ${issue.fileName}\n${issue.codegenInstructions}\n`
     ).join('\n')}`
 
+    const fixesByReview: Record<string, number[]> = {}
+    for (const { reviewId, issueIdx } of selectedIssues) {
+      if (!fixesByReview[reviewId]) fixesByReview[reviewId] = []
+      fixesByReview[reviewId].push(issueIdx)
+    }
+
+    for (const [reviewId, indices] of Object.entries(fixesByReview)) {
+      try {
+        await fetch(`/api/projects/${projectId}/coderabbit/reviews/${reviewId}/fix-issues`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ fixedIndices: indices }),
+        })
+      } catch {
+        // Non-fatal
+      }
+    }
+
+    fetchReviewHistory()
+
     setAutoFixModalOpen(false)
+    setFixConfirmOpen(false)
     setReviewHistoryOpen(false)
     setReviewResults(null)
     setSelectedIssues([])
@@ -1539,6 +1604,44 @@ const handleAutoFix = () => {
       }
     } catch {}
   }
+
+  const checkReviewStatus = useCallback(async () => {
+    if (!projectId) return
+    try {
+      const res = await fetch(`/api/projects/${projectId}/review-status`, { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.locked && data.review?.status === 'pending') {
+          setReviewLock({ status: 'pending', reviewId: data.review.id })
+        } else if (data.error) {
+          setReviewLock({ status: 'error', reviewId: data.error.id, error: data.error.message })
+          fetchReviewHistory()
+        } else {
+          setReviewLock(null)
+        }
+      }
+    } catch {}
+  }, [projectId])
+
+  useEffect(() => {
+    checkReviewStatus()
+    fetchReviewHistory()
+    if (reviewLock?.status === 'pending') {
+      const interval = setInterval(() => checkReviewStatus(), 3000)
+      return () => clearInterval(interval)
+    }
+  }, [reviewLock?.status, checkReviewStatus])
+
+  const dismissReviewError = async (reviewId: string) => {
+    try {
+      await fetch(`/api/projects/${projectId}/coderabbit/reviews/${reviewId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+    } catch {}
+    setReviewLock(null)
+  }
+
   const [disconnectModalOpen, setDisconnectModalOpen] = useState(false)
   const [needsRemote, setNeedsRemote] = useState(false)
   const [repoUrl, setRepoUrl] = useState('')
@@ -1726,16 +1829,24 @@ const handleAutoFix = () => {
       if (res.ok) {
         const data = await res.json()
         setReviewModalOpen(false)
-        setReviewResults(data)
-        fetchReviewHistory()
-        
-        // Show appropriate message based on results
-        if (data.issuesCount > 0) {
-          alert(`Review completed! Found ${data.issuesCount} issue${data.issuesCount !== 1 ? 's' : ''} to review. Check the results below.`)
+        if (data.status === 'pending') {
+          setReviewLock({ status: 'pending', reviewId: data.reviewId })
+          fetchReviewHistory()
+        } else {
+          setReviewResults(data)
+          fetchReviewHistory()
+          if (data.issuesCount > 0) {
+            alert(`Review completed! Found ${data.issuesCount} issue${data.issuesCount !== 1 ? 's' : ''} to review. Check the results below.`)
+          }
         }
       } else {
         const data = await res.json()
-        alert(data.error || 'Failed to run review')
+        const errMsg = data.error || 'Failed to run review'
+        if (errMsg.toLowerCase().includes('rate limit') || errMsg.toLowerCase().includes('quota') || errMsg.toLowerCase().includes('limit exceeded')) {
+          setReviewLock({ status: 'error', reviewId: 'temp', error: errMsg })
+        } else {
+          alert(errMsg)
+        }
       }
     } catch (err) {
       alert('Failed to run review')
@@ -1800,6 +1911,29 @@ const handleAutoFix = () => {
 
     return (
       <>
+        {isWorkspaceLocked && (
+          <div className="shrink-0 flex items-center justify-center gap-2 bg-primary/90 py-2 px-4 text-sm font-medium text-primary-foreground backdrop-blur animate-pulse z-50">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>{isReviewLocked ? 'Review is ongoing, please wait' : 'AI is generating code, please wait'}</span>
+            {aiRunning && (
+              <button
+                onClick={() => stopAiRef.current?.()}
+                className="ml-2 flex items-center gap-1 rounded bg-destructive px-2 py-0.5 text-xs text-destructive-foreground hover:bg-destructive/80"
+              >
+                <Square className="h-3 w-3" /> Stop
+              </button>
+            )}
+          </div>
+        )}
+        {reviewLock?.status === 'error' && (
+          <div className="shrink-0 flex items-center justify-between gap-2 bg-red-500/90 py-2 px-4 text-sm font-medium text-white backdrop-blur z-50">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              <span>{reviewLock.error || 'Review failed'}</span>
+            </div>
+            <button onClick={() => dismissReviewError(reviewLock.reviewId)} className="rounded bg-white/20 px-2 py-0.5 text-xs hover:bg-white/30">Dismiss</button>
+          </div>
+        )}
         <div className="flex h-[100dvh] flex-col bg-background">
         <header className="flex h-11 shrink-0 items-center gap-3 border-b border-border bg-surface/80 backdrop-blur-sm px-3">
           <Link to="/dashboard" className="text-text-dim hover:text-text-muted">
@@ -1812,21 +1946,24 @@ const handleAutoFix = () => {
               <>
                 <button
                   onClick={handleOpenPushModal}
-                  className="rounded-md p-1.5 text-text-dim hover:text-text-muted"
+                  disabled={isWorkspaceLocked}
+                  className="rounded-md p-1.5 text-text-dim hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed"
                   title="Push to GitHub"
                 >
                   <Upload className="h-3.5 w-3.5" />
                 </button>
                 <button
                   onClick={() => setResetModalOpen(true)}
-                  className="rounded-md p-1.5 text-orange-500 hover:text-orange-600"
+                  disabled={isWorkspaceLocked}
+                  className="rounded-md p-1.5 text-orange-500 hover:text-orange-600 disabled:opacity-40 disabled:cursor-not-allowed"
                   title="Reset from Git"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
                 </button>
                 <button
                   onClick={() => setDisconnectModalOpen(true)}
-                  className="rounded-md p-1.5 text-red-500 hover:text-red-600"
+                  disabled={isWorkspaceLocked}
+                  className="rounded-md p-1.5 text-red-500 hover:text-red-600 disabled:opacity-40 disabled:cursor-not-allowed"
                   title={`Connected as @${githubUsername}`}
                 >
                   <GitBranch className="h-3.5 w-3.5" />
@@ -1835,7 +1972,8 @@ const handleAutoFix = () => {
             ) : (
               <button
                 onClick={handleGithubConnect}
-                className="rounded-md p-1.5 text-text-dim hover:text-text-muted"
+                disabled={isWorkspaceLocked}
+                className="rounded-md p-1.5 text-text-dim hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed"
                 title="Connect GitHub"
               >
                 <GitBranch className="h-3.5 w-3.5" />
@@ -1845,24 +1983,27 @@ const handleAutoFix = () => {
               <>
                 <button
                   onClick={() => setReviewModalOpen(true)}
-                  className="rounded-md p-1.5 text-blue-500 hover:text-blue-600"
+                  disabled={isWorkspaceLocked}
+                  className="rounded-md p-1.5 text-blue-500 hover:text-blue-600 disabled:opacity-40 disabled:cursor-not-allowed"
                   title="Review Code"
                 >
                   <Shield className="h-3.5 w-3.5" />
                 </button>
                 <button
                   onClick={() => {
+                    if (isWorkspaceLocked) return
                     fetchReviewHistory()
                     setReviewHistoryOpen(true)
                   }}
-                  className="rounded-md p-1.5 text-text-dim hover:text-text-muted"
+                  disabled={isWorkspaceLocked}
+                  className="rounded-md p-1.5 text-text-dim hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed"
                   title="Review History"
                 >
                   <ListTodo className="h-3.5 w-3.5" />
                 </button>
               </>
             )}
-            <button onClick={toggleLayout} className="rounded-md p-1.5 text-text-dim hover:text-text-muted" title={isChatFirst ? 'Switch to Code First' : 'Switch to Chat First'}>
+            <button onClick={toggleLayout} disabled={isWorkspaceLocked} className="rounded-md p-1.5 text-text-dim hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed" title={isChatFirst ? 'Switch to Code First' : 'Switch to Chat First'}>
               <ArrowLeftRight className="h-3.5 w-3.5" />
             </button>
             <a href={`/api/projects/${projectId}/download/zip`} download className="rounded-md p-1.5 text-text-dim hover:text-text-muted" title="Download project">
@@ -1870,10 +2011,10 @@ const handleAutoFix = () => {
             </a>
             <div className="relative" ref={jarMenuRef}>
               <button 
-                onClick={() => setJarMenuOpen(!jarMenuOpen)} 
-                className="rounded-md p-1.5 text-text-dim hover:text-text-muted" 
+                onClick={() => !isWorkspaceLocked && setJarMenuOpen(!jarMenuOpen)} 
+                className={cn("rounded-md p-1.5 text-text-dim hover:text-text-muted", (!jars.maven && !jars.gradle) && "opacity-40 cursor-not-allowed", isWorkspaceLocked && "opacity-40 cursor-not-allowed")} 
                 title="Download plugin JAR"
-                disabled={!jars.maven && !jars.gradle}
+                disabled={(!jars.maven && !jars.gradle) || isWorkspaceLocked}
               >
                 <Package className="h-3.5 w-3.5" />
               </button>
@@ -1896,7 +2037,7 @@ const handleAutoFix = () => {
                 </div>
               )}
             </div>
-            <Link to={`/project/${projectId}/settings`} className="rounded-md p-1.5 text-text-dim hover:text-text-muted" title="Settings">
+            <Link to={`/project/${projectId}/settings`} className={cn("rounded-md p-1.5 text-text-dim hover:text-text-muted", isWorkspaceLocked && "opacity-40 pointer-events-none")} title="Settings">
               <Settings className="h-3.5 w-3.5" />
             </Link>
           </div>
@@ -1908,20 +2049,23 @@ const handleAutoFix = () => {
               <MessageSquare className="h-4 w-4 text-primary" />
               <span className="text-sm font-medium text-text">AI Assistant</span>
             </div>
-            <ChatPanel 
-              projectId={project.id} 
-              projectBridge={project.bridge} 
-              onRefreshFiles={refetchFiles} 
+            <ChatPanel
+              projectId={project.id}
+              projectBridge={project.bridge}
+              onRefreshFiles={refetchFiles}
               onFileSelect={handleFileSelect}
               autoFixPayload={autoFixPayload}
               onAutoFixComplete={() => setAutoFixPayload(null)}
+              workspaceDisabled={isWorkspaceLocked}
+              onAiRunningChange={setAiRunning}
+              stopAiRef={stopAiRef}
             />
           </div>
           <div className={cn('h-full', mobileTab !== 'files' && 'hidden')}>
-            <FileTreePanel files={files} filesLoading={filesLoading} refetchFiles={refetchFiles} onFileSelect={handleFileSelect} selectedFile={selectedFile} fileOps={fileOps} />
+            <FileTreePanel files={files} filesLoading={filesLoading} refetchFiles={refetchFiles} onFileSelect={handleFileSelect} selectedFile={selectedFile} fileOps={fileOps} disabled={isWorkspaceLocked} />
           </div>
           <div className={cn('h-full', mobileTab !== 'code' && 'hidden')}>
-            <EditorPanel projectId={project.id} selectedFile={selectedFile} fileOps={fileOps} />
+            <EditorPanel projectId={project.id} selectedFile={selectedFile} fileOps={fileOps} disabled={isWorkspaceLocked} />
           </div>
         </div>
 
@@ -2042,7 +2186,7 @@ const handleAutoFix = () => {
                 </button>
                 <button
                   onClick={handleReview}
-                  disabled={reviewing}
+                  disabled={reviewing || isWorkspaceLocked}
                   className="flex-1 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-50"
                 >
                   {reviewing ? 'Reviewing...' : 'Start Review'}
@@ -2172,11 +2316,25 @@ const handleAutoFix = () => {
                           </div>
                           <div className="flex items-center justify-between">
                             <p className="text-sm text-text">
-                              {review.issuesJson ? `${review.issuesJson.length} issue(s) found` : 'No issues'}
+                              {(() => {
+                                if (review.status === 'passed' && (!review.issuesJson || review.issuesJson.length === 0)) {
+                                  return 'No issue found'
+                                }
+                                const findings = review.issuesJson?.filter((i: any) => i.type === 'finding') || []
+                                const fixedCount = findings.filter((i: any) => i._fixed).length
+                                const remaining = findings.length - fixedCount
+                                if (findings.length > 0 && fixedCount === findings.length) {
+                                  return 'Issues were fixed'
+                                }
+                                if (remaining > 0 && fixedCount > 0) {
+                                  return `${remaining} error${remaining !== 1 ? 's' : ''} remaining`
+                                }
+                                return findings.length > 0 ? `${findings.length} issue${findings.length !== 1 ? 's' : ''} found` : 'No issues'
+                              })()}
                             </p>
                             {review.issuesJson && review.issuesJson.length > 0 && (
                               <button
-                                onClick={() => {
+                                 onClick={() => {
                                   const newExpanded = new Set(expandedReviews)
                                   if (isExpanded) {
                                     newExpanded.delete(review.id)
@@ -2247,15 +2405,20 @@ const handleAutoFix = () => {
                                       className="flex-1 flex items-center justify-between hover:bg-surface/50 transition-colors"
                                     >
                                       <div className="flex items-center gap-2">
-                                        <span className={`rounded px-2 py-0.5 text-xs font-medium ${
-                                          issue.severity === 'critical' ? 'bg-red-500/10 text-red-500' :
-                                          issue.severity === 'major' ? 'bg-orange-500/10 text-orange-500' :
-                                          issue.severity === 'minor' ? 'bg-yellow-500/10 text-yellow-500' :
-                                          'bg-blue-500/10 text-blue-500'
-                                        }`}>
-                                          {issue.severity}
-                                        </span>
-                                        <span className="text-xs text-text-muted truncate max-w-[200px]">{issue.fileName}</span>
+                                         <span className={`rounded px-2 py-0.5 text-xs font-medium ${
+                                           issue.severity === 'critical' ? 'bg-red-500/10 text-red-500' :
+                                           issue.severity === 'major' ? 'bg-orange-500/10 text-orange-500' :
+                                           issue.severity === 'minor' ? 'bg-yellow-500/10 text-yellow-500' :
+                                           'bg-blue-500/10 text-blue-500'
+                                         }`}>
+                                           {issue.severity}
+                                         </span>
+                                         {issue._fixed === true && (
+                                           <span className="rounded px-2 py-0.5 text-xs font-medium bg-success/10 text-success">
+                                             FIXED
+                                           </span>
+                                         )}
+                                         <span className="text-xs text-text-muted truncate max-w-[200px]">{issue.fileName}</span>
                                       </div>
                                       <ChevronDown className={`h-4 w-4 text-text-muted transition-transform ${isIssueExpanded ? 'rotate-180' : ''}`} />
                                     </button>
@@ -2273,7 +2436,8 @@ const handleAutoFix = () => {
                             {selectedIssues.length > 0 && (
                               <button
                                 onClick={handleAutoFix}
-                                className="w-full mt-3 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                                disabled={isWorkspaceLocked}
+                                className="w-full mt-3 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 Auto Fix ({selectedIssues.length}) Issue{selectedIssues.length !== 1 ? 's' : ''}
                               </button>
@@ -2413,7 +2577,7 @@ const handleAutoFix = () => {
                 Cancel
               </button>
               <button
-                onClick={confirmAutoFix}
+                onClick={() => confirmAutoFix()}
                 className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
               >
                 Start Fixing
@@ -2422,12 +2586,62 @@ const handleAutoFix = () => {
           </div>
         </div>
       )}
+
+      {/* Re-fix Confirmation Dialog */}
+      {fixConfirmOpen && (
+        <div className="fixed inset-0 z-[101] flex items-center justify-center bg-black/50 p-4" onClick={() => setFixConfirmOpen(false)}>
+          <div className="w-full max-w-sm rounded-lg border border-border bg-surface p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold text-text mb-2">Re-fix Issues?</h2>
+            <p className="text-sm text-text-muted mb-6">
+              You selected fixed issue(s). Do you want to continue?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setFixConfirmOpen(false)}
+                className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => confirmAutoFix(true)}
+                className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </>
     )
   }
 
   return (
     <div className="flex h-screen flex-col bg-background">
+      {isWorkspaceLocked && (
+        <div className="shrink-0 flex items-center justify-center gap-2 bg-primary/90 py-2 px-4 text-sm font-medium text-primary-foreground backdrop-blur animate-pulse z-50">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>{isReviewLocked ? 'Review is ongoing, please wait' : 'AI is generating code, please wait'}</span>
+          {aiRunning && (
+            <button
+              onClick={() => stopAiRef.current?.()}
+              className="ml-2 flex items-center gap-1 rounded bg-destructive px-2 py-0.5 text-xs text-destructive-foreground hover:bg-destructive/80"
+            >
+              <Square className="h-3 w-3" /> Stop
+            </button>
+          )}
+        </div>
+      )}
+      {reviewLock?.status === 'error' && (
+        <div className="shrink-0 flex items-center justify-between gap-2 bg-red-500/90 py-2 px-4 text-sm font-medium text-white backdrop-blur z-50">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4" />
+            <span>{reviewLock.error || 'Review failed'}</span>
+          </div>
+          <button onClick={() => dismissReviewError(reviewLock.reviewId)} className="rounded bg-white/20 px-2 py-0.5 text-xs hover:bg-white/30">Dismiss</button>
+        </div>
+      )}
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-surface/80 backdrop-blur-sm px-4">
         <div className="flex items-center gap-3">
           <Link to="/dashboard" className="text-text-dim hover:text-text-muted">
@@ -2442,21 +2656,24 @@ const handleAutoFix = () => {
             <>
               <button
                 onClick={handleOpenPushModal}
-                className="rounded-md border border-border p-1.5 text-text-dim hover:bg-surface-hover hover:text-text-muted"
+                disabled={isWorkspaceLocked}
+                className="rounded-md border border-border p-1.5 text-text-dim hover:bg-surface-hover hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed"
                 title="Push to GitHub"
               >
                 <Upload className="h-4 w-4" />
               </button>
               <button
                 onClick={() => setResetModalOpen(true)}
-                className="rounded-md border border-orange-500 p-1.5 text-orange-500 hover:bg-orange-50"
+                disabled={isWorkspaceLocked}
+                className="rounded-md border border-orange-500 p-1.5 text-orange-500 hover:bg-orange-50 disabled:opacity-40 disabled:cursor-not-allowed"
                 title="Reset from Git"
               >
                 <RotateCcw className="h-4 w-4" />
               </button>
               <button
                 onClick={() => setDisconnectModalOpen(true)}
-                className="rounded-md border border-red-500 p-1.5 text-red-500 hover:bg-red-50"
+                disabled={isWorkspaceLocked}
+                className="rounded-md border border-red-500 p-1.5 text-red-500 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
                 title={`Connected as @${githubUsername}`}
               >
                 <GitBranch className="h-4 w-4" />
@@ -2465,7 +2682,8 @@ const handleAutoFix = () => {
           ) : (
             <button
               onClick={handleGithubConnect}
-              className="rounded-md border border-border p-1.5 text-text-dim hover:bg-surface-hover hover:text-text-muted"
+              disabled={isWorkspaceLocked}
+              className="rounded-md border border-border p-1.5 text-text-dim hover:bg-surface-hover hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed"
               title="Connect GitHub"
             >
               <GitBranch className="h-4 w-4" />
@@ -2475,17 +2693,20 @@ const handleAutoFix = () => {
             <>
               <button
                 onClick={() => setReviewModalOpen(true)}
-                className="rounded-md border border-blue-500 p-1.5 text-blue-500 hover:bg-blue-50"
+                disabled={isWorkspaceLocked}
+                className="rounded-md border border-blue-500 p-1.5 text-blue-500 hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed"
                 title="Review Code"
               >
                 <Shield className="h-4 w-4" />
               </button>
               <button
                 onClick={() => {
+                  if (isWorkspaceLocked) return
                   fetchReviewHistory()
                   setReviewHistoryOpen(true)
                 }}
-                className="rounded-md border border-border p-1.5 text-text-dim hover:bg-surface-hover"
+                disabled={isWorkspaceLocked}
+                className="rounded-md border border-border p-1.5 text-text-dim hover:bg-surface-hover disabled:opacity-40 disabled:cursor-not-allowed"
                 title="Review History"
               >
                 <ListTodo className="h-4 w-4" />
@@ -2494,7 +2715,8 @@ const handleAutoFix = () => {
           )}
           <button
             onClick={toggleLayout}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-text-muted transition-colors hover:bg-surface-hover hover:text-text"
+            disabled={isWorkspaceLocked}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-text-muted transition-colors hover:bg-surface-hover hover:text-text disabled:opacity-40 disabled:cursor-not-allowed"
             title={isChatFirst ? 'Switch to Code First' : 'Switch to Chat First'}
           >
             <ArrowLeftRight className="h-3.5 w-3.5" />
@@ -2533,32 +2755,35 @@ const handleAutoFix = () => {
                 <MessageSquare className="h-4 w-4 text-primary" />
                 <span className="text-sm font-medium text-text">AI Assistant</span>
               </div>
-              <ChatPanel 
-              projectId={project.id} 
-              projectBridge={project.bridge} 
-              onRefreshFiles={refetchFiles} 
+              <ChatPanel
+              projectId={project.id}
+              projectBridge={project.bridge}
+              onRefreshFiles={refetchFiles}
               onFileSelect={handleFileSelect}
               autoFixPayload={autoFixPayload}
               onAutoFixComplete={() => setAutoFixPayload(null)}
+              workspaceDisabled={isWorkspaceLocked}
+              onAiRunningChange={setAiRunning}
+              stopAiRef={stopAiRef}
             />
             </aside>
 
             <aside className="w-56 shrink-0 overflow-hidden border-r border-border">
-              <FileTreePanel files={files} filesLoading={filesLoading} refetchFiles={refetchFiles} onFileSelect={handleFileSelect} selectedFile={selectedFile} fileOps={fileOps} />
+              <FileTreePanel files={files} filesLoading={filesLoading} refetchFiles={refetchFiles} onFileSelect={handleFileSelect} selectedFile={selectedFile} fileOps={fileOps} disabled={isWorkspaceLocked} />
             </aside>
 
             <main className="flex-1 overflow-hidden">
-              <EditorPanel projectId={project.id} selectedFile={selectedFile} fileOps={fileOps} />
+              <EditorPanel projectId={project.id} selectedFile={selectedFile} fileOps={fileOps} disabled={isWorkspaceLocked} />
             </main>
           </>
         ) : (
           <>
             <aside className="w-56 shrink-0 overflow-hidden border-r border-border">
-              <FileTreePanel files={files} filesLoading={filesLoading} refetchFiles={refetchFiles} onFileSelect={handleFileSelect} selectedFile={selectedFile} fileOps={fileOps} />
+              <FileTreePanel files={files} filesLoading={filesLoading} refetchFiles={refetchFiles} onFileSelect={handleFileSelect} selectedFile={selectedFile} fileOps={fileOps} disabled={isWorkspaceLocked} />
             </aside>
 
             <main className="flex-1 overflow-hidden">
-              <EditorPanel projectId={project.id} selectedFile={selectedFile} fileOps={fileOps} />
+              <EditorPanel projectId={project.id} selectedFile={selectedFile} fileOps={fileOps} disabled={isWorkspaceLocked} />
             </main>
 
             <aside className="flex w-[400px] shrink-0 flex-col border-l border-border bg-surface">
@@ -2566,13 +2791,16 @@ const handleAutoFix = () => {
                 <MessageSquare className="h-4 w-4 text-primary" />
                 <span className="text-sm font-medium text-text">AI Assistant</span>
               </div>
-              <ChatPanel 
-              projectId={project.id} 
-              projectBridge={project.bridge} 
-              onRefreshFiles={refetchFiles} 
+              <ChatPanel
+              projectId={project.id}
+              projectBridge={project.bridge}
+              onRefreshFiles={refetchFiles}
               onFileSelect={handleFileSelect}
               autoFixPayload={autoFixPayload}
               onAutoFixComplete={() => setAutoFixPayload(null)}
+              workspaceDisabled={isWorkspaceLocked}
+              onAiRunningChange={setAiRunning}
+              stopAiRef={stopAiRef}
             />
             </aside>
           </>
@@ -2685,7 +2913,7 @@ const handleAutoFix = () => {
               <button onClick={() => setReviewModalOpen(false)} className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
                 Cancel
               </button>
-              <button onClick={handleReview} disabled={reviewing} className="flex-1 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-50">
+              <button onClick={handleReview} disabled={reviewing || isWorkspaceLocked} className="flex-1 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-50">
                 {reviewing ? 'Reviewing...' : 'Start Review'}
               </button>
             </div>
@@ -2805,12 +3033,26 @@ const handleAutoFix = () => {
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <p className="text-sm text-text">
-                            {review.issuesJson ? `${review.issuesJson.length} issue(s) found` : 'No issues'}
-                          </p>
-                          {review.issuesJson && review.issuesJson.length > 0 && (
-                            <button
-                              onClick={() => {
+                           <p className="text-sm text-text">
+                             {(() => {
+                               if (review.status === 'passed' && (!review.issuesJson || review.issuesJson.length === 0)) {
+                                 return 'No issue found'
+                               }
+                               const findings = review.issuesJson?.filter((i: any) => i.type === 'finding') || []
+                               const fixedCount = findings.filter((i: any) => i._fixed).length
+                               const remaining = findings.length - fixedCount
+                               if (findings.length > 0 && fixedCount === findings.length) {
+                                 return 'Issues were fixed'
+                               }
+                               if (remaining > 0 && fixedCount > 0) {
+                                 return `${remaining} error${remaining !== 1 ? 's' : ''} remaining`
+                               }
+                               return findings.length > 0 ? `${findings.length} issue${findings.length !== 1 ? 's' : ''} found` : 'No issues'
+                             })()}
+                           </p>
+                           {review.issuesJson && review.issuesJson.length > 0 && (
+                             <button
+                               onClick={() => {
                                 const newExpanded = new Set(expandedReviews)
                                 if (isExpanded) {
                                   newExpanded.delete(review.id)
@@ -2881,15 +3123,20 @@ const handleAutoFix = () => {
                                     className="flex-1 flex items-center justify-between hover:bg-surface/50 transition-colors"
                                   >
                                     <div className="flex items-center gap-2">
-                                      <span className={`rounded px-2 py-0.5 text-xs font-medium ${
-                                        issue.severity === 'critical' ? 'bg-red-500/10 text-red-500' :
-                                        issue.severity === 'major' ? 'bg-orange-500/10 text-orange-500' :
-                                        issue.severity === 'minor' ? 'bg-yellow-500/10 text-yellow-500' :
-                                        'bg-blue-500/10 text-blue-500'
-                                      }`}>
-                                        {issue.severity}
-                                      </span>
-                                      <span className="text-xs text-text-muted truncate max-w-[200px]">{issue.fileName}</span>
+                                       <span className={`rounded px-2 py-0.5 text-xs font-medium ${
+                                         issue.severity === 'critical' ? 'bg-red-500/10 text-red-500' :
+                                         issue.severity === 'major' ? 'bg-orange-500/10 text-orange-500' :
+                                         issue.severity === 'minor' ? 'bg-yellow-500/10 text-yellow-500' :
+                                         'bg-blue-500/10 text-blue-500'
+                                       }`}>
+                                         {issue.severity}
+                                       </span>
+                                       {issue._fixed === true && (
+                                         <span className="rounded px-2 py-0.5 text-xs font-medium bg-success/10 text-success">
+                                           FIXED
+                                         </span>
+                                       )}
+                                       <span className="text-xs text-text-muted truncate max-w-[200px]">{issue.fileName}</span>
                                     </div>
                                     <ChevronDown className={`h-4 w-4 text-text-muted transition-transform ${isIssueExpanded ? 'rotate-180' : ''}`} />
                                   </button>
@@ -2907,7 +3154,8 @@ const handleAutoFix = () => {
                           {selectedIssues.length > 0 && (
                             <button
                               onClick={handleAutoFix}
-                              className="w-full mt-3 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                              disabled={isWorkspaceLocked}
+                              className="w-full mt-3 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               Auto Fix ({selectedIssues.length}) Issue{selectedIssues.length !== 1 ? 's' : ''}
                             </button>
@@ -3043,10 +3291,36 @@ const handleAutoFix = () => {
                 Cancel
               </button>
               <button
-                onClick={confirmAutoFix}
+                onClick={() => confirmAutoFix()}
                 className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
               >
                 Start Fixing
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Re-fix Confirmation Dialog */}
+      {fixConfirmOpen && (
+        <div className="fixed inset-0 z-[101] flex items-center justify-center bg-black/50 p-4" onClick={() => setFixConfirmOpen(false)}>
+          <div className="w-full max-w-sm rounded-lg border border-border bg-surface p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold text-text mb-2">Re-fix Issues?</h2>
+            <p className="text-sm text-text-muted mb-6">
+              You selected fixed issue(s). Do you want to continue?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setFixConfirmOpen(false)}
+                className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => confirmAutoFix(true)}
+                className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+              >
+                Continue
               </button>
             </div>
           </div>

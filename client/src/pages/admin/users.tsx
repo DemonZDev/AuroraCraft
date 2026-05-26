@@ -61,10 +61,12 @@ export default function AdminUsersPage() {
   const [token, setToken] = useState('')
   const [initiating, setInitiating] = useState(false)
   const [completing, setCompleting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleInitiate = async () => {
     if (!selectedUser) return
     setInitiating(true)
+    setError(null)
     try {
       const res = await fetch(`/api/admin/users/${selectedUser.id}/coderabbit/initiate`, {
         method: 'POST',
@@ -73,12 +75,13 @@ export default function AdminUsersPage() {
       if (res.ok) {
         const data = await res.json()
         setLoginUrl(data.loginUrl)
+        setError(null)
       } else {
-        const data = await res.json()
-        alert(data.error || 'Failed to initiate login')
+        const data = await res.json().catch(() => ({ error: `HTTP ${res.status}: ${res.statusText}` }))
+        setError(data.error || 'Failed to initiate login')
       }
     } catch (err) {
-      alert('Failed to initiate login')
+      setError('Network error: unable to reach server. Please check your connection.')
     } finally {
       setInitiating(false)
     }
@@ -87,6 +90,7 @@ export default function AdminUsersPage() {
   const handleComplete = async () => {
     if (!selectedUser || !token.trim()) return
     setCompleting(true)
+    setError(null)
     try {
       const res = await fetch(`/api/admin/users/${selectedUser.id}/coderabbit/complete`, {
         method: 'POST',
@@ -99,17 +103,25 @@ export default function AdminUsersPage() {
         setLoginUrl('')
         setToken('')
         setSelectedUser(null)
+        setError(null)
         refetch()
-        alert('CodeRabbit access granted!')
       } else {
-        const data = await res.json()
-        alert(data.error || 'Failed to complete login')
+        const data = await res.json().catch(() => ({ error: `HTTP ${res.status}: ${res.statusText}` }))
+        setError(data.error || 'Failed to complete login')
       }
     } catch (err) {
-      alert('Failed to complete login')
+      setError('Network error: unable to reach server. Please check your connection.')
     } finally {
       setCompleting(false)
     }
+  }
+
+  const closeModal = () => {
+    setGrantModalOpen(false)
+    setLoginUrl('')
+    setToken('')
+    setSelectedUser(null)
+    setError(null)
   }
 
   const handleRevoke = async (userId: string) => {
@@ -139,8 +151,8 @@ export default function AdminUsersPage() {
           <p className="text-sm text-text-dim">No users found</p>
         </div>
       ) : (
-        <div className="mt-6 overflow-hidden rounded-xl border border-border">
-          <table className="w-full text-sm">
+        <div className="mt-6 overflow-x-auto rounded-xl border border-border">
+          <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-surface">
                 <th className="px-4 py-3 text-left font-medium text-text-muted">Username</th>
@@ -183,6 +195,9 @@ export default function AdminUsersPage() {
                       <button
                         onClick={() => {
                           setSelectedUser({ id: user.id, username: user.username })
+                          setLoginUrl('')
+                          setToken('')
+                          setError(null)
                           setGrantModalOpen(true)
                         }}
                         className="text-xs text-primary hover:underline"
@@ -206,12 +221,19 @@ export default function AdminUsersPage() {
 
       {/* Grant CodeRabbit Modal */}
       {grantModalOpen && selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => { setGrantModalOpen(false); setLoginUrl(''); setToken(''); }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={closeModal}>
           <div className="w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-semibold text-text">Grant CodeRabbit Access</h2>
             <p className="mt-2 text-sm text-text-muted">
               Enable code reviews for <strong>{selectedUser.username}</strong>
             </p>
+
+            {error && (
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/30">
+                <p className="text-sm font-medium text-red-700 dark:text-red-400">Error</p>
+                <p className="mt-1 text-sm text-red-600 dark:text-red-300">{error}</p>
+              </div>
+            )}
 
             {!loginUrl ? (
               <>
@@ -220,7 +242,7 @@ export default function AdminUsersPage() {
                 </p>
                 <div className="mt-6 flex gap-3">
                   <button
-                    onClick={() => { setGrantModalOpen(false); setSelectedUser(null); }}
+                    onClick={closeModal}
                     className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover"
                   >
                     Cancel
@@ -257,7 +279,7 @@ export default function AdminUsersPage() {
                 </div>
                 <div className="mt-6 flex gap-3">
                   <button
-                    onClick={() => { setGrantModalOpen(false); setLoginUrl(''); setToken(''); setSelectedUser(null); }}
+                    onClick={closeModal}
                     className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover"
                   >
                     Cancel

@@ -531,10 +531,20 @@ export default function NewProjectPage() {
                     </div>
                   </div>
                   <div className="ml-7 space-y-1">
-                    <p className="text-xs font-medium text-text-muted">Available Model:</p>
-                    <div className="rounded-md bg-surface px-3 py-2">
-                      <p className="text-xs font-medium text-text">MiniMax M2.5</p>
-                      <p className="text-[10px] text-text-dim">Free AI model for coding tasks</p>
+                    <p className="text-xs font-medium text-text-muted">Available Models:</p>
+                    <div className="space-y-1.5">
+                      <div className="rounded-md bg-surface px-3 py-1.5">
+                        <p className="text-xs font-medium text-text">DeepSeek V4 Flash</p>
+                        <p className="text-[10px] text-text-dim">Free — fast coding with strong reasoning</p>
+                      </div>
+                      <div className="rounded-md bg-surface px-3 py-1.5">
+                        <p className="text-xs font-medium text-text">Nemotron 3 Super</p>
+                        <p className="text-[10px] text-text-dim">Free — NVIDIA optimized for coding</p>
+                      </div>
+                      <div className="rounded-md bg-surface px-3 py-1.5">
+                        <p className="text-xs font-medium text-text">Big Pickle</p>
+                        <p className="text-[10px] text-text-dim">Free — general-purpose AI model</p>
+                      </div>
                     </div>
                   </div>
                 </button>

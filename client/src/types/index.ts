@@ -165,14 +165,17 @@ export interface AIModel {
 }
 
 export const AI_MODELS: AIModel[] = [
-  // OpenCode models (via OpenCode free tier)
-  { id: 'opencode/minimax-m2.5-free', name: 'MiniMax M2.5', provider: 'OpenCode', description: 'Free AI model for coding tasks' },
+  // OpenCode free tier models (verified available as of 2026-05-25)
+  // NOTE: MiniMax M2.5 was removed from free tier. Use only verified free models below.
+  { id: 'opencode/deepseek-v4-flash-free', name: 'DeepSeek V4 Flash', provider: 'OpenCode', description: 'Fast free coding model with strong reasoning capabilities' },
+  { id: 'opencode/nemotron-3-super-free', name: 'Nemotron 3 Super', provider: 'OpenCode', description: 'NVIDIA free model optimized for coding and instruction following' },
+  { id: 'opencode/big-pickle', name: 'Big Pickle', provider: 'OpenCode', description: 'Free general-purpose AI model for coding tasks' },
   
   // Kiro CLI models (via Kiro.dev)
   { id: 'kiro/claude-sonnet-4.5', name: 'Claude Sonnet 4.5', provider: 'Kiro', description: 'Strong agentic coding with extended autonomous operation' },
 ]
 
-export const DEFAULT_MODEL_ID = AI_MODELS[0].id
+export const DEFAULT_MODEL_ID = 'opencode/deepseek-v4-flash-free'
 
 // ── Streaming event types (mirroring server StreamEvent) ─────────────
 
