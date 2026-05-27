@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess, execFile } from 'child_process'
-import { mkdir, writeFile, chown } from 'fs/promises'
+import { mkdir, writeFile, chown, access } from 'fs/promises'
+import { constants } from 'fs'
 import { promisify } from 'util'
 import { env } from '../env.js'
 
@@ -231,10 +232,12 @@ export class OpenCodeProcessManager {
         await writeFile(userConfigPath, configContent, 'utf8')
         await chown(userConfigPath, uid, gid)
 
-        // Project-level config: {directory}/opencode.json
         const projectConfigPath = `${directory}/opencode.json`
-        await writeFile(projectConfigPath, configContent, 'utf8')
-        await chown(projectConfigPath, uid, gid)
+        const hasExistingConfig = await access(projectConfigPath, constants.F_OK).then(() => true).catch(() => false)
+        if (!hasExistingConfig) {
+          await writeFile(projectConfigPath, configContent, 'utf8')
+          await chown(projectConfigPath, uid, gid)
+        }
       } catch (err) {
         console.warn(`[ProcessManager] Failed to prepare ${directory}:`, err instanceof Error ? err.message : err)
       }

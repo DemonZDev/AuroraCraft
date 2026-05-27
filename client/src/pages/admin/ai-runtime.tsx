@@ -63,8 +63,9 @@ export default function AdminAIRuntimePage() {
               </span>
             </div>
             <div className="mt-2 flex items-center gap-2">
-              <span className="rounded bg-accent px-1.5 py-0.5 text-[10px] text-text-dim">{model.provider}</span>
-              <span className="rounded bg-accent px-1.5 py-0.5 text-[10px] text-text-dim">via OpenCode</span>
+              {model.providers.map(p => (
+                <span key={p.id} className="rounded bg-accent px-1.5 py-0.5 text-[10px] text-text-dim">{p.id}</span>
+              ))}
             </div>
             <p className="mt-2 text-xs text-text-muted">{model.description}</p>
             <div className="mt-3 flex items-center gap-1.5 text-xs text-success">

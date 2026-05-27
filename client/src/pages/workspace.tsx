@@ -48,6 +48,7 @@ import {
   Shield,
   X,
   Info,
+  Coins,
   LogOut,
 } from 'lucide-react'
 import Editor from '@monaco-editor/react'
@@ -56,6 +57,7 @@ import type { AxiosError } from 'axios'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useProject } from '@/hooks/use-projects'
 import { useAgentSessions, useAgentSession, useStreamingAgent, useProjectFiles, useFileContent, useFileOperations } from '@/hooks/use-agent'
+import { useUserTokens } from '@/hooks/use-user-tokens'
 import { api } from '@/lib/api'
 import { AI_MODELS, DEFAULT_MODEL_ID } from '@/types'
 import type {
@@ -1079,9 +1081,11 @@ function MessageContent({ message, onFileSelect }: { message: AgentMessage; onFi
 
 // ── Model selector ───────────────────────────────────────────────────
 
-function ModelSelector({ selectedModel, onModelChange, availableModels, disabled }: {
+function ModelSelector({ selectedModel, selectedSpeed, onModelChange, onSpeedChange, availableModels, disabled }: {
   selectedModel: string
+  selectedSpeed?: string
   onModelChange: (modelId: string) => void
+  onSpeedChange?: (speed: string) => void
   availableModels?: typeof AI_MODELS
   disabled?: boolean
 }) {
@@ -1102,13 +1106,13 @@ function ModelSelector({ selectedModel, onModelChange, availableModels, disabled
       const rect = ref.current.getBoundingClientRect()
       const spaceBelow = window.innerHeight - rect.bottom
       const spaceAbove = rect.top
-      // Open upward if less than 400px space below and more space above
       setOpenUpward(spaceBelow < 400 && spaceAbove > spaceBelow)
     }
   }, [open])
 
   const models = availableModels ?? AI_MODELS
   const current = models.find((m) => m.id === selectedModel) ?? models[0]
+  const currentProvider = current.providers.find(p => p.speed === (selectedSpeed || 'fast')) ?? current.providers[0]
 
   return (
     <div ref={ref} className="relative">
@@ -1123,50 +1127,114 @@ function ModelSelector({ selectedModel, onModelChange, availableModels, disabled
       >
         <Cpu className="h-3 w-3 shrink-0" />
         <span className="max-w-[7rem] truncate">{current.name}</span>
+        {current.providers.length > 1 && (
+          <span className="rounded bg-accent px-1 py-0.5 text-[10px] text-text-dim uppercase">{currentProvider?.speed}</span>
+        )}
         <ChevronDown className={cn('h-3 w-3 shrink-0 transition-transform', open && 'rotate-180')} />
       </button>
       {open && (() => {
-        const opencodeModels = models.filter((m) => m.id.startsWith('opencode/'))
-        const kiroModels = models.filter((m) => m.id.startsWith('kiro/'))
-        const renderModel = (model: typeof models[number]) => (
-          <button
-            key={model.id}
-            type="button"
-            onClick={() => { onModelChange(model.id); setOpen(false) }}
-            className={cn(
-              'flex w-full flex-col rounded-md px-3 py-2 text-left transition-colors hover:bg-surface-hover',
-              model.id === selectedModel && 'bg-primary/10'
-            )}
-          >
-            <div className="flex items-center gap-2">
-              {model.id.startsWith('kiro/') && <Bot className="h-3 w-3 shrink-0 text-primary" />}
-              <span className={cn('text-xs font-medium', model.id === selectedModel ? 'text-primary' : 'text-text')}>
-                {model.name}
-              </span>
-              <span className="rounded bg-accent px-1.5 py-0.5 text-[10px] text-text-dim">{model.provider}</span>
-            </div>
-            <p className="mt-0.5 text-[11px] text-text-dim">{model.description}</p>
-          </button>
-        )
+        const freeModels = models.filter((m) => m.minTier === 'free')
+        const paidModels = models.filter((m) => m.minTier === 'paid')
         return (
           <div className={cn(
-            'absolute left-0 z-50 w-64 max-h-[70vh] overflow-y-auto rounded-lg border border-border bg-surface shadow-lg',
+            'absolute left-0 z-50 w-72 max-h-[70vh] overflow-y-auto rounded-lg border border-border bg-surface shadow-lg',
             openUpward ? 'bottom-full mb-1' : 'top-full mt-1'
           )}>
             <div className="p-1">
-              {opencodeModels.length > 0 && (
+              {freeModels.length > 0 && (
                 <>
-                  <p className="px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-text-dim">OpenCode</p>
-                  {opencodeModels.map(renderModel)}
+                  <p className="px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-success">Free Models</p>
+                  {freeModels.map(model => (
+                    <button
+                      key={model.id}
+                      type="button"
+                      onClick={() => {
+                        onModelChange(model.id)
+                        const hasSpeed = model.providers.some(p => p.speed === (selectedSpeed || 'fast'))
+                        if (!hasSpeed && onSpeedChange) {
+                          onSpeedChange(model.providers[0]?.speed || 'fast')
+                        }
+                        setOpen(false)
+                      }}
+                      className={cn(
+                        'flex w-full flex-col rounded-md px-3 py-2 text-left transition-colors hover:bg-surface-hover',
+                        model.id === selectedModel && 'bg-primary/10'
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={cn('text-xs font-medium', model.id === selectedModel ? 'text-primary' : 'text-text')}>
+                          {model.name}
+                        </span>
+                        <span className="rounded bg-accent px-1.5 py-0.5 text-[10px] text-text-dim">{model.providers[0].id}</span>
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-text-dim">{model.description}</p>
+                    </button>
+                  ))}
                 </>
               )}
-              {opencodeModels.length > 0 && kiroModels.length > 0 && (
+              {freeModels.length > 0 && paidModels.length > 0 && (
                 <div className="mx-2 my-1 border-t border-border" />
               )}
-              {kiroModels.length > 0 && (
+              {paidModels.length > 0 && (
                 <>
-                  <p className="px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-primary/60">Kiro CLI</p>
-                  {kiroModels.map(renderModel)}
+                  <p className="px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-primary/60">Premium Models</p>
+                  {paidModels.map(model => (
+                    <div key={model.id} className="px-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!model.disabled) {
+                            onModelChange(model.id)
+                            const hasSpeed = model.providers.some(p => p.speed === (selectedSpeed || 'fast'))
+                            if (!hasSpeed && onSpeedChange) {
+                              onSpeedChange(model.providers[0]?.speed || 'fast')
+                            }
+                            setOpen(false)
+                          }
+                        }}
+                        disabled={model.disabled}
+                        className={cn(
+                          'flex w-full flex-col rounded-md px-2 py-2 text-left transition-colors',
+                          model.disabled
+                            ? 'cursor-not-allowed opacity-50'
+                            : 'hover:bg-surface-hover',
+                          model.id === selectedModel && !model.disabled && 'bg-primary/10'
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className={cn('text-xs font-medium', model.id === selectedModel && !model.disabled ? 'text-primary' : 'text-text')}>
+                            {model.name}
+                          </span>
+                          {model.disabled && (
+                            <span className="rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-500">No Key</span>
+                          )}
+                        </div>
+                        <p className="mt-0.5 text-[11px] text-text-dim">{model.description}</p>
+                        {model.disabledReason && (
+                          <p className="mt-0.5 text-[10px] text-red-500/70">{model.disabledReason}</p>
+                        )}
+                      </button>
+                      {model.id === selectedModel && model.providers.length > 1 && onSpeedChange && (
+                        <div className="ml-2 mt-1 flex flex-wrap gap-1">
+                          {model.providers.map(provider => (
+                            <button
+                              key={provider.speed}
+                              type="button"
+                              onClick={() => { onSpeedChange(provider.speed); setOpen(false) }}
+                              className={cn(
+                                'rounded px-2 py-0.5 text-[10px] transition-colors',
+                                (selectedSpeed || 'fast') === provider.speed
+                                  ? 'bg-primary/20 text-primary'
+                                  : 'bg-accent text-text-dim hover:bg-surface-hover'
+                              )}
+                            >
+                              {provider.id} ({provider.speed})
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </>
               )}
             </div>
@@ -1182,6 +1250,8 @@ function ModelSelector({ selectedModel, onModelChange, availableModels, disabled
 function getBridgeFromModel(modelId: string): 'opencode' | 'kiro' {
   return modelId.startsWith('kiro/') ? 'kiro' : 'opencode'
 }
+
+
 
 function ChatPanel({ projectId, projectBridge, onRefreshFiles, onFileSelect, autoFixPayload, onAutoFixComplete, workspaceDisabled, onAiRunningChange, stopAiRef }: {
   projectId: string
@@ -1200,12 +1270,13 @@ function ChatPanel({ projectId, projectBridge, onRefreshFiles, onFileSelect, aut
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [pendingMessage, setPendingMessage] = useState<{ content: string; model: string } | null>(null)
   
-  const availableModels = AI_MODELS.filter(m => {
+  const availableModels = AI_MODELS.filter(() => {
     if (!projectBridge) return true
-    return projectBridge === 'kiro' ? m.id.startsWith('kiro/') : m.id.startsWith('opencode/')
+    return true
   })
   const defaultModel = availableModels[0]?.id ?? DEFAULT_MODEL_ID
   const [selectedModel, setSelectedModel] = useState(defaultModel)
+  const [selectedSpeed, setSelectedSpeed] = useState('fast')
   
   const resolvedSessionId = activeSessionId ?? initialSessionId
 
@@ -1243,7 +1314,7 @@ function ChatPanel({ projectId, projectBridge, onRefreshFiles, onFileSelect, aut
   }
 
   if (!resolvedSessionId) {
-    return <ChatEmptyState onSessionCreated={handleSessionCreated} createSession={createSession} selectedModel={selectedModel} onModelChange={setSelectedModel} />
+    return <ChatEmptyState onSessionCreated={handleSessionCreated} createSession={createSession} selectedModel={selectedModel} selectedSpeed={selectedSpeed} onModelChange={setSelectedModel} onSpeedChange={setSelectedSpeed} />
   }
 
   return (
@@ -1253,7 +1324,9 @@ function ChatPanel({ projectId, projectBridge, onRefreshFiles, onFileSelect, aut
       pendingMessage={pendingMessage}
       onPendingMessageSent={() => setPendingMessage(null)}
       selectedModel={selectedModel}
+      selectedSpeed={selectedSpeed}
       onModelChange={setSelectedModel}
+      onSpeedChange={setSelectedSpeed}
       availableModels={availableModels}
       onRefreshFiles={onRefreshFiles}
       onFileSelect={onFileSelect}
@@ -1266,19 +1339,22 @@ function ChatPanel({ projectId, projectBridge, onRefreshFiles, onFileSelect, aut
 
 // ── Chat input (isolated to prevent parent re-renders on keystroke) ─
 
-const ChatInput = memo(function ChatInput({ onSend, disabled, isRunning, isCancelling, onCancel, selectedModel, onModelChange, availableModels, modelDisabled }: {
+const ChatInput = memo(function ChatInput({ onSend, disabled, isRunning, isCancelling, onCancel, selectedModel, selectedSpeed, onModelChange, onSpeedChange, availableModels, modelDisabled }: {
   onSend: (message: string) => void
   disabled?: boolean
   isRunning?: boolean
   isCancelling?: boolean
   onCancel?: () => void
   selectedModel: string
+  selectedSpeed?: string
   onModelChange: (modelId: string) => void
+  onSpeedChange?: (speed: string) => void
   availableModels?: typeof AI_MODELS
   modelDisabled?: boolean
 }) {
   const [input, setInput] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const { tokens } = useUserTokens()
 
   const handleSend = useCallback(() => {
     const trimmed = input.trim()
@@ -1292,8 +1368,15 @@ const ChatInput = memo(function ChatInput({ onSend, disabled, isRunning, isCance
     <div className="border-t border-border p-4">
       <div className="mb-2 flex items-center gap-2">
         <span className="text-[10px] font-medium uppercase tracking-wider text-text-dim/60">Model</span>
-        <ModelSelector selectedModel={selectedModel} onModelChange={onModelChange} availableModels={availableModels} disabled={modelDisabled} />
-        <span className="ml-auto text-[10px] text-text-dim/40">Ctrl+Enter to send</span>
+        <ModelSelector selectedModel={selectedModel} selectedSpeed={selectedSpeed} onModelChange={onModelChange} onSpeedChange={onSpeedChange} availableModels={availableModels} disabled={modelDisabled} />
+        {tokens && (
+          <div className="ml-auto flex items-center gap-1.5 rounded-md bg-surface px-2 py-1 border border-border/60" title="Available AI tokens">
+            <Coins className="h-3 w-3 text-primary/70" />
+            <span className="text-[11px] font-medium text-text-muted">{tokens.balance?.toLocaleString()}</span>
+            <span className="text-[9px] text-text-dim/50">tkn</span>
+          </div>
+        )}
+        <span className="text-[10px] text-text-dim/40">Ctrl+Enter</span>
       </div>
       <div className="chatbox-glow flex items-end gap-2 rounded-xl border border-border bg-background p-1.5">
         <textarea
@@ -1334,11 +1417,13 @@ const ChatInput = memo(function ChatInput({ onSend, disabled, isRunning, isCance
   )
 })
 
-function ChatEmptyState({ onSessionCreated, createSession, selectedModel, onModelChange }: {
+function ChatEmptyState({ onSessionCreated, createSession, selectedModel, selectedSpeed, onModelChange, onSpeedChange }: {
   onSessionCreated: (id: string, message: string) => void
   createSession: (body?: { bridge?: 'opencode' | 'kiro' }) => Promise<{ id: string }>
   selectedModel: string
+  selectedSpeed?: string
   onModelChange: (modelId: string) => void
+  onSpeedChange?: (speed: string) => void
 }) {
   const [isCreating, setIsCreating] = useState(false)
 
@@ -1363,20 +1448,24 @@ function ChatEmptyState({ onSessionCreated, createSession, selectedModel, onMode
         }}
         disabled={isCreating}
         selectedModel={selectedModel}
+        selectedSpeed={selectedSpeed}
         onModelChange={onModelChange}
+        onSpeedChange={onSpeedChange}
         modelDisabled={isCreating}
       />
     </>
   )
 }
 
-function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSent, selectedModel, onModelChange, availableModels, onRefreshFiles, onFileSelect, workspaceDisabled, onAiRunningChange, stopAiRef }: {
+function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSent, selectedModel, selectedSpeed, onModelChange, onSpeedChange, availableModels, onRefreshFiles, onFileSelect, workspaceDisabled, onAiRunningChange, stopAiRef }: {
   projectId: string
   sessionId: string
   pendingMessage?: { content: string; model: string } | null
   onPendingMessageSent?: () => void
   selectedModel: string
+  selectedSpeed?: string
   onModelChange: (modelId: string) => void
+  onSpeedChange?: (speed: string) => void
   availableModels?: typeof AI_MODELS
   onRefreshFiles?: () => void
   onFileSelect?: (path: string) => void
@@ -1418,12 +1507,11 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
       resetStream()
       streamStartMessageCountRef.current = messages.length
       completionHandledRef.current = false
-      void sendMessage({ content: pendingMessage.content, model: pendingMessage.model, bridge: getBridgeFromModel(pendingMessage.model) }).catch(() => setAwaitingStream(false))
+      void sendMessage({ content: pendingMessage.content, model: pendingMessage.model, bridge: getBridgeFromModel(pendingMessage.model), speed: selectedSpeed }).catch(() => setAwaitingStream(false))
       onPendingMessageSent?.()
     }
-  }, [pendingMessage, isConnected, sendMessage, onPendingMessageSent, resetStream, messages.length])
+  }, [pendingMessage, isConnected, sendMessage, onPendingMessageSent, resetStream, messages.length, selectedSpeed])
 
-  // Fallback: send message even without SSE connection after timeout
   useEffect(() => {
     if (!pendingMessage || pendingSentRef.current) return
     const timer = setTimeout(() => {
@@ -1433,12 +1521,12 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
         resetStream()
         streamStartMessageCountRef.current = messages.length
         completionHandledRef.current = false
-        void sendMessage({ content: pendingMessage.content, model: pendingMessage.model, bridge: getBridgeFromModel(pendingMessage.model) }).catch(() => setAwaitingStream(false))
+        void sendMessage({ content: pendingMessage.content, model: pendingMessage.model, bridge: getBridgeFromModel(pendingMessage.model), speed: selectedSpeed }).catch(() => setAwaitingStream(false))
         onPendingMessageSent?.()
       }
     }, 5000)
     return () => clearTimeout(timer)
-  }, [pendingMessage, sendMessage, onPendingMessageSent, resetStream])
+  }, [pendingMessage, sendMessage, onPendingMessageSent, resetStream, selectedSpeed])
 
   useEffect(() => {
     // Only auto-scroll for new messages, not during streaming
@@ -1513,11 +1601,11 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
     prevFileChangesRef.current = 0
     prevCompletedOpsRef.current = 0
     try {
-      await sendMessage({ content: message, model: selectedModel, bridge: getBridgeFromModel(selectedModel) })
+      await sendMessage({ content: message, model: selectedModel, bridge: getBridgeFromModel(selectedModel), speed: selectedSpeed })
     } catch {
       setAwaitingStream(false)
     }
-  }, [isSending, sendMessage, selectedModel, session?.status, resetStream])
+  }, [isSending, sendMessage, selectedModel, selectedSpeed, session?.status, resetStream])
 
   const handleCancel = useCallback(() => {
     cancelSession().catch(() => {})
@@ -1634,7 +1722,9 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
           isCancelling={isCancelling}
           onCancel={handleCancel}
           selectedModel={selectedModel}
+          selectedSpeed={selectedSpeed}
           onModelChange={onModelChange}
+          onSpeedChange={onSpeedChange}
           availableModels={availableModels}
           modelDisabled={isSending || session?.status === 'running' || workspaceDisabled}
         />

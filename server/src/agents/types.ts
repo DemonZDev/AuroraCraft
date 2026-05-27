@@ -8,6 +8,7 @@ export interface AgentExecutionContext {
   prompt: string
   bridgeName: string
   model?: string
+  speed?: string
   opencodeSessionId?: string
   kiroSessionId?: string
   username?: string

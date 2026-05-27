@@ -477,18 +477,25 @@ export async function projectRoutes(app: FastifyInstance) {
   // Delete project
   app.delete('/api/projects/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const { id } = request.params as { id: string }
+    const isAdmin = request.user!.role === 'admin'
 
     const [existing] = await db
-      .select({ id: projects.id, linkId: projects.linkId })
+      .select({ id: projects.id, linkId: projects.linkId, userId: projects.userId })
       .from(projects)
-      .where(and(eq(projects.id, id), eq(projects.userId, request.user!.id)))
+      .where(isAdmin ? eq(projects.id, id) : and(eq(projects.id, id), eq(projects.userId, request.user!.id)))
       .limit(1)
 
     if (!existing) {
       return reply.status(404).send({ message: 'Project not found', statusCode: 404 })
     }
 
-    const systemUsername = `auroracraft-${request.user!.username}`
+    const [projectOwner] = await db
+      .select({ username: users.username })
+      .from(users)
+      .where(eq(users.id, existing.userId))
+      .limit(1)
+
+    const systemUsername = `auroracraft-${projectOwner?.username ?? request.user!.username}`
     const projectDir = existing.linkId
       ? `/home/${systemUsername}/${existing.linkId}`
       : null

@@ -3,13 +3,19 @@ import { z } from 'zod'
 import { eq, and, desc } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { projects } from '../db/schema/projects.js'
+import { users } from '../db/schema/users.js'
 import { agentSessions } from '../db/schema/agent-sessions.js'
 import { agentMessages } from '../db/schema/agent-messages.js'
 import { agentLogs } from '../db/schema/agent-logs.js'
+import { providerApiKeys } from '../db/schema/provider-api-keys.js'
 import { authMiddleware } from '../middleware/auth.js'
 import { agentExecutor } from '../agents/executor.js'
 import { opencodeBridge, sessionEventBus } from '../bridges/index.js'
 import { processManager } from '../bridges/opencode-process-manager.js'
+import { AI_MODELS, getModelById, getProviderForModel, canUseModel } from '../config/ai-models.js'
+import { getUserTokens, hasEnoughTokens, deductTokens, estimateMessageCost, canAccessTier, getUserProviderKeys } from '../utils/token-service.js'
+import { generateProviderConfig, writeProjectConfig } from '../utils/provider-config.js'
+import { readFile } from 'fs/promises'
 
 const createSessionSchema = z.object({
   bridge: z.enum(['opencode', 'kiro']).optional(),
@@ -19,6 +25,7 @@ const sendMessageSchema = z.object({
   content: z.string().min(1).max(10000),
   model: z.string().max(100).optional(),
   bridge: z.enum(['opencode', 'kiro']).optional(),
+  speed: z.enum(['fast', 'slow', 'rate_limited']).optional(),
 })
 
 const sessionModelTracker = new Map<string, string>()
@@ -268,6 +275,87 @@ export async function agentRoutes(app: FastifyInstance) {
       return reply.status(409).send({ message: 'Agent is already processing', statusCode: 409 })
     }
 
+    // Resolve project directory and bridge
+    const username = request.user!.username
+    const projectDir = getProjectDirectory(username, project.linkId)
+    const bridgeName = parsed.data.bridge || session.bridge || 'opencode'
+    let resolvedModelId: string | undefined
+
+    const [user] = await db.select().from(users).where(eq(users.id, request.user!.id)).limit(1)
+    const userTier = user?.tier ?? 'free'
+    const requestedModelId = parsed.data.model ?? ''
+    const requestedSpeed = parsed.data.speed ?? 'fast'
+
+    if (requestedModelId) {
+      const modelDef = getModelById(requestedModelId)
+      if (!modelDef) {
+        return reply.status(400).send({ message: 'Unknown model selected', statusCode: 400 })
+      }
+      if (!canUseModel(requestedModelId, userTier)) {
+        return reply.status(403).send({
+          message: `Model ${modelDef.name} requires a paid subscription. Upgrade your account to access it.`,
+          statusCode: 403,
+        })
+      }
+
+      const userKeys = await getUserProviderKeys(request.user!.id)
+      const provider = getProviderForModel(requestedModelId, requestedSpeed, userKeys)
+      if (provider) {
+        resolvedModelId = `${provider.id}/${provider.modelId}`
+      }
+      if (!provider) {
+        return reply.status(400).send({
+          message: `Provider not available for ${modelDef.name} at ${requestedSpeed} speed`,
+          statusCode: 400,
+        })
+      }
+
+      if (provider.requiresApiKey) {
+        const userApiKey = userKeys[provider.id]
+
+        if (!userApiKey) {
+          return reply.status(503).send({
+            message: `You don't have an API key for ${provider.id}. Please contact an administrator to set one up.`,
+            statusCode: 503,
+          })
+        }
+
+        if (modelDef.minTier !== 'free') {
+          const estimatedCost = estimateMessageCost(parsed.data.content, modelDef)
+          const hasTokens = await hasEnoughTokens(request.user!.id, estimatedCost)
+          if (!hasTokens) {
+            return reply.status(402).send({
+              message: `Insufficient AI tokens. Estimated cost: ${estimatedCost} tokens. Please purchase more tokens or use a free model.`,
+              statusCode: 402,
+            })
+          }
+
+          await deductTokens(
+            request.user!.id,
+            estimatedCost,
+            `Pre-charge for ${modelDef.name} (${provider.id})`,
+            sessionId,
+          )
+        }
+
+        try {
+          const config = generateProviderConfig(modelDef, provider, userApiKey)
+          const oldConfigStr = await readFile(`${projectDir}/opencode.json`, 'utf8').catch(() => null)
+          const oldProvider = oldConfigStr ? JSON.parse(oldConfigStr).provider : undefined
+          const newProvider = config.provider
+          const providerChanged = JSON.stringify(oldProvider) !== JSON.stringify(newProvider)
+          await writeProjectConfig(projectDir, config)
+          if (providerChanged) {
+            app.log.info({ projectDir, provider: provider.id }, 'Provider config changed — restarting OpenCode instance')
+            await processManager.forceStop(projectDir)
+          }
+          app.log.info({ projectDir, provider: provider.id, model: modelDef.id }, 'Wrote provider config')
+        } catch (err) {
+          app.log.warn({ err, projectDir }, 'Failed to write provider config')
+        }
+      }
+    }
+
     // Save the user message
     const [message] = await db
       .insert(agentMessages)
@@ -278,11 +366,6 @@ export async function agentRoutes(app: FastifyInstance) {
       })
       .returning()
 
-    // Resolve project directory and bridge
-    const username = request.user!.username
-    const projectDir = getProjectDirectory(username, project.linkId)
-    const bridgeName = parsed.data.bridge || session.bridge || 'opencode'
-
     let opencodeSessionId: string | undefined
 
     if (bridgeName === 'opencode') {
@@ -291,11 +374,6 @@ export async function agentRoutes(app: FastifyInstance) {
       const lastModel = sessionModelTracker.get(sessionId)
       const modelChanged = !!(requestedModel && lastModel && requestedModel !== lastModel)
       if (requestedModel) sessionModelTracker.set(sessionId, requestedModel)
-
-      if (modelChanged && session.opencodeSessionId) {
-        app.log.info({ sessionId, from: lastModel, to: requestedModel }, 'Model changed — creating new OpenCode session')
-        await db.update(agentSessions).set({ opencodeSessionId: null, updatedAt: new Date() }).where(eq(agentSessions.id, sessionId))
-      }
 
       // Start OpenCode instance for this project directory
       let instanceUrl: string | undefined
@@ -306,7 +384,7 @@ export async function agentRoutes(app: FastifyInstance) {
       }
 
       // Pre-create or resolve the OpenCode session so the SSE endpoint can subscribe immediately
-      opencodeSessionId = modelChanged ? undefined : (session.opencodeSessionId ?? undefined)
+      opencodeSessionId = session.opencodeSessionId ?? undefined
       if (instanceUrl) {
         try {
           opencodeSessionId = await opencodeBridge.createOrResolveSession(
@@ -347,7 +425,8 @@ export async function agentRoutes(app: FastifyInstance) {
         projectId,
         prompt: parsed.data.content,
         bridgeName,
-        model: parsed.data.model,
+        model: resolvedModelId ?? parsed.data.model,
+        speed: parsed.data.speed,
         opencodeSessionId: bridgeName === 'opencode' ? opencodeSessionId : undefined,
         kiroSessionId: bridgeName === 'kiro' ? (session.kiroSessionId ?? undefined) : undefined,
         username,
@@ -472,5 +551,55 @@ export async function agentRoutes(app: FastifyInstance) {
       .orderBy(agentLogs.createdAt)
 
     return logs
+  })
+
+  app.get('/api/ai/models', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const [user] = await db.select({ tier: users.tier }).from(users).where(eq(users.id, request.user!.id)).limit(1)
+    const tier = user?.tier ?? 'free'
+    const userKeys = await getUserProviderKeys(request.user!.id)
+
+    const models = AI_MODELS.filter(m => {
+      if (tier === 'paid') return true
+      return m.minTier === 'free'
+    }).map(m => ({
+      id: m.id,
+      name: m.name,
+      description: m.description,
+      minTier: m.minTier,
+      providers: m.providers.map(p => ({
+        id: p.id,
+        speed: p.speed,
+        requiresApiKey: p.requiresApiKey,
+        hasKey: p.requiresApiKey ? !!userKeys[p.id] : true,
+      })),
+      disabled: m.minTier !== 'free' && m.providers.every(p => p.requiresApiKey && !userKeys[p.id]),
+      disabledReason: m.minTier !== 'free' && m.providers.every(p => p.requiresApiKey && !userKeys[p.id])
+        ? 'No API key configured for any provider'
+        : undefined,
+    }))
+
+    return { models, tier, userKeys: Object.keys(userKeys) }
+  })
+
+  app.get('/api/user/tokens', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const [user] = await db.select({ aiTokens: users.aiTokens, tokensUsed: users.tokensUsed, tier: users.tier }).from(users).where(eq(users.id, request.user!.id)).limit(1)
+    return {
+      balance: user?.aiTokens ?? 0,
+      used: user?.tokensUsed ?? 0,
+      tier: user?.tier ?? 'free',
+    }
+  })
+
+  app.get('/api/user/provider-keys', { preHandler: [authMiddleware] }, async (request) => {
+    const keys = await db
+      .select({ provider: providerApiKeys.provider, apiKey: providerApiKeys.apiKey, isActive: providerApiKeys.isActive, createdAt: providerApiKeys.createdAt })
+      .from(providerApiKeys)
+      .where(and(eq(providerApiKeys.userId, request.user!.id), eq(providerApiKeys.isActive, true)))
+    return keys.map(k => ({
+      provider: k.provider,
+      apiKey: k.apiKey.length > 12 ? `${k.apiKey.slice(0, 8)}••••••••${k.apiKey.slice(-4)}` : '••••••••',
+      isActive: k.isActive,
+      createdAt: k.createdAt,
+    }))
   })
 }

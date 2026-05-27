@@ -3,6 +3,9 @@ export interface User {
   username: string
   email: string
   role: 'user' | 'admin'
+  tier?: 'free' | 'paid'
+  aiTokens?: number
+  tokensUsed?: number
   coderabbitEnabled?: boolean
   createdAt: string
   updatedAt: string
@@ -157,25 +160,43 @@ export interface AdminProject {
   ownerUsername: string | null
 }
 
+export interface AIModelProvider {
+  id: string
+  speed: string
+  requiresApiKey: boolean
+  hasKey?: boolean
+}
+
 export interface AIModel {
   id: string
   name: string
-  provider: string
   description: string
+  minTier: string
+  providers: AIModelProvider[]
+  disabled?: boolean
+  disabledReason?: string
+}
+
+export interface TokenBalance {
+  balance: number
+  used: number
+  tier: string
 }
 
 export const AI_MODELS: AIModel[] = [
-  // OpenCode free tier models (verified available as of 2026-05-25)
-  // NOTE: MiniMax M2.5 was removed from free tier. Use only verified free models below.
-  { id: 'opencode/deepseek-v4-flash-free', name: 'DeepSeek V4 Flash', provider: 'OpenCode', description: 'Fast free coding model with strong reasoning capabilities' },
-  { id: 'opencode/nemotron-3-super-free', name: 'Nemotron 3 Super', provider: 'OpenCode', description: 'NVIDIA free model optimized for coding and instruction following' },
-  { id: 'opencode/big-pickle', name: 'Big Pickle', provider: 'OpenCode', description: 'Free general-purpose AI model for coding tasks' },
-  
-  // Kiro CLI models (via Kiro.dev)
-  { id: 'kiro/claude-sonnet-4.5', name: 'Claude Sonnet 4.5', provider: 'Kiro', description: 'Strong agentic coding with extended autonomous operation' },
+  { id: 'opencode-deepseek-v4-flash-free', name: 'DeepSeek V4 Flash', description: 'Fast free coding model with strong reasoning', minTier: 'free', providers: [{ id: 'opencode', speed: 'fast', requiresApiKey: false }, { id: 'zen', speed: 'fast', requiresApiKey: true }] },
+  { id: 'opencode-nemotron-3-super-free', name: 'Nemotron 3 Super', description: 'NVIDIA free model optimized for coding', minTier: 'free', providers: [{ id: 'opencode', speed: 'fast', requiresApiKey: false }, { id: 'zen', speed: 'fast', requiresApiKey: true }] },
+  { id: 'opencode-big-pickle', name: 'Big Pickle', description: 'Free general-purpose AI for coding tasks', minTier: 'free', providers: [{ id: 'opencode', speed: 'fast', requiresApiKey: false }, { id: 'zen', speed: 'fast', requiresApiKey: true }] },
+  { id: 'glm-5.1', name: 'GLM-5.1', description: 'Zhipu GLM-5.1 frontier model (premium)', minTier: 'paid', providers: [{ id: 'fireworks', speed: 'fast', requiresApiKey: true }] },
+  { id: 'glm-5.1-free', name: 'GLM-5.1', description: 'Zhipu GLM-5.1 frontier model (free, rate-limited)', minTier: 'free', providers: [{ id: 'modal', speed: 'rate_limited', requiresApiKey: true }] },
+  { id: 'kimi-k2.6', name: 'Kimi K2.6', description: 'Moonshot Kimi K2.6 - SOTA coding', minTier: 'paid', providers: [{ id: 'fireworks', speed: 'fast', requiresApiKey: true }, { id: 'bluesminds', speed: 'slow', requiresApiKey: true }] },
+  { id: 'qwen3.6-plus', name: 'Qwen3.6 Plus', description: 'Alibaba Qwen3.6 Plus - Multilingual', minTier: 'paid', providers: [{ id: 'fireworks', speed: 'fast', requiresApiKey: true }, { id: 'bluesminds', speed: 'slow', requiresApiKey: true }] },
+  { id: 'minimax-m2.7', name: 'MiniMax M2.7', description: 'MiniMax M2.7 - Agentic coding', minTier: 'paid', providers: [{ id: 'fireworks', speed: 'fast', requiresApiKey: true }] },
+  { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', description: 'DeepSeek V4 Pro with thinking mode', minTier: 'paid', providers: [{ id: 'fireworks', speed: 'fast', requiresApiKey: true }, { id: 'bluesminds', speed: 'slow', requiresApiKey: true }] },
+  { id: 'qwen3.6-max', name: 'Qwen3.6 Max', description: 'Alibaba Qwen3.6 Max - Enhanced', minTier: 'paid', providers: [{ id: 'bluesminds', speed: 'slow', requiresApiKey: true }] },
 ]
 
-export const DEFAULT_MODEL_ID = 'opencode/deepseek-v4-flash-free'
+export const DEFAULT_MODEL_ID = 'opencode-deepseek-v4-flash-free'
 
 // ── Streaming event types (mirroring server StreamEvent) ─────────────
 

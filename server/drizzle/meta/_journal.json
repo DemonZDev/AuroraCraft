@@ -78,6 +78,13 @@
       "when": 1779781000000,
       "tag": "0010_git_repo",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1779826000000,
+      "tag": "0011_ai_tokens",
+      "breakpoints": true
     }
   ]
 }

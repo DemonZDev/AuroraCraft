@@ -2,6 +2,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { AdminStats, AdminProject, User, KiroAuthStatus } from '@/types'
 
+export interface AdminProviderKey {
+  id: string
+  provider: string
+  apiKey: string
+  isActive: boolean
+  createdAt: string
+}
+
 export function useAdminStats() {
   const { data, isLoading } = useQuery({
     queryKey: ['admin', 'stats'],
@@ -14,7 +22,7 @@ export function useAdminStats() {
 export function useAdminUsers() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['admin', 'users'],
-    queryFn: () => api.get<User[]>('/admin/users'),
+    queryFn: () => api.get<User[]>('/admin/users/detailed'),
   })
 
   return { users: data ?? [], isLoading, refetch }
@@ -37,6 +45,16 @@ export function useKiroAuthStatus(userId: string) {
   })
 
   return { status: data ?? null, isLoading, refetch }
+}
+
+export function useAdminUserProviderKeys(userId: string) {
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['admin', 'provider-keys', userId],
+    queryFn: () => api.get<AdminProviderKey[]>(`/admin/users/${userId}/provider-keys`),
+    enabled: !!userId,
+  })
+
+  return { keys: data ?? [], isLoading, refetch }
 }
 
 export function useKiroAuthenticate() {
