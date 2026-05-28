@@ -1,5 +1,6 @@
 import type { BridgeInterface, BridgeTask, BridgeResult, BridgeStreamEvent, MessagePart, TodoItem, StreamEvent } from './types.js'
 import { processManager } from './opencode-process-manager.js'
+import { AGENT_SYSTEM_PROMPT } from './system-prompt.js'
 import { existsSync } from 'fs'
 import { join } from 'path'
 
@@ -57,6 +58,58 @@ interface OpenCodeTodo {
   content?: string
   status?: string
   priority?: string
+}
+
+// ── Thinking tag parser ────────────────────────────────────────────────
+// Extracts <thinking>...</thinking> and DeepSeek  ...\think  blocks from
+// plain text and converts them to thinking parts. Used when models (e.g.
+// DeepSeek via Fireworks) emit reasoning as regular text instead of native
+// reasoning parts.
+
+const THINKING_TAG_RE = /<thinking>([\s\S]*?)<\/thinking>/gi
+const REASONING_TAG_RE = /<reasoning>([\s\S]*?)<\/reasoning>/gi
+const DEEPSEEK_THINKING_RE = /(?:^|[\n\r])\s*<think>([\s\S]*?)<\/think>(?:\s*|[\n\r])/gi
+
+function parseThinkingTags(text: string): MessagePart[] {
+  if (!text) return []
+  const parts: MessagePart[] = []
+  let lastIndex = 0
+
+  // Collect all tag matches (<thinking>, <reasoning>, DeepSeek <think>)
+  const matches: Array<{ index: number; end: number; content: string }> = []
+  let m: RegExpExecArray | null
+
+  const thinkingRe = new RegExp(THINKING_TAG_RE.source, THINKING_TAG_RE.flags)
+  while ((m = thinkingRe.exec(text)) !== null) {
+    matches.push({ index: m.index, end: thinkingRe.lastIndex, content: m[1].trim() })
+  }
+
+  const reasoningRe = new RegExp(REASONING_TAG_RE.source, REASONING_TAG_RE.flags)
+  while ((m = reasoningRe.exec(text)) !== null) {
+    matches.push({ index: m.index, end: reasoningRe.lastIndex, content: m[1].trim() })
+  }
+
+  const deepseekRe = new RegExp(DEEPSEEK_THINKING_RE.source, DEEPSEEK_THINKING_RE.flags)
+  while ((m = deepseekRe.exec(text)) !== null) {
+    matches.push({ index: m.index, end: deepseekRe.lastIndex, content: m[1].trim() })
+  }
+
+  // Sort by position
+  matches.sort((a, b) => a.index - b.index)
+
+  for (const match of matches) {
+    const before = text.slice(lastIndex, match.index).trim()
+    if (before) parts.push({ type: 'text', content: before })
+    parts.push({ type: 'thinking', content: match.content })
+    lastIndex = match.end
+  }
+
+  const after = text.slice(lastIndex).trim()
+  if (after) parts.push({ type: 'text', content: after })
+
+  // If no tags found, return the original text as a single text part
+  if (parts.length === 0) return [{ type: 'text', content: text }]
+  return parts
 }
 
 // ── File action mapping ──────────────────────────────────────────────
@@ -1016,28 +1069,6 @@ export class OpenCodeBridge implements BridgeInterface {
       await this.sendPromptAsync(baseUrl, opencodeSessionId, contextPrompt, task.context?.model)
       console.log('[OpenCode] Prompt sent successfully')
 
-      // Initial response timeout - if no events within 30s, likely a rate limit or error
-      let initialTimedOut = false
-      const initialTimeout = setTimeout(() => {
-        if (resolved || controller.signal.aborted) return
-        const elapsed = Date.now() - lastEventTime
-        if (elapsed > 30000) {
-          initialTimedOut = true
-          const errorMsg = 'No response from AI service after 30 seconds. This usually means the service is rate-limited or unavailable. Please try again later or use a different model.'
-          console.error('[OpenCode] Initial response timeout for session:', opencodeSessionId)
-          onEvent({ type: 'error', content: errorMsg, timestamp: new Date().toISOString() })
-          this.subscriptionManager.dispatchError(directory, opencodeSessionId, errorMsg)
-          setTimeout(() => {
-            if (!resolved) {
-              resolved = true
-              timedOut = true
-              this.subscriptionManager.dispatchComplete(directory, opencodeSessionId)
-              onEvent({ type: 'complete', content: 'Timed out', timestamp: new Date().toISOString() })
-            }
-          }, 100)
-        }
-      }, 30000)
-
       // Start permission polling to detect stuck permissions
       const permAbort = new AbortController()
       controller.signal.addEventListener('abort', () => permAbort.abort(), { once: true })
@@ -1047,7 +1078,6 @@ export class OpenCodeBridge implements BridgeInterface {
       const progressChecker = setInterval(() => {
         if (resolved || controller.signal.aborted) {
           clearInterval(progressChecker)
-          clearTimeout(initialTimeout)
           return
         }
         const elapsed = Date.now() - lastEventTime
@@ -1063,17 +1093,14 @@ export class OpenCodeBridge implements BridgeInterface {
       const pollFallback = this.pollUntilIdle(baseUrl, opencodeSessionId, controller.signal, baselineAssistantCount)
       await Promise.race([completionPromise, pollFallback]).catch(() => {})
       clearInterval(progressChecker)
-      clearTimeout(initialTimeout)
 
       // Stop permission polling once the main stream completes
       permAbort.abort()
 
       // Handle timeout — return failure instead of silently succeeding
-      if (timedOut || initialTimedOut) {
+      if (timedOut) {
         this.subscriptionManager.dispatchComplete(directory, opencodeSessionId)
-        const errorMsg = initialTimedOut 
-          ? 'No response from AI service after 30 seconds. This usually means the service is rate-limited or unavailable.'
-          : 'Session timed out after 30 minutes'
+        const errorMsg = 'Session timed out after 30 minutes'
         onEvent({ type: 'error', content: errorMsg, timestamp: new Date().toISOString() })
         onEvent({ type: 'complete', content: 'Timed out', timestamp: new Date().toISOString() })
         const partialText = await this.fetchAssistantText(baseUrl, opencodeSessionId)
@@ -1094,7 +1121,11 @@ export class OpenCodeBridge implements BridgeInterface {
             if (t) timeoutParts.push({ type: 'thinking', content: t.content })
           } else if (ref.type === 'text') {
             const seg = textSegments.find((s) => s.id === ref.id)
-            if (seg) timeoutParts.push({ type: 'text', content: seg.text })
+            if (seg) {
+              // Parse <thinking> tags from text segments (DeepSeek/Fireworks workaround)
+              const parsed = parseThinkingTags(seg.text)
+              timeoutParts.push(...parsed)
+            }
           } else {
             const fp = filePartsById.get(ref.id)
             if (fp) {
@@ -1112,12 +1143,17 @@ export class OpenCodeBridge implements BridgeInterface {
           }
         }
 
+        // Strip <thinking> and DeepSeek  tags from the output text so they don't appear twice
+        const cleanTimeoutOutput = cleanAssistantText(partialText || collectedText.join(''))
+          .replace(THINKING_TAG_RE, '')
+          .replace(REASONING_TAG_RE, '')
+          .replace(DEEPSEEK_THINKING_RE, '')
+          .trim()
+
         return {
           success: false,
-          output: cleanAssistantText(partialText || collectedText.join('')),
-          error: initialTimedOut 
-            ? 'No response from AI service after 30 seconds. The service may be rate-limited or unavailable.'
-            : 'Session timed out after 30 minutes',
+          output: cleanTimeoutOutput,
+          error: 'Session timed out after 30 minutes',
           metadata: {
             opencodeSessionId,
             parts: timeoutParts.length > 0 ? timeoutParts : undefined,
@@ -1142,7 +1178,14 @@ export class OpenCodeBridge implements BridgeInterface {
 
       // Fetch full messages from OpenCode for accurate persistence
       const fullText = await this.fetchAssistantText(baseUrl, opencodeSessionId)
-      const outputText = cleanAssistantText(fullText || collectedText.join(''))
+      const rawOutputText = cleanAssistantText(fullText || collectedText.join(''))
+
+      // Strip <thinking> and DeepSeek  tags from the output text so they don't appear as raw text
+      const outputText = rawOutputText
+        .replace(THINKING_TAG_RE, '')
+        .replace(REASONING_TAG_RE, '')
+        .replace(DEEPSEEK_THINKING_RE, '')
+        .trim()
       console.log('[OpenCode] Stream complete for session:', opencodeSessionId, 'text length:', outputText.length, 'parts:', orderedRefs.length)
 
       onEvent({ type: 'complete', content: 'Done', timestamp: new Date().toISOString() })
@@ -1163,7 +1206,11 @@ export class OpenCodeBridge implements BridgeInterface {
           if (t) parts.push({ type: 'thinking', content: t.content })
         } else if (ref.type === 'text') {
           const seg = textSegments.find((s) => s.id === ref.id)
-          if (seg) parts.push({ type: 'text', content: seg.text })
+          if (seg) {
+            // Parse <thinking> tags from text segments (DeepSeek/Fireworks workaround)
+            const parsed = parseThinkingTags(seg.text)
+            parts.push(...parsed)
+          }
         } else {
           const fp = filePartsById.get(ref.id)
           if (fp) {
@@ -1329,6 +1376,12 @@ export class OpenCodeBridge implements BridgeInterface {
     const ctx = task.context
     
     const lines: string[] = []
+    
+    // Add system prompt first (models need this to follow formatting rules)
+    lines.push(AGENT_SYSTEM_PROMPT)
+    lines.push('')
+    lines.push('---')
+    lines.push('')
     
     // Add project context
     if (ctx?.projectName) {

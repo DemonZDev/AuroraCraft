@@ -12,9 +12,9 @@ import { authMiddleware } from '../middleware/auth.js'
 import { agentExecutor } from '../agents/executor.js'
 import { opencodeBridge, sessionEventBus } from '../bridges/index.js'
 import { processManager } from '../bridges/opencode-process-manager.js'
-import { AI_MODELS, getModelById, getProviderForModel, canUseModel } from '../config/ai-models.js'
+import { AI_MODELS, getModelById, getProviderForModel, canUseModel, modelHasZenProvider } from '../config/ai-models.js'
 import { getUserTokens, hasEnoughTokens, deductTokens, estimateMessageCost, canAccessTier, getUserProviderKeys } from '../utils/token-service.js'
-import { generateProviderConfig, writeProjectConfig } from '../utils/provider-config.js'
+import { generateProviderConfig, generateMinimalProjectConfig, writeProjectConfig, writeIsolatedProjectConfig } from '../utils/provider-config.js'
 import { readFile } from 'fs/promises'
 
 const createSessionSchema = z.object({
@@ -286,6 +286,8 @@ export async function agentRoutes(app: FastifyInstance) {
     const requestedModelId = parsed.data.model ?? ''
     const requestedSpeed = parsed.data.speed ?? 'fast'
 
+    const userKeys = await getUserProviderKeys(request.user!.id)
+
     if (requestedModelId) {
       const modelDef = getModelById(requestedModelId)
       if (!modelDef) {
@@ -298,7 +300,14 @@ export async function agentRoutes(app: FastifyInstance) {
         })
       }
 
-      const userKeys = await getUserProviderKeys(request.user!.id)
+      // Zen models require a Zen API key even if they have an opencode fallback
+      if (modelHasZenProvider(requestedModelId) && !userKeys.zen) {
+        return reply.status(503).send({
+          message: `You don't have a Zen API key configured. Please contact an administrator to set one up.`,
+          statusCode: 503,
+        })
+      }
+
       const provider = getProviderForModel(requestedModelId, requestedSpeed, userKeys)
       if (provider) {
         resolvedModelId = `${provider.id}/${provider.modelId}`
@@ -339,12 +348,23 @@ export async function agentRoutes(app: FastifyInstance) {
         }
 
         try {
-          const config = generateProviderConfig(modelDef, provider, userApiKey)
+          // Write the FULL provider config (with API key) to an isolated
+          // per-project directory outside the workspace tree. Root-only 600
+          // permissions prevent users from extracting keys via the code editor.
+          const fullConfig = generateProviderConfig(modelDef, provider, userApiKey)
+          await writeIsolatedProjectConfig(projectDir, fullConfig)
+
+          // Write a MINIMAL project-level config (no secrets) into the workspace.
+          // OpenCode will use the isolated HOME directory set at spawn time.
+          const projectConfig = generateMinimalProjectConfig(provider.id === 'opencode' ? provider.modelId : undefined)
+
+          // Detect provider changes by comparing the old project config
           const oldConfigStr = await readFile(`${projectDir}/opencode.json`, 'utf8').catch(() => null)
           const oldProvider = oldConfigStr ? JSON.parse(oldConfigStr).provider : undefined
-          const newProvider = config.provider
+          const newProvider = fullConfig.provider
           const providerChanged = JSON.stringify(oldProvider) !== JSON.stringify(newProvider)
-          await writeProjectConfig(projectDir, config)
+
+          await writeProjectConfig(projectDir, projectConfig)
           if (providerChanged) {
             app.log.info({ projectDir, provider: provider.id }, 'Provider config changed — restarting OpenCode instance')
             await processManager.forceStop(projectDir)
@@ -376,6 +396,7 @@ export async function agentRoutes(app: FastifyInstance) {
       if (requestedModel) sessionModelTracker.set(sessionId, requestedModel)
 
       // Start OpenCode instance for this project directory
+      // Pass API keys as env vars so they are never written to disk
       let instanceUrl: string | undefined
       try {
         instanceUrl = await processManager.acquire(projectDir)
@@ -572,10 +593,13 @@ export async function agentRoutes(app: FastifyInstance) {
         requiresApiKey: p.requiresApiKey,
         hasKey: p.requiresApiKey ? !!userKeys[p.id] : true,
       })),
-      disabled: m.minTier !== 'free' && m.providers.every(p => p.requiresApiKey && !userKeys[p.id]),
-      disabledReason: m.minTier !== 'free' && m.providers.every(p => p.requiresApiKey && !userKeys[p.id])
+      disabled: (m.minTier !== 'free' && m.providers.every(p => p.requiresApiKey && !userKeys[p.id])) ||
+        (modelHasZenProvider(m.id) && !userKeys.zen),
+      disabledReason: (m.minTier !== 'free' && m.providers.every(p => p.requiresApiKey && !userKeys[p.id]))
         ? 'No API key configured for any provider'
-        : undefined,
+        : (modelHasZenProvider(m.id) && !userKeys.zen)
+          ? 'Zen API key required'
+          : undefined,
     }))
 
     return { models, tier, userKeys: Object.keys(userKeys) }

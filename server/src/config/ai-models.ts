@@ -80,7 +80,7 @@ export const AI_MODELS: AIModelDef[] = [
     id: 'glm-5.1-free',
     name: 'GLM-5.1',
     providers: [
-      { id: 'modal', speed: 'rate_limited', modelId: 'zai-org/GLM-5-FP8', requiresApiKey: true },
+      { id: 'modal', speed: 'rate_limited', modelId: 'zai-org/GLM-5.1-FP8', requiresApiKey: true },
     ],
     description: 'Zhipu GLM-5.1 frontier model (free, rate-limited)',
     pricing: { inputPer1M: 0, outputPer1M: 0 },
@@ -123,7 +123,7 @@ export const AI_MODELS: AIModelDef[] = [
     name: 'DeepSeek V4 Pro',
     providers: [
       { id: 'fireworks', speed: 'fast', modelId: 'accounts/fireworks/models/deepseek-v4-pro', requiresApiKey: true },
-      { id: 'bluesminds', speed: 'slow', modelId: 'deepseek-v4-pro', requiresApiKey: true },
+      { id: 'bluesminds', speed: 'slow', modelId: 'accounts/fireworks/models/deepseek-v4-pro', requiresApiKey: true },
     ],
     description: 'DeepSeek V4 Pro with selectable thinking mode',
     pricing: { inputPer1M: 1.74, outputPer1M: 3.48 },
@@ -133,7 +133,7 @@ export const AI_MODELS: AIModelDef[] = [
     id: 'qwen3.6-max',
     name: 'Qwen3.6 Max',
     providers: [
-      { id: 'bluesminds', speed: 'slow', modelId: 'qwen3.6-max', requiresApiKey: true },
+      { id: 'bluesminds', speed: 'slow', modelId: 'qwen3.6-max-preview', requiresApiKey: true },
     ],
     description: 'Alibaba Qwen3.6 Max - Enhanced reasoning',
     pricing: { inputPer1M: 1.0, outputPer1M: 3.2 },
@@ -182,9 +182,18 @@ export function getProviderForModel(modelId: string, speed: Speed, availableKeys
   const model = getModelById(modelId)
   if (!model) return undefined
   const matching = model.providers.filter(p => p.speed === speed)
-  if (matching.length <= 1) return matching[0]
-  const hasKeyProvider = matching.find(p => p.requiresApiKey && availableKeys?.[p.id])
-  return hasKeyProvider ?? matching[0]
+  if (matching.length > 0) {
+    if (matching.length <= 1) return matching[0]
+    const hasKeyProvider = matching.find(p => p.requiresApiKey && availableKeys?.[p.id])
+    return hasKeyProvider ?? matching[0]
+  }
+  // Fallback: if no exact speed match, try any provider for this model
+  if (model.providers.length > 0) {
+    if (model.providers.length <= 1) return model.providers[0]
+    const hasKeyProvider = model.providers.find(p => p.requiresApiKey && availableKeys?.[p.id])
+    return hasKeyProvider ?? model.providers[0]
+  }
+  return undefined
 }
 
 export function getAvailableModels(tier: UserTier): AIModelDef[] {
@@ -199,4 +208,10 @@ export function canUseModel(modelId: string, tier: UserTier): boolean {
   if (!model) return false
   if (tier === 'paid') return true
   return model.minTier === 'free'
+}
+
+export function modelHasZenProvider(modelId: string): boolean {
+  const model = getModelById(modelId)
+  if (!model) return false
+  return model.providers.some(p => p.id === 'zen')
 }

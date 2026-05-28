@@ -1,8 +1,9 @@
 import { spawn, type ChildProcess, execFile } from 'child_process'
-import { mkdir, writeFile, chown, access } from 'fs/promises'
+import { mkdir, writeFile, chown, access, chmod } from 'fs/promises'
 import { constants } from 'fs'
 import { promisify } from 'util'
 import { env } from '../env.js'
+import { getProjectConfigDirectory } from '../utils/provider-config.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -47,7 +48,7 @@ async function chownRecursive(path: string, uid: number, gid: number): Promise<v
 
 // Escape a string for safe embedding inside single quotes in a POSIX shell.
 function shellQuote(s: string): string {
-  return `'${s.replace(/'/g, `'\\''`)}'`
+  return `'${s.replace(/'/g, `'\''`)}'`
 }
 
 // ── Process Manager ─────────────────────────────────────────────────
@@ -208,6 +209,10 @@ export class OpenCodeProcessManager {
     const username = match ? match[1] : null
     const systemUser = username ? `auroracraft-${username}` : null
 
+    // Isolated per-project config directory (outside the workspace tree).
+    // OpenCode will use this as HOME so each project gets its own config + db.
+    const isolatedConfigDir = getProjectConfigDirectory(directory)
+
     // Prepare project directory + config files using native fs.
     // The server runs as root so we don't need sudo (previous `sudo tee` hung indefinitely).
     if (systemUser) {
@@ -218,24 +223,24 @@ export class OpenCodeProcessManager {
         await mkdir(directory, { recursive: true })
         await chownRecursive(directory, uid, gid)
 
-        const configContent = JSON.stringify({
-          $schema: 'https://opencode.ai/config.json',
-          permission: 'allow',
-          tools: { question: false },
-        }, null, 2)
+        // Create isolated config directory and chown to the project owner.
+        // OpenCode runs as this user and needs to create ~/.local/share/opencode/.
+        // The config file itself lives at ~/.config/opencode/opencode.json inside
+        // this directory and is written by agents.ts with 600 perms.
+        await mkdir(`${isolatedConfigDir}/.local/share/opencode`, { recursive: true })
+        await chownRecursive(isolatedConfigDir, uid, gid)
 
-        // User-level config: /home/{user}/.config/opencode/opencode.json
-        // The .config/opencode/ directory and shared symlinks (node_modules, package.json,
-        // package-lock.json) are set up once during user creation via setupUserSharedCaches().
-        // We only need to write the per-user opencode.json here.
-        const userConfigPath = `/home/${systemUser}/.config/opencode/opencode.json`
-        await writeFile(userConfigPath, configContent, 'utf8')
-        await chown(userConfigPath, uid, gid)
-
+        // Project-level config: write a minimal stub only if nothing exists yet.
+        // Agents.ts will overwrite this with a proper minimal config (no secrets).
         const projectConfigPath = `${directory}/opencode.json`
         const hasExistingConfig = await access(projectConfigPath, constants.F_OK).then(() => true).catch(() => false)
         if (!hasExistingConfig) {
-          await writeFile(projectConfigPath, configContent, 'utf8')
+          const minimalConfig = JSON.stringify({
+            $schema: 'https://opencode.ai/config.json',
+            permission: 'allow',
+            tools: { question: false },
+          }, null, 2)
+          await writeFile(projectConfigPath, minimalConfig, 'utf8')
           await chown(projectConfigPath, uid, gid)
         }
       } catch (err) {
@@ -243,6 +248,7 @@ export class OpenCodeProcessManager {
       }
     } else {
       await mkdir(directory, { recursive: true })
+      await mkdir(`${isolatedConfigDir}/.local/share/opencode`, { recursive: true })
     }
 
     // Bail out if the outer timeout already fired — don't proceed to spawning.
@@ -253,14 +259,17 @@ export class OpenCodeProcessManager {
     // Spawn OpenCode as the project owner using runuser -l (consistent with the Kiro bridge).
     // runuser -l resets env, so OPENCODE_DANGEROUSLY_SKIP_PERMISSIONS must be set in the
     // shell command itself rather than via spawn's `env` option.
+    // We override HOME to the isolated config directory so OpenCode reads per-project
+    // credentials from there instead of the user's real home (shared across projects).
     // IMPORTANT: The binary must be in a path accessible to all system users (e.g. /usr/local/share/nvm),
     // NOT in a user-specific home directory (e.g. /home/codespace/nvm) which other users cannot access.
-    const opencodePath = '/usr/local/share/nvm/current/bin/opencode'
+    const opencodePath = '/usr/local/bin/opencode'
 
     let child: ChildProcess
     if (systemUser) {
       const shellCmd =
         `cd ${shellQuote(directory)} && ` +
+        `export HOME=${shellQuote(isolatedConfigDir)} && ` +
         `OPENCODE_DANGEROUSLY_SKIP_PERMISSIONS=true ` +
         `${shellQuote(opencodePath)} serve --port ${port}`
 
@@ -280,6 +289,7 @@ export class OpenCodeProcessManager {
           ...process.env,
           OPENCODE_DANGEROUSLY_SKIP_PERMISSIONS: 'true',
           PATH: process.env.PATH,
+          HOME: isolatedConfigDir,
         },
       })
     }

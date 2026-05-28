@@ -1,6 +1,6 @@
 const path = require('path')
 
-const ROOT = __dirname
+const ROOT = path.resolve(__dirname)
 const LOGS = path.resolve(ROOT, 'logs')
 
 module.exports = {
@@ -8,8 +8,8 @@ module.exports = {
     {
       name: 'auroracraft-server',
       cwd: ROOT,
-      script: '/usr/local/share/nvm/current/bin/node',
-      args: '/home/codespace/.local/share/pnpm/global/5/.pnpm/tsx@4.22.3/node_modules/tsx/dist/cli.mjs server/src/index.ts',
+      script: path.resolve(ROOT, 'node_modules/.pnpm/tsx@4.22.3/node_modules/tsx/dist/cli.mjs'),
+      args: 'server/src/index.ts',
       instances: 1,
       exec_mode: 'fork',
       autorestart: true,
@@ -22,7 +22,6 @@ module.exports = {
       min_uptime: 5000,
       env: {
         NODE_ENV: 'production',
-        PATH: '/home/codespace/nvm/current/bin:/home/codespace/.local/share/pnpm:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
       },
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       error_file: path.resolve(LOGS, 'server-error.log'),

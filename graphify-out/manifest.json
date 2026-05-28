@@ -1,672 +1,637 @@
 {
-  "/workspaces/AuroraCraft/package.json": {
-    "mtime": 1779722004.3596015,
+  "/root/AuroraCraft/package.json": {
+    "mtime": 1779956075.1458492,
     "ast_hash": "3a9d5da9c8a4635d0b23d069216f3095",
     "semantic_hash": "3a9d5da9c8a4635d0b23d069216f3095"
   },
-  "/workspaces/AuroraCraft/restart.sh": {
-    "mtime": 1779722004.3596015,
-    "ast_hash": "daf029990ddbcd09de416737c2a209d6",
-    "semantic_hash": "daf029990ddbcd09de416737c2a209d6"
-  },
-  "/workspaces/AuroraCraft/start.sh": {
-    "mtime": 1779722004.3656015,
-    "ast_hash": "6f82cb37d2e7c870a8b142d0e9f30e0b",
-    "semantic_hash": "6f82cb37d2e7c870a8b142d0e9f30e0b"
-  },
-  "/workspaces/AuroraCraft/backend.sh": {
-    "mtime": 1779722004.3506014,
-    "ast_hash": "2cfe5c77b11866be18a4339e4bdbc886",
-    "semantic_hash": "2cfe5c77b11866be18a4339e4bdbc886"
-  },
-  "/workspaces/AuroraCraft/status.sh": {
-    "mtime": 1779722004.3656015,
-    "ast_hash": "0123f98a5c85d7f96bb5aae08f9e30cf",
-    "semantic_hash": "0123f98a5c85d7f96bb5aae08f9e30cf"
-  },
-  "/workspaces/AuroraCraft/tsconfig.base.json": {
-    "mtime": 1779722004.3656015,
+  "/root/AuroraCraft/tsconfig.base.json": {
+    "mtime": 1779956075.1507735,
     "ast_hash": "dd0ace4cc8e22a0456b4e61bed563ce0",
     "semantic_hash": "dd0ace4cc8e22a0456b4e61bed563ce0"
   },
-  "/workspaces/AuroraCraft/opencode.json": {
-    "mtime": 1779722004.3596015,
-    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
-    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  "/root/AuroraCraft/.devcontainer/devcontainer.json": {
+    "mtime": 1779965318.7653842,
+    "ast_hash": "ba68cd35ecd7761a4de287a67b36cec1",
+    "semantic_hash": ""
   },
-  "/workspaces/AuroraCraft/.devcontainer/devcontainer.json": {
-    "mtime": 1779722004.3486016,
-    "ast_hash": "cc2795ca67ff418719674d7e88ebeae6",
-    "semantic_hash": "cc2795ca67ff418719674d7e88ebeae6"
-  },
-  "/workspaces/AuroraCraft/.agents/types/agent-definition.ts": {
-    "mtime": 1779722004.3486016,
+  "/root/AuroraCraft/.agents/types/agent-definition.ts": {
+    "mtime": 1779956075.1148489,
     "ast_hash": "169a347299892d6289d9325a78b63bb5",
     "semantic_hash": "169a347299892d6289d9325a78b63bb5"
   },
-  "/workspaces/AuroraCraft/.agents/types/tools.ts": {
-    "mtime": 1779722004.3486016,
+  "/root/AuroraCraft/.agents/types/tools.ts": {
+    "mtime": 1779956075.1158586,
     "ast_hash": "25f98591c277e887016d554f6c821a0a",
     "semantic_hash": "25f98591c277e887016d554f6c821a0a"
   },
-  "/workspaces/AuroraCraft/.agents/types/util-types.ts": {
-    "mtime": 1779722004.3486016,
+  "/root/AuroraCraft/.agents/types/util-types.ts": {
+    "mtime": 1779956075.1158586,
     "ast_hash": "36e4f122e4d8cef34d97ace7f429e62e",
     "semantic_hash": "36e4f122e4d8cef34d97ace7f429e62e"
   },
-  "/workspaces/AuroraCraft/client/tsconfig.node.json": {
-    "mtime": 1779722004.3556015,
-    "ast_hash": "eec85c9d7c6b599801557f1afd86672c",
-    "semantic_hash": "eec85c9d7c6b599801557f1afd86672c"
-  },
-  "/workspaces/AuroraCraft/client/package.json": {
-    "mtime": 1779722004.3506014,
-    "ast_hash": "4709a2aafbfaa057e0f5979515ab3cbd",
-    "semantic_hash": "4709a2aafbfaa057e0f5979515ab3cbd"
-  },
-  "/workspaces/AuroraCraft/client/tsconfig.app.json": {
-    "mtime": 1779722004.3556015,
-    "ast_hash": "fc85f9be963c4018dc8271e299ac6d35",
-    "semantic_hash": "fc85f9be963c4018dc8271e299ac6d35"
-  },
-  "/workspaces/AuroraCraft/client/eslint.config.js": {
-    "mtime": 1779722004.3506014,
-    "ast_hash": "b8893da386a89dfd3672dad848f4ec7e",
-    "semantic_hash": "b8893da386a89dfd3672dad848f4ec7e"
-  },
-  "/workspaces/AuroraCraft/client/vite.config.js": {
-    "mtime": 1779722004.3556015,
-    "ast_hash": "3b5d1765e2a7baadacdacf4b0370744c",
-    "semantic_hash": "3b5d1765e2a7baadacdacf4b0370744c"
-  },
-  "/workspaces/AuroraCraft/client/tsconfig.json": {
-    "mtime": 1779722004.3556015,
-    "ast_hash": "a3d39fa780ebff65444de257f291ce6c",
-    "semantic_hash": "a3d39fa780ebff65444de257f291ce6c"
-  },
-  "/workspaces/AuroraCraft/client/src/main.tsx": {
-    "mtime": 1779722004.3526015,
-    "ast_hash": "4e0ea9786fa5ddef27aa3c4d7bc5dadc",
-    "semantic_hash": "4e0ea9786fa5ddef27aa3c4d7bc5dadc"
-  },
-  "/workspaces/AuroraCraft/client/src/App.tsx": {
-    "mtime": 1779722004.3506014,
-    "ast_hash": "a5c13bc345e4d973844cd83f91c7d25b",
-    "semantic_hash": "a5c13bc345e4d973844cd83f91c7d25b"
-  },
-  "/workspaces/AuroraCraft/client/src/vite-env.d.ts": {
-    "mtime": 1779722004.3556015,
-    "ast_hash": "efbbd3a1916b7131f33a2eb9400d9a90",
-    "semantic_hash": "efbbd3a1916b7131f33a2eb9400d9a90"
-  },
-  "/workspaces/AuroraCraft/client/src/hooks/use-auth.ts": {
-    "mtime": 1779722004.3516016,
-    "ast_hash": "2cfb6b4710173e9a6118cf34e60b17f4",
-    "semantic_hash": "2cfb6b4710173e9a6118cf34e60b17f4"
-  },
-  "/workspaces/AuroraCraft/client/src/hooks/use-agent.ts": {
-    "mtime": 1779722004.3516016,
-    "ast_hash": "f52c099467d26788db774d64d891146c",
-    "semantic_hash": "f52c099467d26788db774d64d891146c"
-  },
-  "/workspaces/AuroraCraft/client/src/hooks/use-community.ts": {
-    "mtime": 1779722004.3516016,
-    "ast_hash": "c680608c6bcb129d6298c3431435fe3b",
-    "semantic_hash": "c680608c6bcb129d6298c3431435fe3b"
-  },
-  "/workspaces/AuroraCraft/client/src/hooks/use-projects.ts": {
-    "mtime": 1779722004.3516016,
-    "ast_hash": "5e025534ac478fbd635b4ef7fe052796",
-    "semantic_hash": "5e025534ac478fbd635b4ef7fe052796"
-  },
-  "/workspaces/AuroraCraft/client/src/hooks/use-mobile.ts": {
-    "mtime": 1779722004.3516016,
-    "ast_hash": "e54b14ba2842aa89d338bf06d8c4f2a6",
-    "semantic_hash": "e54b14ba2842aa89d338bf06d8c4f2a6"
-  },
-  "/workspaces/AuroraCraft/client/src/hooks/use-admin.ts": {
-    "mtime": 1779722004.3516016,
-    "ast_hash": "5c9e83887769d1d40dfb1223af44a77a",
-    "semantic_hash": "5c9e83887769d1d40dfb1223af44a77a"
-  },
-  "/workspaces/AuroraCraft/client/src/routes/index.tsx": {
-    "mtime": 1779722004.3546016,
-    "ast_hash": "f4fe1c939096761de96df0eeb034d65d",
-    "semantic_hash": "f4fe1c939096761de96df0eeb034d65d"
-  },
-  "/workspaces/AuroraCraft/client/src/types/index.ts": {
-    "mtime": 1779729392.3656673,
-    "ast_hash": "407f02f1997522306e23b4416e10b5ae",
-    "semantic_hash": "407f02f1997522306e23b4416e10b5ae"
-  },
-  "/workspaces/AuroraCraft/client/src/pages/login.tsx": {
-    "mtime": 1779722004.3536015,
-    "ast_hash": "dae37634bb183de9761b53d115fd9d08",
-    "semantic_hash": "dae37634bb183de9761b53d115fd9d08"
-  },
-  "/workspaces/AuroraCraft/client/src/pages/new-project.tsx": {
-    "mtime": 1779729392.3656673,
-    "ast_hash": "288bcef08a97a42c152dd5fff618d003",
-    "semantic_hash": "288bcef08a97a42c152dd5fff618d003"
-  },
-  "/workspaces/AuroraCraft/client/src/pages/register.tsx": {
-    "mtime": 1779722004.3536015,
-    "ast_hash": "5c9aa2d05d5f5f17661bb00056cb53a7",
-    "semantic_hash": "5c9aa2d05d5f5f17661bb00056cb53a7"
-  },
-  "/workspaces/AuroraCraft/client/src/pages/dashboard.tsx": {
-    "mtime": 1779722004.3526015,
-    "ast_hash": "eafebf3d3ca72aa2cd4ceb9d93d429e7",
-    "semantic_hash": "eafebf3d3ca72aa2cd4ceb9d93d429e7"
-  },
-  "/workspaces/AuroraCraft/client/src/pages/home.tsx": {
-    "mtime": 1779796637.7900314,
-    "ast_hash": "50e3147810fbbc76f58d058c37452457",
-    "semantic_hash": "50e3147810fbbc76f58d058c37452457"
-  },
-  "/workspaces/AuroraCraft/client/src/pages/workspace.tsx": {
-    "mtime": 1779794318.1539237,
-    "ast_hash": "4550335ce0dac26f94558cdf53a1eee0",
-    "semantic_hash": "4550335ce0dac26f94558cdf53a1eee0"
-  },
-  "/workspaces/AuroraCraft/client/src/pages/terms.tsx": {
-    "mtime": 1779722004.3536015,
-    "ast_hash": "19f1c903cd6e77885f070d6922e5bd97",
-    "semantic_hash": "19f1c903cd6e77885f070d6922e5bd97"
-  },
-  "/workspaces/AuroraCraft/client/src/pages/pricing.tsx": {
-    "mtime": 1779722004.3536015,
-    "ast_hash": "13c6d0f852ef814a8809ebb2bbac7287",
-    "semantic_hash": "13c6d0f852ef814a8809ebb2bbac7287"
-  },
-  "/workspaces/AuroraCraft/client/src/pages/community-project.tsx": {
-    "mtime": 1779722004.3526015,
-    "ast_hash": "c07e8d4bb6a40b4912c86f66d955b722",
-    "semantic_hash": "c07e8d4bb6a40b4912c86f66d955b722"
-  },
-  "/workspaces/AuroraCraft/client/src/pages/privacy.tsx": {
-    "mtime": 1779722004.3536015,
-    "ast_hash": "0b26a5ea5def3fa767fe49d2f09a3ce4",
-    "semantic_hash": "0b26a5ea5def3fa767fe49d2f09a3ce4"
-  },
-  "/workspaces/AuroraCraft/client/src/pages/docs.tsx": {
-    "mtime": 1779722004.3526015,
-    "ast_hash": "507c16dd4411a20eb2203d95acbaf12a",
-    "semantic_hash": "507c16dd4411a20eb2203d95acbaf12a"
-  },
-  "/workspaces/AuroraCraft/client/src/pages/project-menu.tsx": {
-    "mtime": 1779722004.3536015,
-    "ast_hash": "364c4110f3f3a74b52be689f2793c70b",
-    "semantic_hash": "364c4110f3f3a74b52be689f2793c70b"
-  },
-  "/workspaces/AuroraCraft/client/src/pages/community.tsx": {
-    "mtime": 1779722004.3526015,
-    "ast_hash": "6bf72ecc501725da45ebcada86313365",
-    "semantic_hash": "6bf72ecc501725da45ebcada86313365"
-  },
-  "/workspaces/AuroraCraft/client/src/pages/admin/ai-runtime.tsx": {
-    "mtime": 1779722004.3526015,
-    "ast_hash": "91070310c23062312e3c3399fbf9603e",
-    "semantic_hash": "91070310c23062312e3c3399fbf9603e"
-  },
-  "/workspaces/AuroraCraft/client/src/pages/admin/overview.tsx": {
-    "mtime": 1779722004.3526015,
-    "ast_hash": "071e55aa97119c1ec29f3154dd024f38",
-    "semantic_hash": "071e55aa97119c1ec29f3154dd024f38"
-  },
-  "/workspaces/AuroraCraft/client/src/pages/admin/users.tsx": {
-    "mtime": 1779794279.641922,
-    "ast_hash": "a14a20f8329bfa4c9926541e6842427b",
-    "semantic_hash": "a14a20f8329bfa4c9926541e6842427b"
-  },
-  "/workspaces/AuroraCraft/client/src/pages/admin/projects.tsx": {
-    "mtime": 1779737588.2234313,
-    "ast_hash": "5a14d547a720bdfc8b44e5b06f3f8e13",
-    "semantic_hash": "5a14d547a720bdfc8b44e5b06f3f8e13"
-  },
-  "/workspaces/AuroraCraft/client/src/stores/auth-store.ts": {
-    "mtime": 1779722004.3546016,
-    "ast_hash": "0b99ae833e7fd44204eedfef98646965",
-    "semantic_hash": "0b99ae833e7fd44204eedfef98646965"
-  },
-  "/workspaces/AuroraCraft/client/src/lib/utils.ts": {
-    "mtime": 1779722004.3526015,
-    "ast_hash": "bd7f1534696295bfbab094ac93447322",
-    "semantic_hash": "bd7f1534696295bfbab094ac93447322"
-  },
-  "/workspaces/AuroraCraft/client/src/lib/api.ts": {
-    "mtime": 1779722004.3526015,
-    "ast_hash": "338ed70765ebdebddc7337a4133b0822",
-    "semantic_hash": "338ed70765ebdebddc7337a4133b0822"
-  },
-  "/workspaces/AuroraCraft/client/src/components/layout/public-layout.tsx": {
-    "mtime": 1779722004.3516016,
-    "ast_hash": "87983876974d235f26eb4d79604d0d78",
-    "semantic_hash": "87983876974d235f26eb4d79604d0d78"
-  },
-  "/workspaces/AuroraCraft/client/src/components/layout/admin-layout.tsx": {
-    "mtime": 1779737575.561432,
-    "ast_hash": "4599584b5e9828c88567b16a22a4a323",
-    "semantic_hash": "4599584b5e9828c88567b16a22a4a323"
-  },
-  "/workspaces/AuroraCraft/client/src/components/layout/footer.tsx": {
-    "mtime": 1779722004.3516016,
-    "ast_hash": "63409418a9b2efd0442385157911036e",
-    "semantic_hash": "63409418a9b2efd0442385157911036e"
-  },
-  "/workspaces/AuroraCraft/client/src/components/layout/navbar.tsx": {
-    "mtime": 1779737462.8814363,
-    "ast_hash": "35c474145bfb55e8787297b8f291ea78",
-    "semantic_hash": "35c474145bfb55e8787297b8f291ea78"
-  },
-  "/workspaces/AuroraCraft/client/src/components/layout/root-layout.tsx": {
-    "mtime": 1779722004.3516016,
-    "ast_hash": "2a43da1fa282ac2fad54e2eac60694c2",
-    "semantic_hash": "2a43da1fa282ac2fad54e2eac60694c2"
-  },
-  "/workspaces/AuroraCraft/client/src/components/layout/app-layout.tsx": {
-    "mtime": 1779722004.3516016,
-    "ast_hash": "ae84b56b965d80504cb2a2580274ee00",
-    "semantic_hash": "ae84b56b965d80504cb2a2580274ee00"
-  },
-  "/workspaces/AuroraCraft/client/src/components/auth/protected-route.tsx": {
-    "mtime": 1779722004.3506014,
-    "ast_hash": "948cc60cdd3145405605aad3d33570af",
-    "semantic_hash": "948cc60cdd3145405605aad3d33570af"
-  },
-  "/workspaces/AuroraCraft/server/package.json": {
-    "mtime": 1779722004.3616016,
-    "ast_hash": "623f07bc58b919fbeb238b96e2795a08",
-    "semantic_hash": "623f07bc58b919fbeb238b96e2795a08"
-  },
-  "/workspaces/AuroraCraft/server/drizzle.config.ts": {
-    "mtime": 1779722004.3596015,
-    "ast_hash": "6e2fbb2897623435cbc97cccfc0ab73e",
-    "semantic_hash": "6e2fbb2897623435cbc97cccfc0ab73e"
-  },
-  "/workspaces/AuroraCraft/server/tsconfig.json": {
-    "mtime": 1779722004.3656015,
+  "/root/AuroraCraft/server/tsconfig.json": {
+    "mtime": 1779956075.1507735,
     "ast_hash": "1c7fb7784a2092499de401b41f77a5cf",
     "semantic_hash": "1c7fb7784a2092499de401b41f77a5cf"
   },
-  "/workspaces/AuroraCraft/server/drizzle/0004_hard_corsair.sql": {
-    "mtime": 1779722004.3606014,
-    "ast_hash": "004844c8654efbbd73ecc82f82eabda1",
-    "semantic_hash": "004844c8654efbbd73ecc82f82eabda1"
+  "/root/AuroraCraft/server/package.json": {
+    "mtime": 1779956075.1478648,
+    "ast_hash": "623f07bc58b919fbeb238b96e2795a08",
+    "semantic_hash": "623f07bc58b919fbeb238b96e2795a08"
   },
-  "/workspaces/AuroraCraft/server/drizzle/0008_add_kiro_bridge.sql": {
-    "mtime": 1779722004.3606014,
-    "ast_hash": "388ae80fd2a786c4320a62f209e5f160",
-    "semantic_hash": "388ae80fd2a786c4320a62f209e5f160"
+  "/root/AuroraCraft/server/drizzle.config.ts": {
+    "mtime": 1779956075.1458492,
+    "ast_hash": "6e2fbb2897623435cbc97cccfc0ab73e",
+    "semantic_hash": "6e2fbb2897623435cbc97cccfc0ab73e"
   },
-  "/workspaces/AuroraCraft/server/drizzle/0002_opencode_bridge.sql": {
-    "mtime": 1779722004.3606014,
-    "ast_hash": "938c6456e04b0f55508186427bcf9ac4",
-    "semantic_hash": "938c6456e04b0f55508186427bcf9ac4"
-  },
-  "/workspaces/AuroraCraft/server/drizzle/0005_add_visibility.sql": {
-    "mtime": 1779722004.3606014,
-    "ast_hash": "b35d6514c726ee3e60a318259c1f8912",
-    "semantic_hash": "b35d6514c726ee3e60a318259c1f8912"
-  },
-  "/workspaces/AuroraCraft/server/drizzle/0005_heavy_scorpion.sql": {
-    "mtime": 1779722004.3606014,
-    "ast_hash": "b35d6514c726ee3e60a318259c1f8912",
-    "semantic_hash": "b35d6514c726ee3e60a318259c1f8912"
-  },
-  "/workspaces/AuroraCraft/server/drizzle/0003_wakeful_mesmero.sql": {
-    "mtime": 1779722004.3606014,
-    "ast_hash": "8a7245ad037e602ae1f41f87f1f894fd",
-    "semantic_hash": "8a7245ad037e602ae1f41f87f1f894fd"
-  },
-  "/workspaces/AuroraCraft/server/drizzle/0006_elite_captain_marvel.sql": {
-    "mtime": 1779722004.3606014,
-    "ast_hash": "ec6d9d090ff6f50dfd0dce7caef67ec7",
-    "semantic_hash": "ec6d9d090ff6f50dfd0dce7caef67ec7"
-  },
-  "/workspaces/AuroraCraft/server/drizzle/0004_add_coderabbit.sql": {
-    "mtime": 1779722004.3606014,
-    "ast_hash": "839991f922967def045d675f4131e902",
-    "semantic_hash": "839991f922967def045d675f4131e902"
-  },
-  "/workspaces/AuroraCraft/server/drizzle/0010_github_oauth.sql": {
-    "mtime": 1779722004.3606014,
-    "ast_hash": "790fa6ed7b1c83c44c6cd77a784fafc1",
-    "semantic_hash": "790fa6ed7b1c83c44c6cd77a784fafc1"
-  },
-  "/workspaces/AuroraCraft/server/drizzle/0001_foamy_shockwave.sql": {
-    "mtime": 1779722004.3606014,
-    "ast_hash": "207c8be80ae7fc1e4b25d1e8d705c9ee",
-    "semantic_hash": "207c8be80ae7fc1e4b25d1e8d705c9ee"
-  },
-  "/workspaces/AuroraCraft/server/drizzle/0007_compiler_both.sql": {
-    "mtime": 1779722004.3606014,
-    "ast_hash": "e257f72061a57903ffab2515f58a6098",
-    "semantic_hash": "e257f72061a57903ffab2515f58a6098"
-  },
-  "/workspaces/AuroraCraft/server/drizzle/0000_ancient_sasquatch.sql": {
-    "mtime": 1779722004.3596015,
+  "/root/AuroraCraft/server/drizzle/0000_ancient_sasquatch.sql": {
+    "mtime": 1779956075.1472628,
     "ast_hash": "76567f7bdf2a0c44c2833019f79ae40e",
     "semantic_hash": "76567f7bdf2a0c44c2833019f79ae40e"
   },
-  "/workspaces/AuroraCraft/server/drizzle/0009_next_vulture.sql": {
-    "mtime": 1779722004.3606014,
+  "/root/AuroraCraft/server/drizzle/0004_hard_corsair.sql": {
+    "mtime": 1779956075.1473174,
+    "ast_hash": "004844c8654efbbd73ecc82f82eabda1",
+    "semantic_hash": "004844c8654efbbd73ecc82f82eabda1"
+  },
+  "/root/AuroraCraft/server/drizzle/0007_compiler_both.sql": {
+    "mtime": 1779956075.1473174,
+    "ast_hash": "e257f72061a57903ffab2515f58a6098",
+    "semantic_hash": "e257f72061a57903ffab2515f58a6098"
+  },
+  "/root/AuroraCraft/server/drizzle/0013_remove_admin_tier.sql": {
+    "mtime": 1779956075.1473174,
+    "ast_hash": "801f860bf37ac5a0a9f81c6729907b42",
+    "semantic_hash": "801f860bf37ac5a0a9f81c6729907b42"
+  },
+  "/root/AuroraCraft/server/drizzle/0001_foamy_shockwave.sql": {
+    "mtime": 1779956075.1473174,
+    "ast_hash": "207c8be80ae7fc1e4b25d1e8d705c9ee",
+    "semantic_hash": "207c8be80ae7fc1e4b25d1e8d705c9ee"
+  },
+  "/root/AuroraCraft/server/drizzle/0009_next_vulture.sql": {
+    "mtime": 1779956075.1473174,
     "ast_hash": "3147245a8b3fcb57a48b20661af571a4",
     "semantic_hash": "3147245a8b3fcb57a48b20661af571a4"
   },
-  "/workspaces/AuroraCraft/server/drizzle/meta/0005_snapshot.json": {
-    "mtime": 1779722004.3616016,
-    "ast_hash": "d3a32dd700599edffb639f758c536d3e",
-    "semantic_hash": "d3a32dd700599edffb639f758c536d3e"
+  "/root/AuroraCraft/server/drizzle/0004_add_coderabbit.sql": {
+    "mtime": 1779956075.1473174,
+    "ast_hash": "839991f922967def045d675f4131e902",
+    "semantic_hash": "839991f922967def045d675f4131e902"
   },
-  "/workspaces/AuroraCraft/server/drizzle/meta/0001_snapshot.json": {
-    "mtime": 1779722004.3606014,
-    "ast_hash": "a7ff87944e2f572a5f94a5b67ad22a38",
-    "semantic_hash": "a7ff87944e2f572a5f94a5b67ad22a38"
+  "/root/AuroraCraft/server/drizzle/0010_github_oauth.sql": {
+    "mtime": 1779956075.1473174,
+    "ast_hash": "790fa6ed7b1c83c44c6cd77a784fafc1",
+    "semantic_hash": "790fa6ed7b1c83c44c6cd77a784fafc1"
   },
-  "/workspaces/AuroraCraft/server/drizzle/meta/0000_snapshot.json": {
-    "mtime": 1779722004.3606014,
-    "ast_hash": "2c67413676759b85ae06076348122d3a",
-    "semantic_hash": "2c67413676759b85ae06076348122d3a"
+  "/root/AuroraCraft/server/drizzle/0005_heavy_scorpion.sql": {
+    "mtime": 1779956075.1473174,
+    "ast_hash": "b35d6514c726ee3e60a318259c1f8912",
+    "semantic_hash": "b35d6514c726ee3e60a318259c1f8912"
   },
-  "/workspaces/AuroraCraft/server/drizzle/meta/0006_snapshot.json": {
-    "mtime": 1779722004.3616016,
-    "ast_hash": "a710a9a1dd81425dc50d3c16c0e835d1",
-    "semantic_hash": "a710a9a1dd81425dc50d3c16c0e835d1"
+  "/root/AuroraCraft/server/drizzle/0005_add_visibility.sql": {
+    "mtime": 1779956075.1473174,
+    "ast_hash": "b35d6514c726ee3e60a318259c1f8912",
+    "semantic_hash": "b35d6514c726ee3e60a318259c1f8912"
   },
-  "/workspaces/AuroraCraft/server/drizzle/meta/0009_snapshot.json": {
-    "mtime": 1779722004.3616016,
-    "ast_hash": "002a496b76eb4256fcb597bf4a917a5a",
-    "semantic_hash": "002a496b76eb4256fcb597bf4a917a5a"
+  "/root/AuroraCraft/server/drizzle/0012_per_user_provider_keys.sql": {
+    "mtime": 1779956075.1473174,
+    "ast_hash": "5e4c2fc1b1ff7bff1b9253a5153ae0ce",
+    "semantic_hash": "5e4c2fc1b1ff7bff1b9253a5153ae0ce"
   },
-  "/workspaces/AuroraCraft/server/drizzle/meta/_journal.json": {
-    "mtime": 1779783635.0428174,
-    "ast_hash": "446d58d062e340d7c2ebea12e3c48306",
-    "semantic_hash": "446d58d062e340d7c2ebea12e3c48306"
-  },
-  "/workspaces/AuroraCraft/server/drizzle/meta/0004_snapshot.json": {
-    "mtime": 1779722004.3616016,
-    "ast_hash": "c6e6af1c3e8050e4a130b7988109b073",
-    "semantic_hash": "c6e6af1c3e8050e4a130b7988109b073"
-  },
-  "/workspaces/AuroraCraft/server/drizzle/meta/0003_snapshot.json": {
-    "mtime": 1779722004.3606014,
-    "ast_hash": "c8f49a0f623dc0d1998b4d2e5df81ed9",
-    "semantic_hash": "c8f49a0f623dc0d1998b4d2e5df81ed9"
-  },
-  "/workspaces/AuroraCraft/server/src/env.ts": {
-    "mtime": 1779722004.3636014,
-    "ast_hash": "e5dfb7fbc4f75693fe8942f997606ad1",
-    "semantic_hash": "e5dfb7fbc4f75693fe8942f997606ad1"
-  },
-  "/workspaces/AuroraCraft/server/src/index.ts": {
-    "mtime": 1779722004.3636014,
-    "ast_hash": "8b9e5dd21e1ed183890c311ac78320d2",
-    "semantic_hash": "8b9e5dd21e1ed183890c311ac78320d2"
-  },
-  "/workspaces/AuroraCraft/server/src/db/migrate.ts": {
-    "mtime": 1779722004.3626015,
-    "ast_hash": "e37ad0ac1bd562dee131fda099f74b83",
-    "semantic_hash": "e37ad0ac1bd562dee131fda099f74b83"
-  },
-  "/workspaces/AuroraCraft/server/src/db/index.ts": {
-    "mtime": 1779722004.3626015,
-    "ast_hash": "cb2d28cbfea0e03511fd1778b05682f2",
-    "semantic_hash": "cb2d28cbfea0e03511fd1778b05682f2"
-  },
-  "/workspaces/AuroraCraft/server/src/db/seed.ts": {
-    "mtime": 1779722004.3636014,
-    "ast_hash": "ad4c8691f0e930bfbba80fe49b11ea5b",
-    "semantic_hash": "ad4c8691f0e930bfbba80fe49b11ea5b"
-  },
-  "/workspaces/AuroraCraft/server/src/db/schema/code-reviews.ts": {
-    "mtime": 1779722004.3636014,
-    "ast_hash": "29f55044c46b30dbbaaafafcc05ff8f8",
-    "semantic_hash": "29f55044c46b30dbbaaafafcc05ff8f8"
-  },
-  "/workspaces/AuroraCraft/server/src/db/schema/sessions.ts": {
-    "mtime": 1779722004.3636014,
-    "ast_hash": "a21ddb4972dd85abe31697f8e93d420e",
-    "semantic_hash": "a21ddb4972dd85abe31697f8e93d420e"
-  },
-  "/workspaces/AuroraCraft/server/src/db/schema/agent-logs.ts": {
-    "mtime": 1779722004.3636014,
-    "ast_hash": "70223cb9e2a3b77a76f6fef5de8f4e4b",
-    "semantic_hash": "70223cb9e2a3b77a76f6fef5de8f4e4b"
-  },
-  "/workspaces/AuroraCraft/server/src/db/schema/projects.ts": {
-    "mtime": 1779783597.7068202,
-    "ast_hash": "cdc0e2f253509c0ab5cc05c5f679d340",
-    "semantic_hash": "cdc0e2f253509c0ab5cc05c5f679d340"
-  },
-  "/workspaces/AuroraCraft/server/src/db/schema/users.ts": {
-    "mtime": 1779722004.3636014,
-    "ast_hash": "17c31431f40657c427e3f0ae184bd6d3",
-    "semantic_hash": "17c31431f40657c427e3f0ae184bd6d3"
-  },
-  "/workspaces/AuroraCraft/server/src/db/schema/agent-sessions.ts": {
-    "mtime": 1779722004.3636014,
-    "ast_hash": "4bfafcc2a7b6862f69d2d97bbab1ce06",
-    "semantic_hash": "4bfafcc2a7b6862f69d2d97bbab1ce06"
-  },
-  "/workspaces/AuroraCraft/server/src/db/schema/agent-messages.ts": {
-    "mtime": 1779722004.3636014,
-    "ast_hash": "60939f3ca7342c1c12620282025c260f",
-    "semantic_hash": "60939f3ca7342c1c12620282025c260f"
-  },
-  "/workspaces/AuroraCraft/server/src/middleware/auth.ts": {
-    "mtime": 1779722004.3636014,
-    "ast_hash": "fe96b275186f5011f91e2855ec3cc309",
-    "semantic_hash": "fe96b275186f5011f91e2855ec3cc309"
-  },
-  "/workspaces/AuroraCraft/server/src/routes/health.ts": {
-    "mtime": 1779722004.3646016,
-    "ast_hash": "5e8143d6bd2d6b36be40bef9cb82235c",
-    "semantic_hash": "5e8143d6bd2d6b36be40bef9cb82235c"
-  },
-  "/workspaces/AuroraCraft/server/src/routes/coderabbit.ts": {
-    "mtime": 1779778881.0591667,
-    "ast_hash": "4e9e821bc9ad8e27bb0b7ce9fe039b4e",
-    "semantic_hash": "4e9e821bc9ad8e27bb0b7ce9fe039b4e"
-  },
-  "/workspaces/AuroraCraft/server/src/routes/community.ts": {
-    "mtime": 1779722004.3646016,
-    "ast_hash": "01305e817ea88a2ce0377adbb8d12126",
-    "semantic_hash": "01305e817ea88a2ce0377adbb8d12126"
-  },
-  "/workspaces/AuroraCraft/server/src/routes/projects.ts": {
-    "mtime": 1779783703.1778123,
-    "ast_hash": "fc269a8597758ee47852df5bd97ca475",
-    "semantic_hash": "fc269a8597758ee47852df5bd97ca475"
-  },
-  "/workspaces/AuroraCraft/server/src/routes/admin.ts": {
-    "mtime": 1779722004.3646016,
-    "ast_hash": "4c4f1149724c31879288e7177e3300c7",
-    "semantic_hash": "4c4f1149724c31879288e7177e3300c7"
-  },
-  "/workspaces/AuroraCraft/server/src/routes/agents.ts": {
-    "mtime": 1779722004.3646016,
-    "ast_hash": "e0c658932c4345cb25f40a35e0286a3e",
-    "semantic_hash": "e0c658932c4345cb25f40a35e0286a3e"
-  },
-  "/workspaces/AuroraCraft/server/src/routes/github.ts": {
-    "mtime": 1779786859.5765805,
-    "ast_hash": "4c6c00706c8fb8ad3ceb60e1dd37c011",
-    "semantic_hash": "4c6c00706c8fb8ad3ceb60e1dd37c011"
-  },
-  "/workspaces/AuroraCraft/server/src/routes/auth.ts": {
-    "mtime": 1779722004.3646016,
-    "ast_hash": "2502bc93a15bfc81e0badae0d4463c75",
-    "semantic_hash": "2502bc93a15bfc81e0badae0d4463c75"
-  },
-  "/workspaces/AuroraCraft/server/src/agents/executor.ts": {
-    "mtime": 1779722004.3616016,
-    "ast_hash": "7f0eadb10638726e30481672ff74f67e",
-    "semantic_hash": "7f0eadb10638726e30481672ff74f67e"
-  },
-  "/workspaces/AuroraCraft/server/src/agents/types.ts": {
-    "mtime": 1779722004.3616016,
-    "ast_hash": "43be0ecf38ae2436ab411f759c09ecfe",
-    "semantic_hash": "43be0ecf38ae2436ab411f759c09ecfe"
-  },
-  "/workspaces/AuroraCraft/server/src/bridges/kiro-process-manager.ts": {
-    "mtime": 1779722004.3626015,
-    "ast_hash": "00994bb0f54630e0df836958b2a3a25e",
-    "semantic_hash": "00994bb0f54630e0df836958b2a3a25e"
-  },
-  "/workspaces/AuroraCraft/server/src/bridges/kiro-output-parser.ts": {
-    "mtime": 1779722004.3616016,
-    "ast_hash": "1764b74f4ace9d4c6d8bd370077067b9",
-    "semantic_hash": "1764b74f4ace9d4c6d8bd370077067b9"
-  },
-  "/workspaces/AuroraCraft/server/src/bridges/opencode-process-manager.ts": {
-    "mtime": 1779729392.3666673,
-    "ast_hash": "77c2d4b49da357c9631864946ab745fd",
-    "semantic_hash": "77c2d4b49da357c9631864946ab745fd"
-  },
-  "/workspaces/AuroraCraft/server/src/bridges/system-prompt.ts": {
-    "mtime": 1779722004.3626015,
-    "ast_hash": "2272cf12731bde1a2a81682bc852bbd2",
-    "semantic_hash": "2272cf12731bde1a2a81682bc852bbd2"
-  },
-  "/workspaces/AuroraCraft/server/src/bridges/session-event-bus.ts": {
-    "mtime": 1779722004.3626015,
-    "ast_hash": "1a3eca55df4b420b217295b57d3e0806",
-    "semantic_hash": "1a3eca55df4b420b217295b57d3e0806"
-  },
-  "/workspaces/AuroraCraft/server/src/bridges/opencode.ts": {
-    "mtime": 1779722004.3626015,
-    "ast_hash": "49216e058d021994a22cf18145518f15",
-    "semantic_hash": "49216e058d021994a22cf18145518f15"
-  },
-  "/workspaces/AuroraCraft/server/src/bridges/kiro-file-watcher.ts": {
-    "mtime": 1779722004.3616016,
-    "ast_hash": "272a9008d890cca5362e6bc6e8868eef",
-    "semantic_hash": "272a9008d890cca5362e6bc6e8868eef"
-  },
-  "/workspaces/AuroraCraft/server/src/bridges/types.ts": {
-    "mtime": 1779722004.3626015,
-    "ast_hash": "ab2f179faaaef784dee9e7f5f5117081",
-    "semantic_hash": "ab2f179faaaef784dee9e7f5f5117081"
-  },
-  "/workspaces/AuroraCraft/server/src/bridges/index.ts": {
-    "mtime": 1779722004.3616016,
-    "ast_hash": "02c31afe48f359ce9ca25f5685bc957a",
-    "semantic_hash": "02c31afe48f359ce9ca25f5685bc957a"
-  },
-  "/workspaces/AuroraCraft/server/src/bridges/kiro.ts": {
-    "mtime": 1779722004.3626015,
-    "ast_hash": "139ee19849416980f52be87c432e56a7",
-    "semantic_hash": "139ee19849416980f52be87c432e56a7"
-  },
-  "/workspaces/AuroraCraft/server/src/utils/system-user.ts": {
-    "mtime": 1779722004.3656015,
-    "ast_hash": "54f022bd3e64378a918c3ed0c10b1e8e",
-    "semantic_hash": "54f022bd3e64378a918c3ed0c10b1e8e"
-  },
-  "/workspaces/AuroraCraft/server/src/plugins/websocket.ts": {
-    "mtime": 1779722004.3646016,
-    "ast_hash": "08b86e0815fb3b54d211ee8097270feb",
-    "semantic_hash": "08b86e0815fb3b54d211ee8097270feb"
-  },
-  "/workspaces/AuroraCraft/server/src/plugins/cors.ts": {
-    "mtime": 1779722004.3636014,
-    "ast_hash": "04cb991aed4ae767ebe01c0067f16065",
-    "semantic_hash": "04cb991aed4ae767ebe01c0067f16065"
-  },
-  "/workspaces/AuroraCraft/server/src/plugins/cookie.ts": {
-    "mtime": 1779722004.3636014,
-    "ast_hash": "02b71a33b4d1587d3a2635d9aca8816f",
-    "semantic_hash": "02b71a33b4d1587d3a2635d9aca8816f"
-  },
-  "/workspaces/AuroraCraft/DEPLOYMENT.md": {
-    "mtime": 1779722004.3496015,
-    "ast_hash": "bf375837660305122aede137f4d90ca1",
-    "semantic_hash": "bf375837660305122aede137f4d90ca1"
-  },
-  "/workspaces/AuroraCraft/POSTGRES_GUIDE.md": {
-    "mtime": 1779722004.3496015,
-    "ast_hash": "754e3e7381827797becf7a1bb95e6d36",
-    "semantic_hash": "754e3e7381827797becf7a1bb95e6d36"
-  },
-  "/workspaces/AuroraCraft/AGENTS.md": {
-    "mtime": 1779723621.6126158,
-    "ast_hash": "62c05a2bf20bf036a0b2633478663e64",
-    "semantic_hash": "62c05a2bf20bf036a0b2633478663e64"
-  },
-  "/workspaces/AuroraCraft/RESTART_NOTES.md": {
-    "mtime": 1779722004.3506014,
-    "ast_hash": "987828c9f7e6b112a53ac2c6ee224357",
-    "semantic_hash": "987828c9f7e6b112a53ac2c6ee224357"
-  },
-  "/workspaces/AuroraCraft/README.md": {
-    "mtime": 1779729392.3646674,
-    "ast_hash": "02b6d73e57afd15593527b708cf06878",
-    "semantic_hash": "02b6d73e57afd15593527b708cf06878"
-  },
-  "/workspaces/AuroraCraft/CODERABBIT_COMPLETE.md": {
-    "mtime": 1779722004.3496015,
-    "ast_hash": "0a8662b7e81f728f585873246744b459",
-    "semantic_hash": "0a8662b7e81f728f585873246744b459"
-  },
-  "/workspaces/AuroraCraft/knowledge.md": {
-    "mtime": 1779722004.3596015,
-    "ast_hash": "833dd53b292442125e38369568b3443e",
-    "semantic_hash": "833dd53b292442125e38369568b3443e"
-  },
-  "/workspaces/AuroraCraft/structure.txt": {
-    "mtime": 1779722004.3656015,
-    "ast_hash": "1befddc0658ae3f3ae20412dab219934",
-    "semantic_hash": "1befddc0658ae3f3ae20412dab219934"
-  },
-  "/workspaces/AuroraCraft/CODERABBIT_IMPLEMENTATION.md": {
-    "mtime": 1779722004.3496015,
-    "ast_hash": "66fe30dc455e3b6a12291caf8194e36d",
-    "semantic_hash": "66fe30dc455e3b6a12291caf8194e36d"
-  },
-  "/workspaces/AuroraCraft/pnpm-workspace.yaml": {
-    "mtime": 1779722004.3596015,
-    "ast_hash": "e6a06a480f7e213808ea5f3be5b18eca",
-    "semantic_hash": "e6a06a480f7e213808ea5f3be5b18eca"
-  },
-  "/workspaces/AuroraCraft/client/index.html": {
-    "mtime": 1779722004.3506014,
-    "ast_hash": "26e0c41afeba06162df6f64262913b96",
-    "semantic_hash": "26e0c41afeba06162df6f64262913b96"
-  },
-  "/workspaces/AuroraCraft/client/public/favicon.svg": {
-    "mtime": 1779722004.3506014,
-    "ast_hash": "06d29e6ae91a02cb59e2e6483388c7f6",
-    "semantic_hash": "06d29e6ae91a02cb59e2e6483388c7f6"
-  },
-  "/workspaces/AuroraCraft/web.sh": {
-    "mtime": 1779726094.0156379,
-    "ast_hash": "5301e749a7d3f869e7031971b852e710",
-    "semantic_hash": "5301e749a7d3f869e7031971b852e710"
-  },
-  "/workspaces/AuroraCraft/start-all.sh": {
-    "mtime": 1779725396.7946317,
-    "ast_hash": "0ff04062215f74530992e5abbc2712eb",
-    "semantic_hash": "0ff04062215f74530992e5abbc2712eb"
-  },
-  "/workspaces/AuroraCraft/client/src/components/ui/glassy.tsx": {
-    "mtime": 1779794191.992918,
-    "ast_hash": "17fd4362f38943d374d37d0058fb22b2",
-    "semantic_hash": "17fd4362f38943d374d37d0058fb22b2"
-  },
-  "/workspaces/AuroraCraft/server/drizzle/0010_git_repo.sql": {
-    "mtime": 1779783592.3488204,
+  "/root/AuroraCraft/server/drizzle/0010_git_repo.sql": {
+    "mtime": 1779956075.1473174,
     "ast_hash": "e05e293180cffc1cfe393bd1da01b07e",
     "semantic_hash": "e05e293180cffc1cfe393bd1da01b07e"
   },
-  "/workspaces/AuroraCraft/cookies.txt": {
-    "mtime": 1779727547.042651,
-    "ast_hash": "9d9121966c738889a7624a8e1954a9c7",
-    "semantic_hash": "9d9121966c738889a7624a8e1954a9c7"
+  "/root/AuroraCraft/server/drizzle/0006_elite_captain_marvel.sql": {
+    "mtime": 1779956075.1473174,
+    "ast_hash": "ec6d9d090ff6f50dfd0dce7caef67ec7",
+    "semantic_hash": "ec6d9d090ff6f50dfd0dce7caef67ec7"
   },
-  "/workspaces/AuroraCraft/errors/Screenshot_2026-05-26-17-21-05-047_com.android.chrome.jpg": {
-    "mtime": 1779796299.5420158,
-    "ast_hash": "cd30cee3b3f0e9fe6044138641ddd3f4",
-    "semantic_hash": "cd30cee3b3f0e9fe6044138641ddd3f4"
+  "/root/AuroraCraft/server/drizzle/0008_add_kiro_bridge.sql": {
+    "mtime": 1779956075.1473174,
+    "ast_hash": "388ae80fd2a786c4320a62f209e5f160",
+    "semantic_hash": "388ae80fd2a786c4320a62f209e5f160"
+  },
+  "/root/AuroraCraft/server/drizzle/0003_wakeful_mesmero.sql": {
+    "mtime": 1779956075.1473174,
+    "ast_hash": "8a7245ad037e602ae1f41f87f1f894fd",
+    "semantic_hash": "8a7245ad037e602ae1f41f87f1f894fd"
+  },
+  "/root/AuroraCraft/server/drizzle/0002_opencode_bridge.sql": {
+    "mtime": 1779956075.1473174,
+    "ast_hash": "938c6456e04b0f55508186427bcf9ac4",
+    "semantic_hash": "938c6456e04b0f55508186427bcf9ac4"
+  },
+  "/root/AuroraCraft/server/drizzle/meta/_journal.json": {
+    "mtime": 1779980643.8947895,
+    "ast_hash": "8a53ec25e6a5d85d154a0976bc165434",
+    "semantic_hash": ""
+  },
+  "/root/AuroraCraft/server/drizzle/meta/0005_snapshot.json": {
+    "mtime": 1779956075.1478648,
+    "ast_hash": "d3a32dd700599edffb639f758c536d3e",
+    "semantic_hash": "d3a32dd700599edffb639f758c536d3e"
+  },
+  "/root/AuroraCraft/server/drizzle/meta/0000_snapshot.json": {
+    "mtime": 1779956075.1473174,
+    "ast_hash": "2c67413676759b85ae06076348122d3a",
+    "semantic_hash": "2c67413676759b85ae06076348122d3a"
+  },
+  "/root/AuroraCraft/server/drizzle/meta/0001_snapshot.json": {
+    "mtime": 1779956075.1478648,
+    "ast_hash": "a7ff87944e2f572a5f94a5b67ad22a38",
+    "semantic_hash": "a7ff87944e2f572a5f94a5b67ad22a38"
+  },
+  "/root/AuroraCraft/server/drizzle/meta/0009_snapshot.json": {
+    "mtime": 1779956075.1478648,
+    "ast_hash": "002a496b76eb4256fcb597bf4a917a5a",
+    "semantic_hash": "002a496b76eb4256fcb597bf4a917a5a"
+  },
+  "/root/AuroraCraft/server/drizzle/meta/0006_snapshot.json": {
+    "mtime": 1779956075.1478648,
+    "ast_hash": "a710a9a1dd81425dc50d3c16c0e835d1",
+    "semantic_hash": "a710a9a1dd81425dc50d3c16c0e835d1"
+  },
+  "/root/AuroraCraft/server/drizzle/meta/0003_snapshot.json": {
+    "mtime": 1779956075.1478648,
+    "ast_hash": "c8f49a0f623dc0d1998b4d2e5df81ed9",
+    "semantic_hash": "c8f49a0f623dc0d1998b4d2e5df81ed9"
+  },
+  "/root/AuroraCraft/server/drizzle/meta/0004_snapshot.json": {
+    "mtime": 1779956075.1478648,
+    "ast_hash": "c6e6af1c3e8050e4a130b7988109b073",
+    "semantic_hash": "c6e6af1c3e8050e4a130b7988109b073"
+  },
+  "/root/AuroraCraft/server/src/env.ts": {
+    "mtime": 1779956075.1493392,
+    "ast_hash": "e5dfb7fbc4f75693fe8942f997606ad1",
+    "semantic_hash": "e5dfb7fbc4f75693fe8942f997606ad1"
+  },
+  "/root/AuroraCraft/server/src/index.ts": {
+    "mtime": 1779956075.1493392,
+    "ast_hash": "679dc2135305fb57ac64d3820ed1b7cf",
+    "semantic_hash": "679dc2135305fb57ac64d3820ed1b7cf"
+  },
+  "/root/AuroraCraft/server/src/utils/shared-cache.ts": {
+    "mtime": 1779956075.1507735,
+    "ast_hash": "6183ee07fc3fa789a3a94ac690c731f2",
+    "semantic_hash": "6183ee07fc3fa789a3a94ac690c731f2"
+  },
+  "/root/AuroraCraft/server/src/utils/system-user.ts": {
+    "mtime": 1779956075.1507735,
+    "ast_hash": "36ebccf0cb3406b98ccf474e7e220ba9",
+    "semantic_hash": "36ebccf0cb3406b98ccf474e7e220ba9"
+  },
+  "/root/AuroraCraft/server/src/utils/provider-config.ts": {
+    "mtime": 1779956075.1507735,
+    "ast_hash": "7e883b421975a976d85d2ca45df530ef",
+    "semantic_hash": "7e883b421975a976d85d2ca45df530ef"
+  },
+  "/root/AuroraCraft/server/src/utils/opencode-cleanup.ts": {
+    "mtime": 1779956075.1499195,
+    "ast_hash": "ef5580db9416bc365bf45c091cbfab8a",
+    "semantic_hash": "ef5580db9416bc365bf45c091cbfab8a"
+  },
+  "/root/AuroraCraft/server/src/agents/types.ts": {
+    "mtime": 1779956075.148205,
+    "ast_hash": "331901bbfab4bb5e52ecc4fc54577139",
+    "semantic_hash": "331901bbfab4bb5e52ecc4fc54577139"
+  },
+  "/root/AuroraCraft/server/src/agents/executor.ts": {
+    "mtime": 1779956075.1481135,
+    "ast_hash": "7f0eadb10638726e30481672ff74f67e",
+    "semantic_hash": "7f0eadb10638726e30481672ff74f67e"
+  },
+  "/root/AuroraCraft/server/src/plugins/websocket.ts": {
+    "mtime": 1779956075.1497838,
+    "ast_hash": "08b86e0815fb3b54d211ee8097270feb",
+    "semantic_hash": "08b86e0815fb3b54d211ee8097270feb"
+  },
+  "/root/AuroraCraft/server/src/plugins/cookie.ts": {
+    "mtime": 1779956075.1493392,
+    "ast_hash": "02b71a33b4d1587d3a2635d9aca8816f",
+    "semantic_hash": "02b71a33b4d1587d3a2635d9aca8816f"
+  },
+  "/root/AuroraCraft/server/src/plugins/cors.ts": {
+    "mtime": 1779956075.1497838,
+    "ast_hash": "04cb991aed4ae767ebe01c0067f16065",
+    "semantic_hash": "04cb991aed4ae767ebe01c0067f16065"
+  },
+  "/root/AuroraCraft/server/src/db/seed.ts": {
+    "mtime": 1779956075.1493392,
+    "ast_hash": "ad4c8691f0e930bfbba80fe49b11ea5b",
+    "semantic_hash": "ad4c8691f0e930bfbba80fe49b11ea5b"
+  },
+  "/root/AuroraCraft/server/src/db/migrate.ts": {
+    "mtime": 1779956075.149237,
+    "ast_hash": "e37ad0ac1bd562dee131fda099f74b83",
+    "semantic_hash": "e37ad0ac1bd562dee131fda099f74b83"
+  },
+  "/root/AuroraCraft/server/src/db/index.ts": {
+    "mtime": 1779964410.952653,
+    "ast_hash": "96a08edd8e7c6c61354b15824c00c6ca",
+    "semantic_hash": ""
+  },
+  "/root/AuroraCraft/server/src/db/schema/agent-logs.ts": {
+    "mtime": 1779956075.149237,
+    "ast_hash": "70223cb9e2a3b77a76f6fef5de8f4e4b",
+    "semantic_hash": "70223cb9e2a3b77a76f6fef5de8f4e4b"
+  },
+  "/root/AuroraCraft/server/src/db/schema/sessions.ts": {
+    "mtime": 1779956075.1493392,
+    "ast_hash": "a21ddb4972dd85abe31697f8e93d420e",
+    "semantic_hash": "a21ddb4972dd85abe31697f8e93d420e"
+  },
+  "/root/AuroraCraft/server/src/db/schema/users.ts": {
+    "mtime": 1779956075.1493392,
+    "ast_hash": "9a17c319b1c55c8db29db107fe550957",
+    "semantic_hash": "9a17c319b1c55c8db29db107fe550957"
+  },
+  "/root/AuroraCraft/server/src/db/schema/agent-messages.ts": {
+    "mtime": 1779956075.1493392,
+    "ast_hash": "60939f3ca7342c1c12620282025c260f",
+    "semantic_hash": "60939f3ca7342c1c12620282025c260f"
+  },
+  "/root/AuroraCraft/server/src/db/schema/agent-sessions.ts": {
+    "mtime": 1779956075.1493392,
+    "ast_hash": "4bfafcc2a7b6862f69d2d97bbab1ce06",
+    "semantic_hash": "4bfafcc2a7b6862f69d2d97bbab1ce06"
+  },
+  "/root/AuroraCraft/server/src/db/schema/code-reviews.ts": {
+    "mtime": 1779956075.1493392,
+    "ast_hash": "29f55044c46b30dbbaaafafcc05ff8f8",
+    "semantic_hash": "29f55044c46b30dbbaaafafcc05ff8f8"
+  },
+  "/root/AuroraCraft/server/src/db/schema/provider-api-keys.ts": {
+    "mtime": 1779980622.499728,
+    "ast_hash": "ddfc829af3f930fe861b98beb4072e82",
+    "semantic_hash": ""
+  },
+  "/root/AuroraCraft/server/src/db/schema/projects.ts": {
+    "mtime": 1779956075.1493392,
+    "ast_hash": "cdc0e2f253509c0ab5cc05c5f679d340",
+    "semantic_hash": "cdc0e2f253509c0ab5cc05c5f679d340"
+  },
+  "/root/AuroraCraft/server/src/config/ai-models.ts": {
+    "mtime": 1779977514.094601,
+    "ast_hash": "b22373329e205eea8031bc66d22705ea",
+    "semantic_hash": ""
+  },
+  "/root/AuroraCraft/server/src/bridges/kiro-process-manager.ts": {
+    "mtime": 1779956075.1482913,
+    "ast_hash": "00994bb0f54630e0df836958b2a3a25e",
+    "semantic_hash": "00994bb0f54630e0df836958b2a3a25e"
+  },
+  "/root/AuroraCraft/server/src/bridges/opencode.ts": {
+    "mtime": 1779956075.1482913,
+    "ast_hash": "d5a4b65acc4a879cd74b8357fd4c3d70",
+    "semantic_hash": "d5a4b65acc4a879cd74b8357fd4c3d70"
+  },
+  "/root/AuroraCraft/server/src/bridges/kiro-output-parser.ts": {
+    "mtime": 1779956075.1482913,
+    "ast_hash": "1764b74f4ace9d4c6d8bd370077067b9",
+    "semantic_hash": "1764b74f4ace9d4c6d8bd370077067b9"
+  },
+  "/root/AuroraCraft/server/src/bridges/opencode-process-manager.ts": {
+    "mtime": 1779962823.1504052,
+    "ast_hash": "03e080cfdf6582ac3caa71ca36fd543b",
+    "semantic_hash": ""
+  },
+  "/root/AuroraCraft/server/src/bridges/types.ts": {
+    "mtime": 1779956075.1482913,
+    "ast_hash": "ab2f179faaaef784dee9e7f5f5117081",
+    "semantic_hash": "ab2f179faaaef784dee9e7f5f5117081"
+  },
+  "/root/AuroraCraft/server/src/bridges/system-prompt.ts": {
+    "mtime": 1779956075.1482913,
+    "ast_hash": "2272cf12731bde1a2a81682bc852bbd2",
+    "semantic_hash": "2272cf12731bde1a2a81682bc852bbd2"
+  },
+  "/root/AuroraCraft/server/src/bridges/kiro.ts": {
+    "mtime": 1779956075.1482913,
+    "ast_hash": "139ee19849416980f52be87c432e56a7",
+    "semantic_hash": "139ee19849416980f52be87c432e56a7"
+  },
+  "/root/AuroraCraft/server/src/bridges/index.ts": {
+    "mtime": 1779956075.148205,
+    "ast_hash": "02c31afe48f359ce9ca25f5685bc957a",
+    "semantic_hash": "02c31afe48f359ce9ca25f5685bc957a"
+  },
+  "/root/AuroraCraft/server/src/bridges/session-event-bus.ts": {
+    "mtime": 1779956075.1482913,
+    "ast_hash": "1a3eca55df4b420b217295b57d3e0806",
+    "semantic_hash": "1a3eca55df4b420b217295b57d3e0806"
+  },
+  "/root/AuroraCraft/server/src/bridges/kiro-file-watcher.ts": {
+    "mtime": 1779956075.1482913,
+    "ast_hash": "272a9008d890cca5362e6bc6e8868eef",
+    "semantic_hash": "272a9008d890cca5362e6bc6e8868eef"
+  },
+  "/root/AuroraCraft/server/src/middleware/auth.ts": {
+    "mtime": 1779956075.1493392,
+    "ast_hash": "fe96b275186f5011f91e2855ec3cc309",
+    "semantic_hash": "fe96b275186f5011f91e2855ec3cc309"
+  },
+  "/root/AuroraCraft/server/src/routes/agents.ts": {
+    "mtime": 1779956075.1499195,
+    "ast_hash": "92e195b3ec211e165be1acd06d069fb6",
+    "semantic_hash": "92e195b3ec211e165be1acd06d069fb6"
+  },
+  "/root/AuroraCraft/server/src/routes/admin.ts": {
+    "mtime": 1779956075.1497838,
+    "ast_hash": "cd68230f98ebca06ea13513e0c4d3355",
+    "semantic_hash": "cd68230f98ebca06ea13513e0c4d3355"
+  },
+  "/root/AuroraCraft/server/src/routes/github.ts": {
+    "mtime": 1779956075.1499195,
+    "ast_hash": "4c6c00706c8fb8ad3ceb60e1dd37c011",
+    "semantic_hash": "4c6c00706c8fb8ad3ceb60e1dd37c011"
+  },
+  "/root/AuroraCraft/server/src/routes/coderabbit.ts": {
+    "mtime": 1779956075.1499195,
+    "ast_hash": "80c1cc02a00d2c4100bc88b2c3c06de2",
+    "semantic_hash": "80c1cc02a00d2c4100bc88b2c3c06de2"
+  },
+  "/root/AuroraCraft/server/src/routes/health.ts": {
+    "mtime": 1779956075.1499195,
+    "ast_hash": "5e8143d6bd2d6b36be40bef9cb82235c",
+    "semantic_hash": "5e8143d6bd2d6b36be40bef9cb82235c"
+  },
+  "/root/AuroraCraft/server/src/routes/auth.ts": {
+    "mtime": 1779956075.1499195,
+    "ast_hash": "2502bc93a15bfc81e0badae0d4463c75",
+    "semantic_hash": "2502bc93a15bfc81e0badae0d4463c75"
+  },
+  "/root/AuroraCraft/server/src/routes/community.ts": {
+    "mtime": 1779956075.1499195,
+    "ast_hash": "01305e817ea88a2ce0377adbb8d12126",
+    "semantic_hash": "01305e817ea88a2ce0377adbb8d12126"
+  },
+  "/root/AuroraCraft/server/src/routes/projects.ts": {
+    "mtime": 1779956075.1499195,
+    "ast_hash": "80e3f3c92d35b18b1dd476681adad1fe",
+    "semantic_hash": "80e3f3c92d35b18b1dd476681adad1fe"
+  },
+  "/root/AuroraCraft/client/tsconfig.json": {
+    "mtime": 1779956075.120849,
+    "ast_hash": "a3d39fa780ebff65444de257f291ce6c",
+    "semantic_hash": "a3d39fa780ebff65444de257f291ce6c"
+  },
+  "/root/AuroraCraft/client/tsconfig.node.json": {
+    "mtime": 1779956075.120849,
+    "ast_hash": "eec85c9d7c6b599801557f1afd86672c",
+    "semantic_hash": "eec85c9d7c6b599801557f1afd86672c"
+  },
+  "/root/AuroraCraft/client/vite.config.js": {
+    "mtime": 1779956075.120849,
+    "ast_hash": "3b5d1765e2a7baadacdacf4b0370744c",
+    "semantic_hash": "3b5d1765e2a7baadacdacf4b0370744c"
+  },
+  "/root/AuroraCraft/client/package.json": {
+    "mtime": 1779956075.117149,
+    "ast_hash": "4709a2aafbfaa057e0f5979515ab3cbd",
+    "semantic_hash": "4709a2aafbfaa057e0f5979515ab3cbd"
+  },
+  "/root/AuroraCraft/client/eslint.config.js": {
+    "mtime": 1779956075.117149,
+    "ast_hash": "b8893da386a89dfd3672dad848f4ec7e",
+    "semantic_hash": "b8893da386a89dfd3672dad848f4ec7e"
+  },
+  "/root/AuroraCraft/client/tsconfig.app.json": {
+    "mtime": 1779956075.120849,
+    "ast_hash": "fc85f9be963c4018dc8271e299ac6d35",
+    "semantic_hash": "fc85f9be963c4018dc8271e299ac6d35"
+  },
+  "/root/AuroraCraft/client/src/App.tsx": {
+    "mtime": 1779956075.117149,
+    "ast_hash": "a5c13bc345e4d973844cd83f91c7d25b",
+    "semantic_hash": "a5c13bc345e4d973844cd83f91c7d25b"
+  },
+  "/root/AuroraCraft/client/src/vite-env.d.ts": {
+    "mtime": 1779956075.119849,
+    "ast_hash": "efbbd3a1916b7131f33a2eb9400d9a90",
+    "semantic_hash": "efbbd3a1916b7131f33a2eb9400d9a90"
+  },
+  "/root/AuroraCraft/client/src/main.tsx": {
+    "mtime": 1779956075.118371,
+    "ast_hash": "4e0ea9786fa5ddef27aa3c4d7bc5dadc",
+    "semantic_hash": "4e0ea9786fa5ddef27aa3c4d7bc5dadc"
+  },
+  "/root/AuroraCraft/client/src/stores/auth-store.ts": {
+    "mtime": 1779956075.119849,
+    "ast_hash": "0b99ae833e7fd44204eedfef98646965",
+    "semantic_hash": "0b99ae833e7fd44204eedfef98646965"
+  },
+  "/root/AuroraCraft/client/src/pages/community.tsx": {
+    "mtime": 1779956075.118514,
+    "ast_hash": "6bf72ecc501725da45ebcada86313365",
+    "semantic_hash": "6bf72ecc501725da45ebcada86313365"
+  },
+  "/root/AuroraCraft/client/src/pages/pricing.tsx": {
+    "mtime": 1779956075.1188488,
+    "ast_hash": "13c6d0f852ef814a8809ebb2bbac7287",
+    "semantic_hash": "13c6d0f852ef814a8809ebb2bbac7287"
+  },
+  "/root/AuroraCraft/client/src/pages/dashboard.tsx": {
+    "mtime": 1779956075.118514,
+    "ast_hash": "eafebf3d3ca72aa2cd4ceb9d93d429e7",
+    "semantic_hash": "eafebf3d3ca72aa2cd4ceb9d93d429e7"
+  },
+  "/root/AuroraCraft/client/src/pages/new-project.tsx": {
+    "mtime": 1779956075.1188488,
+    "ast_hash": "288bcef08a97a42c152dd5fff618d003",
+    "semantic_hash": "288bcef08a97a42c152dd5fff618d003"
+  },
+  "/root/AuroraCraft/client/src/pages/login.tsx": {
+    "mtime": 1779956075.118514,
+    "ast_hash": "dae37634bb183de9761b53d115fd9d08",
+    "semantic_hash": "dae37634bb183de9761b53d115fd9d08"
+  },
+  "/root/AuroraCraft/client/src/pages/docs.tsx": {
+    "mtime": 1779956075.118514,
+    "ast_hash": "507c16dd4411a20eb2203d95acbaf12a",
+    "semantic_hash": "507c16dd4411a20eb2203d95acbaf12a"
+  },
+  "/root/AuroraCraft/client/src/pages/register.tsx": {
+    "mtime": 1779956075.1188488,
+    "ast_hash": "5c9aa2d05d5f5f17661bb00056cb53a7",
+    "semantic_hash": "5c9aa2d05d5f5f17661bb00056cb53a7"
+  },
+  "/root/AuroraCraft/client/src/pages/terms.tsx": {
+    "mtime": 1779956075.1188488,
+    "ast_hash": "19f1c903cd6e77885f070d6922e5bd97",
+    "semantic_hash": "19f1c903cd6e77885f070d6922e5bd97"
+  },
+  "/root/AuroraCraft/client/src/pages/home.tsx": {
+    "mtime": 1779956075.118514,
+    "ast_hash": "50e3147810fbbc76f58d058c37452457",
+    "semantic_hash": "50e3147810fbbc76f58d058c37452457"
+  },
+  "/root/AuroraCraft/client/src/pages/workspace.tsx": {
+    "mtime": 1779956075.119849,
+    "ast_hash": "6edfe273bbe3f8b7b6f0728e82569ddf",
+    "semantic_hash": "6edfe273bbe3f8b7b6f0728e82569ddf"
+  },
+  "/root/AuroraCraft/client/src/pages/community-project.tsx": {
+    "mtime": 1779956075.118514,
+    "ast_hash": "c07e8d4bb6a40b4912c86f66d955b722",
+    "semantic_hash": "c07e8d4bb6a40b4912c86f66d955b722"
+  },
+  "/root/AuroraCraft/client/src/pages/privacy.tsx": {
+    "mtime": 1779956075.1188488,
+    "ast_hash": "0b26a5ea5def3fa767fe49d2f09a3ce4",
+    "semantic_hash": "0b26a5ea5def3fa767fe49d2f09a3ce4"
+  },
+  "/root/AuroraCraft/client/src/pages/project-menu.tsx": {
+    "mtime": 1779956075.1188488,
+    "ast_hash": "364c4110f3f3a74b52be689f2793c70b",
+    "semantic_hash": "364c4110f3f3a74b52be689f2793c70b"
+  },
+  "/root/AuroraCraft/client/src/pages/admin/overview.tsx": {
+    "mtime": 1779956075.118514,
+    "ast_hash": "071e55aa97119c1ec29f3154dd024f38",
+    "semantic_hash": "071e55aa97119c1ec29f3154dd024f38"
+  },
+  "/root/AuroraCraft/client/src/pages/admin/projects.tsx": {
+    "mtime": 1779956075.118514,
+    "ast_hash": "5a14d547a720bdfc8b44e5b06f3f8e13",
+    "semantic_hash": "5a14d547a720bdfc8b44e5b06f3f8e13"
+  },
+  "/root/AuroraCraft/client/src/pages/admin/ai-runtime.tsx": {
+    "mtime": 1779956075.1184494,
+    "ast_hash": "b025a250c49a8510323a64ff1551e72f",
+    "semantic_hash": "b025a250c49a8510323a64ff1551e72f"
+  },
+  "/root/AuroraCraft/client/src/pages/admin/users.tsx": {
+    "mtime": 1779956075.118514,
+    "ast_hash": "45bfb5ca450a08bc9ea15f5d478e78a5",
+    "semantic_hash": "45bfb5ca450a08bc9ea15f5d478e78a5"
+  },
+  "/root/AuroraCraft/client/src/pages/admin/provider-keys.tsx": {
+    "mtime": 1779956075.118514,
+    "ast_hash": "3aff52d617234bfe3eed12ee90180335",
+    "semantic_hash": "3aff52d617234bfe3eed12ee90180335"
+  },
+  "/root/AuroraCraft/client/src/lib/api.ts": {
+    "mtime": 1779956075.1179817,
+    "ast_hash": "338ed70765ebdebddc7337a4133b0822",
+    "semantic_hash": "338ed70765ebdebddc7337a4133b0822"
+  },
+  "/root/AuroraCraft/client/src/lib/utils.ts": {
+    "mtime": 1779956075.118371,
+    "ast_hash": "bd7f1534696295bfbab094ac93447322",
+    "semantic_hash": "bd7f1534696295bfbab094ac93447322"
+  },
+  "/root/AuroraCraft/client/src/types/index.ts": {
+    "mtime": 1779956075.119849,
+    "ast_hash": "693dc7ccf2b3257d74a2e2308bb6e46e",
+    "semantic_hash": "693dc7ccf2b3257d74a2e2308bb6e46e"
+  },
+  "/root/AuroraCraft/client/src/routes/index.tsx": {
+    "mtime": 1779956075.119849,
+    "ast_hash": "f4fe1c939096761de96df0eeb034d65d",
+    "semantic_hash": "f4fe1c939096761de96df0eeb034d65d"
+  },
+  "/root/AuroraCraft/client/src/hooks/use-admin.ts": {
+    "mtime": 1779956075.1176639,
+    "ast_hash": "3c5ef5d770ecef918edb55d5c66605f7",
+    "semantic_hash": "3c5ef5d770ecef918edb55d5c66605f7"
+  },
+  "/root/AuroraCraft/client/src/hooks/use-auth.ts": {
+    "mtime": 1779956075.1179817,
+    "ast_hash": "2cfb6b4710173e9a6118cf34e60b17f4",
+    "semantic_hash": "2cfb6b4710173e9a6118cf34e60b17f4"
+  },
+  "/root/AuroraCraft/client/src/hooks/use-mobile.ts": {
+    "mtime": 1779956075.1179817,
+    "ast_hash": "e54b14ba2842aa89d338bf06d8c4f2a6",
+    "semantic_hash": "e54b14ba2842aa89d338bf06d8c4f2a6"
+  },
+  "/root/AuroraCraft/client/src/hooks/use-agent.ts": {
+    "mtime": 1779956075.1179817,
+    "ast_hash": "ae790acd58a69ecde8e8447f04f842b0",
+    "semantic_hash": "ae790acd58a69ecde8e8447f04f842b0"
+  },
+  "/root/AuroraCraft/client/src/hooks/use-community.ts": {
+    "mtime": 1779956075.1179817,
+    "ast_hash": "c680608c6bcb129d6298c3431435fe3b",
+    "semantic_hash": "c680608c6bcb129d6298c3431435fe3b"
+  },
+  "/root/AuroraCraft/client/src/hooks/use-projects.ts": {
+    "mtime": 1779956075.1179817,
+    "ast_hash": "5e025534ac478fbd635b4ef7fe052796",
+    "semantic_hash": "5e025534ac478fbd635b4ef7fe052796"
+  },
+  "/root/AuroraCraft/client/src/components/layout/admin-layout.tsx": {
+    "mtime": 1779956075.1175282,
+    "ast_hash": "4599584b5e9828c88567b16a22a4a323",
+    "semantic_hash": "4599584b5e9828c88567b16a22a4a323"
+  },
+  "/root/AuroraCraft/client/src/components/layout/app-layout.tsx": {
+    "mtime": 1779956075.1176639,
+    "ast_hash": "ae84b56b965d80504cb2a2580274ee00",
+    "semantic_hash": "ae84b56b965d80504cb2a2580274ee00"
+  },
+  "/root/AuroraCraft/client/src/components/layout/footer.tsx": {
+    "mtime": 1779956075.1176639,
+    "ast_hash": "63409418a9b2efd0442385157911036e",
+    "semantic_hash": "63409418a9b2efd0442385157911036e"
+  },
+  "/root/AuroraCraft/client/src/components/layout/root-layout.tsx": {
+    "mtime": 1779956075.1176639,
+    "ast_hash": "2a43da1fa282ac2fad54e2eac60694c2",
+    "semantic_hash": "2a43da1fa282ac2fad54e2eac60694c2"
+  },
+  "/root/AuroraCraft/client/src/components/layout/public-layout.tsx": {
+    "mtime": 1779956075.1176639,
+    "ast_hash": "87983876974d235f26eb4d79604d0d78",
+    "semantic_hash": "87983876974d235f26eb4d79604d0d78"
+  },
+  "/root/AuroraCraft/client/src/components/layout/navbar.tsx": {
+    "mtime": 1779956075.1176639,
+    "ast_hash": "35c474145bfb55e8787297b8f291ea78",
+    "semantic_hash": "35c474145bfb55e8787297b8f291ea78"
+  },
+  "/root/AuroraCraft/client/src/components/ui/glassy.tsx": {
+    "mtime": 1779956075.1176639,
+    "ast_hash": "17fd4362f38943d374d37d0058fb22b2",
+    "semantic_hash": "17fd4362f38943d374d37d0058fb22b2"
+  },
+  "/root/AuroraCraft/client/src/components/auth/protected-route.tsx": {
+    "mtime": 1779956075.1175282,
+    "ast_hash": "948cc60cdd3145405605aad3d33570af",
+    "semantic_hash": "948cc60cdd3145405605aad3d33570af"
+  },
+  "/root/AuroraCraft/pnpm-workspace.yaml": {
+    "mtime": 1779962610.0672615,
+    "ast_hash": "a6eb312498076a81e008212f5443a7f8",
+    "semantic_hash": ""
+  },
+  "/root/AuroraCraft/README.md": {
+    "mtime": 1779966854.2451353,
+    "ast_hash": "112239d40550ad4c54fc547b8aaef347",
+    "semantic_hash": ""
+  },
+  "/root/AuroraCraft/AGENTS.md": {
+    "mtime": 1779956075.1162283,
+    "ast_hash": "62c05a2bf20bf036a0b2633478663e64",
+    "semantic_hash": "62c05a2bf20bf036a0b2633478663e64"
+  },
+  "/root/AuroraCraft/client/index.html": {
+    "mtime": 1779956075.117149,
+    "ast_hash": "26e0c41afeba06162df6f64262913b96",
+    "semantic_hash": "26e0c41afeba06162df6f64262913b96"
+  },
+  "/root/AuroraCraft/client/public/favicon.svg": {
+    "mtime": 1779956075.117149,
+    "ast_hash": "06d29e6ae91a02cb59e2e6483388c7f6",
+    "semantic_hash": "06d29e6ae91a02cb59e2e6483388c7f6"
+  },
+  "/root/AuroraCraft/auroracraft.sh": {
+    "mtime": 1779964990.5306401,
+    "ast_hash": "a9550c9e194db4595a6d30c614a93d86",
+    "semantic_hash": ""
   }
 }

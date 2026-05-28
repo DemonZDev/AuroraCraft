@@ -22,7 +22,7 @@ export const tokenTransactions = pgTable('token_transactions', {
   amount: bigint('amount', { mode: 'number' }).notNull(),
   type: varchar('type', { length: 20 }).notNull(),
   description: text('description'),
-  sessionId: uuid('session_id').references(() => agentSessions.id),
+  sessionId: uuid('session_id').references(() => agentSessions.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 })
 

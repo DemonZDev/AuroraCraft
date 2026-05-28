@@ -2,6 +2,7 @@ import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { readdir, unlink, rm } from 'fs/promises'
 import { join } from 'path'
+import { getProjectConfigDirectory } from './provider-config.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -13,6 +14,9 @@ const execFileAsync = promisify(execFile)
  *   - JSON diffs: ~/.local/share/opencode/storage/session_diff/{sessionId}.json
  *   - Snapshots:  ~/.local/share/opencode/snapshot/{linkId}/
  *
+ * Since we set HOME to an isolated per-project directory, the DB lives at:
+ *   /var/lib/auroracraft/configs/{user}/{linkId}/.local/share/opencode/opencode.db
+ *
  * When a project is deleted from AuroraCraft, this removes all associated
  * OpenCode data to prevent storage leaks.
  *
@@ -23,8 +27,8 @@ export async function cleanupOpenCodeProject(
   systemUsername: string,
   projectDir: string,
 ): Promise<void> {
-  const homeDir = `/home/${systemUsername}`
-  const opencodeDataDir = `${homeDir}/.local/share/opencode`
+  const isolatedHome = getProjectConfigDirectory(projectDir)
+  const opencodeDataDir = `${isolatedHome}/.local/share/opencode`
   const dbPath = `${opencodeDataDir}/opencode.db`
 
   console.log(`[OpenCodeCleanup] Cleaning up OpenCode data for ${projectDir}`)
@@ -91,12 +95,20 @@ export async function cleanupOpenCodeProject(
  */
 export async function cleanupOpenCodeUser(systemUsername: string): Promise<void> {
   const homeDir = `/home/${systemUsername}`
-  const opencodeDataDir = `${homeDir}/.local/share/opencode`
+  const legacyDataDir = `${homeDir}/.local/share/opencode`
+  const isolatedConfigsDir = `/var/lib/auroracraft/configs/${systemUsername}`
 
   try {
-    await execFileAsync('sudo', ['rm', '-rf', opencodeDataDir])
-    console.log(`[OpenCodeCleanup] Deleted all OpenCode data for ${systemUsername}`)
+    await execFileAsync('sudo', ['rm', '-rf', legacyDataDir])
+    console.log(`[OpenCodeCleanup] Deleted legacy OpenCode data for ${systemUsername}`)
   } catch (err) {
-    console.warn(`[OpenCodeCleanup] Failed to delete OpenCode data for ${systemUsername}:`, err)
+    console.warn(`[OpenCodeCleanup] Failed to delete legacy OpenCode data for ${systemUsername}:`, err)
+  }
+
+  try {
+    await execFileAsync('sudo', ['rm', '-rf', isolatedConfigsDir])
+    console.log(`[OpenCodeCleanup] Deleted isolated OpenCode configs for ${systemUsername}`)
+  } catch (err) {
+    console.warn(`[OpenCodeCleanup] Failed to delete isolated OpenCode configs for ${systemUsername}:`, err)
   }
 }

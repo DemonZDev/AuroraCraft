@@ -85,6 +85,27 @@
       "when": 1779826000000,
       "tag": "0011_ai_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1779826000001,
+      "tag": "0012_per_user_provider_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1779826000002,
+      "tag": "0013_remove_admin_tier",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1779978000000,
+      "tag": "0014_fix_token_transactions_fk",
+      "breakpoints": true
     }
   ]
 }
