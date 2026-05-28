@@ -5,7 +5,7 @@ AI-powered Minecraft plugin development platform. Describe what you want and an 
 ## Features
 
 - **AI Plugin Generation** — Chat with an AI coding agent (OpenCode) that writes, edits, and scaffolds Minecraft plugins
-- **Multi-Model Support** — Choose from free AI models (DeepSeek V4 Flash Free, Nemotron 3 Super Free, Big Pickle)
+- **Multi-Model Support** — Choose from free AI models (DeepSeek V4 Flash Free, Nemotron 3 Super Free)
 - **Project Management** — Create, configure, and manage multiple plugin projects
 - **Real-Time Streaming** — Live streaming of AI responses with thinking blocks, file operations, and progress tracking
 - **Monaco Code Editor** — Built-in code editor with syntax highlighting and file tree navigation
@@ -602,11 +602,11 @@ SIGTERM → SIGKILL → Port released
 
 ### API Key Isolation (Per-Project)
 
-Provider API keys (Fireworks, Blueminds, Modal, Zen) are **never stored in the workspace tree**. They are isolated per-project to prevent exposure through the code editor:
+Provider API keys (Fireworks, Blueminds, Modal) are **never stored in the workspace tree**. They are isolated per-project to prevent exposure through the code editor:
 
 | Location | Contents | Permissions | Visibility |
 |----------|----------|-------------|------------|
-| `{projectDir}/opencode.json` | Minimal stub (`$schema`, `permission`, `tools`) | `644` | Workspace editor |
+| `{projectDir}/opencode.json` | Minimal stub (`$schema`, `permission`, `tools`, `model`) | `644` | Workspace editor |
 | `/var/lib/auroracraft/configs/{user}/{linkId}/.config/opencode/opencode.json` | Full provider config with real `apiKey` | `600` (user-only) | **Hidden from workspace** |
 | `/var/lib/auroracraft/configs/{user}/{linkId}/.local/share/opencode/` | Per-project SQLite DB & session data | `700` (user-only) | **Isolated per project** |
 
@@ -618,6 +618,33 @@ Provider API keys (Fireworks, Blueminds, Modal, Zen) are **never stored in the w
 5. Other Linux users cannot read the isolated config (Permission denied)
 
 **Result:** Even if a user opens `opencode.json` in the workspace editor, they only see the minimal stub — not the real API key.
+
+#### OpenCode Zen API Keys (Special Handling)
+
+OpenCode Zen is **not a separate external provider** — it's a built-in OpenCode feature. Zen models (e.g., `opencode/deepseek-v4-flash-free`) work in two modes:
+
+| Mode | API Key Required | How it works |
+|------|-----------------|--------------|
+| **Free tier** | No | Works out of the box with OpenCode's free models |
+| **Zen tier** | Yes | User's Zen API key is written to `~/.local/share/opencode/auth.json` |
+
+When a user has a Zen API key configured, the backend writes it to:
+```
+/var/lib/auroracraft/configs/{user}/{linkId}/.local/share/opencode/auth.json
+```
+
+Format:
+```json
+{
+  "opencode": {
+    "apiKey": "zen-api-key-here"
+  }
+}
+```
+
+OpenCode reads this auth file automatically. Without a Zen key, the model falls back to the free tier.
+
+**Important:** Zen models use the `opencode/{model_id}` format (e.g., `opencode/deepseek-v4-flash-free`), not a separate `zen/` provider prefix.
 
 ### Shared Caches
 
@@ -792,6 +819,33 @@ cat /home/auroracraft-{username}/{linkId}/opencode.json
 # Should contain the real apiKey (root or owner only)
 sudo cat /var/lib/auroracraft/configs/auroracraft-{username}/{linkId}/.config/opencode/opencode.json | grep apiKey
 ```
+
+### Zen model not working / "Model not found" error
+
+If you see an error like:
+
+```
+Model not found: opencode/opencode/deepseek-v4-flash-free
+```
+
+**Root cause:** The model ID was incorrectly prefixed with `opencode/opencode/` instead of `opencode/`.
+
+**Fix:** This has been fixed in the current code. The model ID is now correctly set to `opencode/deepseek-v4-flash-free`. Restart the server:
+
+```bash
+./auroracraft.sh restart
+```
+
+If the issue persists, verify the Zen auth file exists:
+
+```bash
+# Check Zen auth.json (only exists if user has Zen API key)
+sudo cat /var/lib/auroracraft/configs/auroracraft-{username}/{linkId}/.local/share/opencode/auth.json
+
+# Should show: {"opencode": {"apiKey": "..."}}
+```
+
+**Note:** Zen is not a separate provider. Zen models always use the `opencode/` prefix (e.g., `opencode/deepseek-v4-flash-free`). The Zen API key is stored in `auth.json`, not in the provider config.
 
 ### AI model returns "Provider not available"
 

@@ -12,9 +12,9 @@ import { authMiddleware } from '../middleware/auth.js'
 import { agentExecutor } from '../agents/executor.js'
 import { opencodeBridge, sessionEventBus } from '../bridges/index.js'
 import { processManager } from '../bridges/opencode-process-manager.js'
-import { AI_MODELS, getModelById, getProviderForModel, canUseModel, modelHasZenProvider } from '../config/ai-models.js'
+import { AI_MODELS, getModelById, getProviderForModel, canUseModel, modelCanUseZen } from '../config/ai-models.js'
 import { getUserTokens, hasEnoughTokens, deductTokens, estimateMessageCost, canAccessTier, getUserProviderKeys } from '../utils/token-service.js'
-import { generateProviderConfig, generateMinimalProjectConfig, writeProjectConfig, writeIsolatedProjectConfig } from '../utils/provider-config.js'
+import { generateProviderConfig, generateMinimalProjectConfig, writeProjectConfig, writeIsolatedProjectConfig, writeZenAuthJson } from '../utils/provider-config.js'
 import { readFile } from 'fs/promises'
 
 const createSessionSchema = z.object({
@@ -300,23 +300,28 @@ export async function agentRoutes(app: FastifyInstance) {
         })
       }
 
-      // Zen models require a Zen API key even if they have an opencode fallback
-      if (modelHasZenProvider(requestedModelId) && !userKeys.zen) {
-        return reply.status(503).send({
-          message: `You don't have a Zen API key configured. Please contact an administrator to set one up.`,
-          statusCode: 503,
-        })
-      }
-
       const provider = getProviderForModel(requestedModelId, requestedSpeed, userKeys)
       if (provider) {
-        resolvedModelId = `${provider.id}/${provider.modelId}`
+        // OpenCode provider model IDs already include the 'opencode/' prefix.
+        // External providers need the '{provider}/{model}' format.
+        resolvedModelId = provider.id === 'opencode'
+          ? provider.modelId
+          : `${provider.id}/${provider.modelId}`
       }
       if (!provider) {
         return reply.status(400).send({
           message: `Provider not available for ${modelDef.name} at ${requestedSpeed} speed`,
           statusCode: 400,
         })
+      }
+
+      // Write a MINIMAL project-level config (no secrets) into the workspace.
+      // This ensures the correct model ID is always set in the project config.
+      const projectConfig = generateMinimalProjectConfig(provider.id === 'opencode' ? provider.modelId : undefined)
+      try {
+        await writeProjectConfig(projectDir, projectConfig)
+      } catch (err) {
+        app.log.warn({ err, projectDir }, 'Failed to write project config')
       }
 
       if (provider.requiresApiKey) {
@@ -354,17 +359,12 @@ export async function agentRoutes(app: FastifyInstance) {
           const fullConfig = generateProviderConfig(modelDef, provider, userApiKey)
           await writeIsolatedProjectConfig(projectDir, fullConfig)
 
-          // Write a MINIMAL project-level config (no secrets) into the workspace.
-          // OpenCode will use the isolated HOME directory set at spawn time.
-          const projectConfig = generateMinimalProjectConfig(provider.id === 'opencode' ? provider.modelId : undefined)
-
           // Detect provider changes by comparing the old project config
           const oldConfigStr = await readFile(`${projectDir}/opencode.json`, 'utf8').catch(() => null)
           const oldProvider = oldConfigStr ? JSON.parse(oldConfigStr).provider : undefined
           const newProvider = fullConfig.provider
           const providerChanged = JSON.stringify(oldProvider) !== JSON.stringify(newProvider)
 
-          await writeProjectConfig(projectDir, projectConfig)
           if (providerChanged) {
             app.log.info({ projectDir, provider: provider.id }, 'Provider config changed — restarting OpenCode instance')
             await processManager.forceStop(projectDir)
@@ -372,6 +372,18 @@ export async function agentRoutes(app: FastifyInstance) {
           app.log.info({ projectDir, provider: provider.id, model: modelDef.id }, 'Wrote provider config')
         } catch (err) {
           app.log.warn({ err, projectDir }, 'Failed to write provider config')
+        }
+      }
+
+      // If this is a Zen-capable model and the user has a Zen API key,
+      // write the Zen key to auth.json so OpenCode uses Zen (higher rate limits).
+      // Without a Zen key, the model falls back to OpenCode's free tier.
+      if (modelCanUseZen(requestedModelId) && userKeys.zen) {
+        try {
+          await writeZenAuthJson(projectDir, userKeys.zen)
+          app.log.info({ projectDir, model: modelDef.id }, 'Wrote Zen auth.json')
+        } catch (err) {
+          app.log.warn({ err, projectDir }, 'Failed to write Zen auth.json')
         }
       }
     }
@@ -593,13 +605,10 @@ export async function agentRoutes(app: FastifyInstance) {
         requiresApiKey: p.requiresApiKey,
         hasKey: p.requiresApiKey ? !!userKeys[p.id] : true,
       })),
-      disabled: (m.minTier !== 'free' && m.providers.every(p => p.requiresApiKey && !userKeys[p.id])) ||
-        (modelHasZenProvider(m.id) && !userKeys.zen),
-      disabledReason: (m.minTier !== 'free' && m.providers.every(p => p.requiresApiKey && !userKeys[p.id]))
+      disabled: m.minTier !== 'free' && m.providers.every(p => p.requiresApiKey && !userKeys[p.id]),
+      disabledReason: m.minTier !== 'free' && m.providers.every(p => p.requiresApiKey && !userKeys[p.id])
         ? 'No API key configured for any provider'
-        : (modelHasZenProvider(m.id) && !userKeys.zen)
-          ? 'Zen API key required'
-          : undefined,
+        : undefined,
     }))
 
     return { models, tier, userKeys: Object.keys(userKeys) }

@@ -84,8 +84,8 @@ export function generateMinimalProjectConfig(modelId?: string): OpenCodeConfig {
     permission: 'allow',
     tools: { question: false },
   }
-  if (modelId && !modelId.includes('/')) {
-    // opencode internal models don't need a provider prefix
+  if (modelId) {
+    // OpenCode models use either 'model-id' or 'opencode/model-id' format
     config.model = modelId
   }
   return config
@@ -125,4 +125,26 @@ export async function writeIsolatedProjectConfig(
   const configPath = `${configDir}/opencode.json`
   await writeFile(configPath, JSON.stringify(config, null, 2), 'utf8')
   await chmod(configPath, 0o600)
+}
+
+/**
+ * Write the Zen API key to the OpenCode auth.json file.
+ * OpenCode stores provider credentials in ~/.local/share/opencode/auth.json.
+ * The Zen API key is stored under the "opencode" provider since Zen is
+ * a built-in OpenCode feature, not a separate external provider.
+ */
+export async function writeZenAuthJson(
+  projectDir: string,
+  zenApiKey: string,
+): Promise<void> {
+  const authDir = `${getProjectConfigDirectory(projectDir)}/.local/share/opencode`
+  await mkdir(authDir, { recursive: true })
+  const authPath = `${authDir}/auth.json`
+  const authData = {
+    opencode: {
+      apiKey: zenApiKey,
+    },
+  }
+  await writeFile(authPath, JSON.stringify(authData, null, 2), 'utf8')
+  await chmod(authPath, 0o600)
 }

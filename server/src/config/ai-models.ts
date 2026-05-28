@@ -1,4 +1,4 @@
-export type ProviderId = 'fireworks' | 'bluesminds' | 'modal' | 'opencode' | 'zen'
+export type ProviderId = 'fireworks' | 'bluesminds' | 'modal' | 'opencode'
 export type Speed = 'fast' | 'slow' | 'rate_limited'
 export type UserTier = 'free' | 'paid'
 
@@ -43,11 +43,6 @@ export const PROVIDER_CONFIG: Record<ProviderId, { name: string; baseUrl: string
     name: 'OpenCode',
     baseUrl: '',
     npmPackage: '',
-  },
-  zen: {
-    name: 'OpenCode Zen',
-    baseUrl: 'https://opencode.ai/zen/v1/chat/completions',
-    npmPackage: '@ai-sdk/openai-compatible',
   },
 }
 
@@ -144,7 +139,6 @@ export const AI_MODELS: AIModelDef[] = [
     name: 'DeepSeek V4 Flash',
     providers: [
       { id: 'opencode', speed: 'fast', modelId: 'opencode/deepseek-v4-flash-free', requiresApiKey: false },
-      { id: 'zen', speed: 'fast', modelId: 'deepseek-v4-flash-free', requiresApiKey: true },
     ],
     description: 'Fast free coding model with strong reasoning',
     pricing: { inputPer1M: 0, outputPer1M: 0 },
@@ -155,20 +149,8 @@ export const AI_MODELS: AIModelDef[] = [
     name: 'Nemotron 3 Super',
     providers: [
       { id: 'opencode', speed: 'fast', modelId: 'opencode/nemotron-3-super-free', requiresApiKey: false },
-      { id: 'zen', speed: 'fast', modelId: 'nemotron-3-super-free', requiresApiKey: true },
     ],
     description: 'NVIDIA free model optimized for coding',
-    pricing: { inputPer1M: 0, outputPer1M: 0 },
-    minTier: 'free',
-  },
-  {
-    id: 'opencode-big-pickle',
-    name: 'Big Pickle',
-    providers: [
-      { id: 'opencode', speed: 'fast', modelId: 'opencode/big-pickle', requiresApiKey: false },
-      { id: 'zen', speed: 'fast', modelId: 'big-pickle', requiresApiKey: true },
-    ],
-    description: 'Free general-purpose AI for coding tasks',
     pricing: { inputPer1M: 0, outputPer1M: 0 },
     minTier: 'free',
   },
@@ -210,8 +192,8 @@ export function canUseModel(modelId: string, tier: UserTier): boolean {
   return model.minTier === 'free'
 }
 
-export function modelHasZenProvider(modelId: string): boolean {
+export function modelCanUseZen(modelId: string): boolean {
   const model = getModelById(modelId)
   if (!model) return false
-  return model.providers.some(p => p.id === 'zen')
+  return model.providers.some(p => p.id === 'opencode') && model.id.startsWith('opencode-')
 }

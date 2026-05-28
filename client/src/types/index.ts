@@ -186,7 +186,6 @@ export interface TokenBalance {
 export const AI_MODELS: AIModel[] = [
   { id: 'opencode-deepseek-v4-flash-free', name: 'DeepSeek V4 Flash', description: 'Fast free coding model with strong reasoning', minTier: 'free', providers: [{ id: 'opencode', speed: 'fast', requiresApiKey: false }, { id: 'zen', speed: 'fast', requiresApiKey: true }] },
   { id: 'opencode-nemotron-3-super-free', name: 'Nemotron 3 Super', description: 'NVIDIA free model optimized for coding', minTier: 'free', providers: [{ id: 'opencode', speed: 'fast', requiresApiKey: false }, { id: 'zen', speed: 'fast', requiresApiKey: true }] },
-  { id: 'opencode-big-pickle', name: 'Big Pickle', description: 'Free general-purpose AI for coding tasks', minTier: 'free', providers: [{ id: 'opencode', speed: 'fast', requiresApiKey: false }, { id: 'zen', speed: 'fast', requiresApiKey: true }] },
   { id: 'glm-5.1', name: 'GLM-5.1', description: 'Zhipu GLM-5.1 frontier model (premium)', minTier: 'paid', providers: [{ id: 'fireworks', speed: 'fast', requiresApiKey: true }] },
   { id: 'glm-5.1-free', name: 'GLM-5.1', description: 'Zhipu GLM-5.1 frontier model (free, rate-limited)', minTier: 'free', providers: [{ id: 'modal', speed: 'rate_limited', requiresApiKey: true }] },
   { id: 'kimi-k2.6', name: 'Kimi K2.6', description: 'Moonshot Kimi K2.6 - SOTA coding', minTier: 'paid', providers: [{ id: 'fireworks', speed: 'fast', requiresApiKey: true }, { id: 'bluesminds', speed: 'slow', requiresApiKey: true }] },
