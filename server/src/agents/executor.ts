@@ -63,6 +63,7 @@ export class AgentExecutor {
             compiler: context.compiler,
             javaVersion: context.javaVersion,
             projectDirectory: context.projectDirectory,
+            firecrawlApiKey: context.firecrawlApiKey,
           },
         },
         (event) => {

@@ -191,7 +191,7 @@ export default function AdminUsersPage() {
     const [provider, ...rest] = newProviderKey.split(':')
     const apiKey = rest.join(':').trim()
     if (!provider || !apiKey) {
-      setProviderKeyError('Format: provider:api_key')
+      setProviderKeyError('Format: provider:api_key — e.g. fireworks:sk-xxx or firecrawl:fc-xxx')
       return
     }
     setAddingProviderKey(true)
@@ -611,7 +611,7 @@ function ProviderKeysModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div className="w-full max-w-lg rounded-lg border border-border bg-surface p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-lg font-semibold text-text mb-1">Provider API Keys — {username}</h2>
-        <p className="text-sm text-text-muted mb-4">Configure API keys for this user. Format: provider:api_key</p>
+        <p className="text-sm text-text-muted mb-4">Configure API keys for this user. Format: provider:api_key — e.g. fireworks:sk-xxx, bluesminds:bm-xxx, or firecrawl:fc-xxx</p>
 
         {error && (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/30">
@@ -624,7 +624,7 @@ function ProviderKeysModal({
             type="text"
             value={newKey}
             onChange={(e) => setNewKey(e.target.value)}
-            placeholder="fireworks:sk-xxx..."
+            placeholder="fireworks:sk-xxx or firecrawl:fc-xxx..."
             className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-text placeholder:text-text-dim focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           />
           <button

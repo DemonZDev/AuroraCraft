@@ -6,6 +6,7 @@ AI-powered Minecraft plugin development platform. Describe what you want and an 
 
 - **AI Plugin Generation** — Chat with an AI coding agent (OpenCode) that writes, edits, and scaffolds Minecraft plugins
 - **Multi-Model Support** — Choose from free AI models (DeepSeek V4 Flash Free, Nemotron 3 Super Free)
+- **Web Search via Firecrawl MCP** — Paid users get real-time web search, scraping, and crawling via Firecrawl's Model Context Protocol (MCP) server
 - **Project Management** — Create, configure, and manage multiple plugin projects
 - **Real-Time Streaming** — Live streaming of AI responses with thinking blocks, file operations, and progress tracking
 - **Monaco Code Editor** — Built-in code editor with syntax highlighting and file tree navigation
@@ -19,7 +20,7 @@ AI-powered Minecraft plugin development platform. Describe what you want and an 
 | --------- | ----------------------------------------------------------- |
 | Frontend  | React 19, Vite 7, TailwindCSS 4, React Router, TanStack Query, Zustand, Monaco Editor |
 | Backend   | Fastify 5, Drizzle ORM, PostgreSQL, WebSocket               |
-| AI Bridge | OpenCode (open-source AI coding agent)                       |
+| AI Bridge | OpenCode (open-source AI coding agent) + MCP servers          |
 | Review    | CodeRabbit CLI                                              |
 | Process   | PM2 (process manager with auto-restart)                      |
 | Language  | TypeScript (ES2024, strict mode)                             |
@@ -646,6 +647,27 @@ OpenCode reads this auth file automatically. Without a Zen key, the model falls 
 
 **Important:** Zen models use the `opencode/{model_id}` format (e.g., `opencode/deepseek-v4-flash-free`), not a separate `zen/` provider prefix.
 
+#### Firecrawl Search MCP (Paid Users Only)
+
+Firecrawl MCP provides web search, scraping, and crawling capabilities to the AI agent. It is a **paid-only feature** — admins must set a Firecrawl API key per user, and the user must be on the **paid tier**.
+
+| Condition | Result |
+|-----------|--------|
+| Paid user + Firecrawl API key configured | ✅ MCP server auto-registered on OpenCode startup; AI can search the web |
+| Paid user + no Firecrawl key | ❌ No search capability; normal code generation only |
+| Free user | ❌ Cannot have Firecrawl key assigned; admin gets 403 error |
+| Admin tries to downgrade paid→free while key exists | ❌ Blocked (HTTP 409) — must delete the Firecrawl key first |
+
+**How it works:**
+1. Admin adds `firecrawl:fc-xxx` key for a paid user in the Admin Panel → Users → API Keys
+2. When the user sends any AI message, the backend checks their tier
+3. If paid + key exists, the backend calls OpenCode's HTTP API (`POST /mcp`) to register `firecrawl-mcp` on the running instance
+4. OpenCode connects to Firecrawl's MCP server, exposing 20+ tools (search, scrape, crawl, map, extract)
+5. The AI agent can now invoke `firecrawl_search`, `firecrawl_scrape`, etc. during conversations
+6. If the key is removed, the backend calls `POST /mcp/firecrawl/disconnect` to clean up
+
+**Note:** Firecrawl MCP is **not** configured in `opencode.json` — it is registered dynamically via the OpenCode HTTP API after the instance starts. This prevents config validation errors (`Unrecognized key: mcpServers`).
+
 ### Shared Caches
 
 | Cache | Location | Per-User Symlink |
@@ -907,6 +929,85 @@ If you still see a 30-second error, restart the server to load the latest code:
 ./auroracraft.sh restart
 ```
 
+### Firecrawl MCP not working / "Executable not found in $PATH: npx"
+
+If OpenCode logs show:
+
+```
+ERROR service=mcp key=firecrawl command=["npx","-y","firecrawl-mcp"] error=Executable not found in $PATH: "npx"
+```
+
+**Root cause:** OpenCode spawns the MCP server as the Linux user (`auroracraft-{username}`), but `npx` was installed in `/root/.nvm` and is not accessible to other users.
+
+**Fix:** Ensure `/root/.nvm` directories are traversable by all users, and reinstall npm if the `npx` symlink is broken:
+
+```bash
+# Make /root/.nvm traversable for other Linux users
+chmod o+x /root /root/.nvm /root/.nvm/versions /root/.nvm/versions/node /root/.nvm/versions/node/v24.16.0 /root/.nvm/versions/node/v24.16.0/bin
+chmod -R o+rx /root/.nvm/versions/node/v24.16.0/lib/node_modules
+
+# Reinstall npm if npx symlink is corrupted
+/root/.nvm/versions/node/v24.16.0/bin/node /root/.nvm/versions/node/v24.16.0/bin/npm install -g npm@11
+```
+
+Then restart:
+
+```bash
+./auroracraft.sh restart
+```
+
+### Firecrawl MCP shows "ConfigInvalidError: Unrecognized key: mcpServers"
+
+**Root cause:** An older version of the code wrote `mcpServers` into `opencode.json`, which OpenCode's schema rejects.
+
+**Fix:** The current code registers MCP servers via the OpenCode HTTP API (`POST /mcp`) instead of the config file. Clean any stale configs and restart:
+
+```bash
+# Remove stale mcpServers from all isolated configs
+find /var/lib/auroracraft/configs -name "opencode.json" -exec \
+  python3 -c "
+import json, sys
+for f in sys.argv[1:]:
+    try:
+        with open(f, 'r') as fh: d = json.load(fh)
+        if 'mcpServers' in d:
+            del d['mcpServers']
+            with open(f, 'w') as fh: json.dump(d, fh, indent=2)
+            print(f'Fixed: {f}')
+    except: pass
+" {} +
+
+./auroracraft.sh restart
+```
+
+### Web search returns no results / AI says it cannot search
+
+1. **Verify the user is on paid tier:** Free users cannot use Firecrawl MCP.
+2. **Verify the Firecrawl key is set:** Admin Panel → Users → API Keys → should show `firecrawl: fc-xxx`.
+3. **Check OpenCode logs for MCP connection:**
+   ```bash
+   sudo cat /var/lib/auroracraft/configs/auroracraft-{username}/{linkId}/.local/share/opencode/log/*.log | grep -i "firecrawl"
+   ```
+   Expected: `service=mcp key=firecrawl toolCount=20 create() successfully created client`
+4. **Test the Firecrawl API key directly:**
+   ```bash
+   curl -H "Authorization: Bearer fc-YOUR_KEY" https://api.firecrawl.dev/v1/scrape -d '{"url":"https://example.com"}'
+   ```
+
+### Admin cannot downgrade user to free tier
+
+If you see:
+
+```
+Cannot downgrade to free tier. User has paid-only API keys configured for: firecrawl. Delete these keys first.
+```
+
+This is by design. Firecrawl is a paid-only provider. Remove the Firecrawl key first:
+
+1. Admin Panel → Users → click the user
+2. API Keys → delete `firecrawl`
+3. Then change tier to **free**
+
 ---
 
 ## Project Structure
@@ -926,11 +1027,15 @@ AuroraCraft/
 │   ├── drizzle/              # SQL migration files
 │   ├── src/
 │   │   ├── agents/           # AI agent execution logic
-│   │   ├── bridges/          # OpenCode bridge (SSE streaming)
+│   │   ├── bridges/          # OpenCode bridge (SSE streaming) + MCP integration
 │   │   ├── db/               # Database connection, schema, migrations, seed
 │   │   ├── middleware/       # Authentication middleware
 │   │   ├── plugins/          # Fastify plugins (CORS, cookies, WebSocket)
 │   │   ├── routes/           # API routes (auth, projects, agents, admin)
+│   │   ├── utils/            # Provider config, token service, MCP helpers
+│   │   │   ├── opencode-mcp.ts        # OpenCode MCP HTTP API helpers (add/remove/list)
+│   │   │   ├── provider-config.ts     # Per-project isolated config generation
+│   │   │   └── token-service.ts       # Token balance & cost estimation
 │   │   └── index.ts          # Server entry point
 │   ├── drizzle.config.ts
 │   └── package.json

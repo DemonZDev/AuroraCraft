@@ -148,3 +148,5 @@ export async function writeZenAuthJson(
   await writeFile(authPath, JSON.stringify(authData, null, 2), 'utf8')
   await chmod(authPath, 0o600)
 }
+
+

@@ -16,6 +16,7 @@ const PROVIDERS = [
   { id: 'fireworks', label: 'Fireworks AI' },
   { id: 'bluesminds', label: 'Bluesminds' },
   { id: 'modal', label: 'Modal' },
+  { id: 'firecrawl', label: 'Firecrawl MCP (Search)' },
 ]
 
 export default function AdminProviderKeysPage() {

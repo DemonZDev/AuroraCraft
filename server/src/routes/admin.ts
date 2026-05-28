@@ -200,7 +200,7 @@ export async function adminRoutes(app: FastifyInstance) {
         .select({ provider: providerApiKeys.provider })
         .from(providerApiKeys)
         .where(eq(providerApiKeys.userId, id))
-      const paidOnlyProviders = ['fireworks', 'bluesminds']
+      const paidOnlyProviders = ['fireworks', 'bluesminds', 'firecrawl']
       const blockingKeys = keys.filter(k => paidOnlyProviders.includes(k.provider))
       if (blockingKeys.length > 0) {
         const providers = blockingKeys.map(k => k.provider).join(', ')
@@ -251,6 +251,18 @@ export async function adminRoutes(app: FastifyInstance) {
 
     if (!provider || !apiKey) {
       return reply.status(400).send({ message: 'Provider and API key are required', statusCode: 400 })
+    }
+
+    // Paid-only providers require user to be on paid tier
+    const paidOnlyProviders = ['fireworks', 'bluesminds', 'firecrawl']
+    if (paidOnlyProviders.includes(provider)) {
+      const [user] = await db.select({ tier: users.tier }).from(users).where(eq(users.id, id)).limit(1)
+      if (!user || user.tier !== 'paid') {
+        return reply.status(403).send({
+          message: `Cannot add ${provider} API key. User must be on paid tier to use paid-only providers.`,
+          statusCode: 403,
+        })
+      }
     }
 
     const [existing] = await db

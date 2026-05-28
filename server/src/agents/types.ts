@@ -20,6 +20,7 @@ export interface AgentExecutionContext {
   javaVersion?: string
   projectDirectory?: string
   userHomeDir?: string
+  firecrawlApiKey?: string
 }
 
 export interface AgentExecutionResult {

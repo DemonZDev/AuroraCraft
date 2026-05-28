@@ -386,6 +386,8 @@ export async function agentRoutes(app: FastifyInstance) {
           app.log.warn({ err, projectDir }, 'Failed to write Zen auth.json')
         }
       }
+
+
     }
 
     // Save the user message
@@ -471,6 +473,7 @@ export async function agentRoutes(app: FastifyInstance) {
         javaVersion: project.javaVersion,
         projectDirectory: projectDir,
         userHomeDir: `/home/auroracraft-${username}`,
+        firecrawlApiKey: userTier === 'paid' ? userKeys.firecrawl : undefined,
       },
       {
         onOutput: (content) => { app.log.debug({ sessionId }, `Agent output: ${content.substring(0, 100)}`) },

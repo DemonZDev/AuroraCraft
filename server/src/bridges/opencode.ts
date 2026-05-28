@@ -901,6 +901,27 @@ export class OpenCodeBridge implements BridgeInterface {
       }
     }
 
+    // Configure Firecrawl MCP server if the user has an API key
+    if (task.context?.firecrawlApiKey) {
+      try {
+        const { addMCPServer, buildFirecrawlMCPConfig } = await import('../utils/opencode-mcp.js')
+        const mcpConfig = buildFirecrawlMCPConfig(task.context.firecrawlApiKey)
+        await addMCPServer(baseUrl, 'firecrawl', mcpConfig)
+        console.log('[OpenCode] Added Firecrawl MCP server')
+      } catch (err) {
+        console.warn('[OpenCode] Failed to add Firecrawl MCP server:', err instanceof Error ? err.message : err)
+      }
+    } else {
+      // Disconnect stale Firecrawl MCP if key was removed
+      try {
+        const { disconnectMCPServer } = await import('../utils/opencode-mcp.js')
+        await disconnectMCPServer(baseUrl, 'firecrawl')
+        console.log('[OpenCode] Disconnected stale Firecrawl MCP server')
+      } catch (err) {
+        // Non-fatal: server might not exist
+      }
+    }
+
     try {
       console.log('[OpenCode] Starting stream for session:', task.sessionId, 'project:', task.projectId, 'url:', baseUrl)
       onEvent({ type: 'status', content: 'Connecting to OpenCode...', timestamp: new Date().toISOString() })
