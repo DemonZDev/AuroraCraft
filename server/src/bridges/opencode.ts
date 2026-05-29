@@ -780,8 +780,8 @@ export class OpenCodeBridge implements BridgeInterface {
     return this.streamResponse(task, () => {})
   }
 
-  async createOrResolveSession(baseUrl: string, directory: string, title?: string, existingId?: string): Promise<string> {
-    if (existingId) {
+  async createOrResolveSession(baseUrl: string, directory: string, title?: string, existingId?: string, forceNew?: boolean): Promise<string> {
+    if (!forceNew && existingId) {
       try {
         const res = await fetch(`${baseUrl}/session/${existingId}`, {
           method: 'GET',
@@ -792,7 +792,7 @@ export class OpenCodeBridge implements BridgeInterface {
     }
 
     // Try to find existing session by title (project link name)
-    if (title) {
+    if (!forceNew && title) {
       try {
         const res = await fetch(`${baseUrl}/session`, {
           method: 'GET',
@@ -859,7 +859,7 @@ export class OpenCodeBridge implements BridgeInterface {
     }
   }
 
-  async sendPromptAsync(baseUrl: string, sessionId: string, prompt: string, model?: string): Promise<void> {
+  async sendPromptAsync(baseUrl: string, sessionId: string, prompt: string, model?: string, maxOutputTokens?: number): Promise<void> {
     const body: Record<string, unknown> = {
       parts: [{ type: 'text', text: prompt }],
     }
@@ -869,6 +869,12 @@ export class OpenCodeBridge implements BridgeInterface {
       const modelID = rest.join('/')
       body.model = { providerID, modelID }
     }
+
+    if (maxOutputTokens !== undefined && maxOutputTokens > 0) {
+      body.maxOutputTokens = maxOutputTokens
+    }
+
+    console.log('[OpenCode] Sending prompt with maxOutputTokens:', maxOutputTokens)
 
     const res = await fetch(`${baseUrl}/session/${sessionId}/prompt_async`, {
       method: 'POST',
@@ -1092,7 +1098,7 @@ export class OpenCodeBridge implements BridgeInterface {
       }
 
       console.log('[OpenCode] Sending prompt to session:', opencodeSessionId, 'baseline msgs:', baselineAssistantCount)
-      await this.sendPromptAsync(baseUrl, opencodeSessionId, contextPrompt, task.context?.model)
+      await this.sendPromptAsync(baseUrl, opencodeSessionId, contextPrompt, task.context?.model, task.context?.maxOutputTokens)
       console.log('[OpenCode] Prompt sent successfully')
 
       // Start permission polling to detect stuck permissions
@@ -1303,7 +1309,11 @@ export class OpenCodeBridge implements BridgeInterface {
     // 1. Force-stop any running OpenCode instance for this project
     await processManager.forceStop(projectDir)
 
-    // 2. Clean up SQLite DB and filesystem artifacts
+    // 2. Force-stop any running LiteLLM proxy for this project
+    const { litellmProcessManager } = await import('./litellm-process-manager.js')
+    await litellmProcessManager.forceStop(projectDir)
+
+    // 3. Clean up SQLite DB and filesystem artifacts
     const { cleanupOpenCodeProject } = await import('../utils/opencode-cleanup.js')
     await cleanupOpenCodeProject(systemUsername, projectDir)
   }

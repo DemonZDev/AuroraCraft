@@ -13,8 +13,10 @@ import { agentExecutor } from '../agents/executor.js'
 import { opencodeBridge, sessionEventBus } from '../bridges/index.js'
 import { processManager } from '../bridges/opencode-process-manager.js'
 import { AI_MODELS, getModelById, getProviderForModel, canUseModel, modelCanUseZen } from '../config/ai-models.js'
-import { getUserTokens, hasEnoughTokens, deductTokens, estimateMessageCost, canAccessTier, getUserProviderKeys } from '../utils/token-service.js'
-import { generateProviderConfig, generateMinimalProjectConfig, writeProjectConfig, writeIsolatedProjectConfig, writeZenAuthJson } from '../utils/provider-config.js'
+import { getUserTokens, hasEnoughTokens, deductTokens, estimateMessageCost, canAccessTier, getUserProviderKeys, calculateMaxOutputTokens, MIN_PREMIUM_BALANCE } from '../utils/token-service.js'
+import { generateProviderConfig, generateLiteLLMProviderConfig, generateMinimalProjectConfig, writeProjectConfig, writeIsolatedProjectConfig, writeZenAuthJson } from '../utils/provider-config.js'
+import { generateLiteLLMConfig, writeLiteLLMConfig } from '../utils/litellm-config.js'
+import { litellmProcessManager } from '../bridges/litellm-process-manager.js'
 import { readFile } from 'fs/promises'
 
 const createSessionSchema = z.object({
@@ -283,6 +285,10 @@ export async function agentRoutes(app: FastifyInstance) {
     let estimatedCost = 0
     let providerId: string | undefined
     let modelDef: ReturnType<typeof getModelById> = undefined
+    let litellmUrl: string | undefined
+    let providerChanged = false
+    let deductResult: { deducted: number; remainingBalance: number; balanceExhausted: boolean } | undefined
+    let maxOutputTokens: number | undefined
 
     const [user] = await db.select().from(users).where(eq(users.id, request.user!.id)).limit(1)
     const userTier = user?.tier ?? 'free'
@@ -319,15 +325,6 @@ export async function agentRoutes(app: FastifyInstance) {
         })
       }
 
-      // Write a MINIMAL project-level config (no secrets) into the workspace.
-      // This ensures the correct model ID is always set in the project config.
-      const projectConfig = generateMinimalProjectConfig(provider.id === 'opencode' ? provider.modelId : undefined)
-      try {
-        await writeProjectConfig(projectDir, projectConfig)
-      } catch (err) {
-        app.log.warn({ err, projectDir }, 'Failed to write project config')
-      }
-
       if (provider.requiresApiKey) {
         const userApiKey = userKeys[provider.id]
 
@@ -339,6 +336,14 @@ export async function agentRoutes(app: FastifyInstance) {
         }
 
         if (modelDef.minTier !== 'free') {
+          const currentBalance = await getUserTokens(request.user!.id)
+          if (currentBalance < MIN_PREMIUM_BALANCE) {
+            return reply.status(402).send({
+              message: `Your token balance is too low for premium models. Minimum required: ${MIN_PREMIUM_BALANCE} tokens. You have ${currentBalance} tokens. Please purchase more tokens or use a free model.`,
+              statusCode: 402,
+            })
+          }
+
           estimatedCost = estimateMessageCost(parsed.data.content, modelDef, provider.id)
           const hasTokens = await hasEnoughTokens(request.user!.id, estimatedCost)
           if (!hasTokens) {
@@ -348,32 +353,72 @@ export async function agentRoutes(app: FastifyInstance) {
             })
           }
 
-          await deductTokens(
+          deductResult = await deductTokens(
             request.user!.id,
             estimatedCost,
             `Pre-charge for ${modelDef.name} (${provider.id})`,
             sessionId,
           )
+          if (deductResult.deducted < estimatedCost) {
+            app.log.warn({ userId: request.user!.id, requested: estimatedCost, deducted: deductResult.deducted, remaining: deductResult.remainingBalance }, 'Partial token deduction — race condition or concurrent usage')
+          }
         }
 
+    // Calculate max output tokens based on user's total available balance
+    // so generation is hard-capped and cannot exceed what they can afford
+    if (modelDef) {
+      const totalAvailableBalance = (deductResult?.deducted ?? 0) + (deductResult?.remainingBalance ?? await getUserTokens(request.user!.id))
+      maxOutputTokens = calculateMaxOutputTokens(
+        totalAvailableBalance,
+        parsed.data.content,
+        modelDef,
+        provider?.id,
+      )
+      app.log.info({ userId: request.user!.id, maxOutputTokens, totalAvailableBalance, model: modelDef.id }, 'Calculated max output tokens')
+    }
+
+    let litellmUrl: string | undefined
+    let litellmMasterKey: string | undefined
+
         try {
+          // For premium external providers, route through LiteLLM Proxy instead of
+          // hitting the provider directly. LiteLLM enforces per-project budget
+          // (converted from tokens → USD) and provides unified model routing.
+          if (provider.id !== 'opencode') {
+            const userTokenBalance = await getUserTokens(request.user!.id)
+            const llmConfig = await generateLiteLLMConfig(projectDir, AI_MODELS, userKeys, userTokenBalance)
+            const configPath = await writeLiteLLMConfig(projectDir, llmConfig)
+            litellmUrl = await litellmProcessManager.acquire({ directory: projectDir, configPath })
+            litellmMasterKey = llmConfig.general_settings.master_key
+            // When routing through LiteLLM, the resolved model ID must include
+            // the provider prefix ('openai/') so the workspace config matches the
+            // isolated config and the bridge sends the correct provider/model pair.
+            resolvedModelId = `openai/${modelDef.id}`
+            app.log.info({ projectDir, litellmUrl, model: modelDef.id }, 'Started LiteLLM proxy for project')
+          }
+
           // Write the FULL provider config (with API key) to an isolated
           // per-project directory outside the workspace tree. Root-only 600
           // permissions prevent users from extracting keys via the code editor.
-          const fullConfig = generateProviderConfig(modelDef, provider, userApiKey)
+          let fullConfig
+          if (litellmUrl && litellmMasterKey) {
+            fullConfig = generateLiteLLMProviderConfig(modelDef, litellmUrl, litellmMasterKey)
+          } else {
+            fullConfig = generateProviderConfig(modelDef, provider, userApiKey)
+          }
           await writeIsolatedProjectConfig(projectDir, fullConfig)
 
           // Detect provider changes by comparing the old project config
           const oldConfigStr = await readFile(`${projectDir}/opencode.json`, 'utf8').catch(() => null)
           const oldProvider = oldConfigStr ? JSON.parse(oldConfigStr).provider : undefined
           const newProvider = fullConfig.provider
-          const providerChanged = JSON.stringify(oldProvider) !== JSON.stringify(newProvider)
+          providerChanged = JSON.stringify(oldProvider) !== JSON.stringify(newProvider)
 
           if (providerChanged) {
             app.log.info({ projectDir, provider: provider.id }, 'Provider config changed — restarting OpenCode instance')
             await processManager.forceStop(projectDir)
           }
-          app.log.info({ projectDir, provider: provider.id, model: modelDef.id }, 'Wrote provider config')
+          app.log.info({ projectDir, provider: provider.id, model: modelDef.id, viaLiteLLM: !!litellmUrl }, 'Wrote provider config')
         } catch (err) {
           app.log.warn({ err, projectDir }, 'Failed to write provider config')
         }
@@ -382,6 +427,16 @@ export async function agentRoutes(app: FastifyInstance) {
       // If this is a Zen-capable model and the user has a Zen API key,
       // write the Zen key to auth.json so OpenCode uses Zen (higher rate limits).
       // Without a Zen key, the model falls back to OpenCode's free tier.
+      // Write a MINIMAL project-level config (no secrets) into the workspace.
+      // This ensures the correct model ID is always set in the project config.
+      // Must be written AFTER LiteLLM routing updates resolvedModelId.
+      const projectConfig = generateMinimalProjectConfig(resolvedModelId)
+      try {
+        await writeProjectConfig(projectDir, projectConfig)
+      } catch (err) {
+        app.log.warn({ err, projectDir }, 'Failed to write project config')
+      }
+
       if (modelCanUseZen(requestedModelId) && userKeys.zen) {
         try {
           await writeZenAuthJson(projectDir, userKeys.zen)
@@ -426,6 +481,15 @@ export async function agentRoutes(app: FastifyInstance) {
 
       // Pre-create or resolve the OpenCode session so the SSE endpoint can subscribe immediately
       opencodeSessionId = session.opencodeSessionId ?? undefined
+
+      // When provider config changes (e.g., switching from direct provider to
+      // LiteLLM), the old session was created with the old model/provider settings.
+      // Force a new OpenCode session so it picks up the new config.
+      if (providerChanged) {
+        app.log.info({ sessionId, projectDir }, 'Provider changed — forcing new OpenCode session')
+        opencodeSessionId = undefined
+      }
+
       if (instanceUrl) {
         try {
           opencodeSessionId = await opencodeBridge.createOrResolveSession(
@@ -433,6 +497,7 @@ export async function agentRoutes(app: FastifyInstance) {
             projectDir,
             project.linkId ?? project.name,
             opencodeSessionId,
+            providerChanged,
           )
 
           // Save opencodeSessionId early so SSE endpoint can pick it up
@@ -466,7 +531,7 @@ export async function agentRoutes(app: FastifyInstance) {
         projectId,
         prompt: parsed.data.content,
         bridgeName,
-        model: resolvedModelId ?? parsed.data.model,
+        model: parsed.data.model ?? resolvedModelId,
         speed: parsed.data.speed,
         opencodeSessionId: bridgeName === 'opencode' ? opencodeSessionId : undefined,
         kiroSessionId: bridgeName === 'kiro' ? (session.kiroSessionId ?? undefined) : undefined,
@@ -483,6 +548,8 @@ export async function agentRoutes(app: FastifyInstance) {
         userId: request.user!.id,
         estimatedCost,
         providerId,
+        litellmUrl,
+        maxOutputTokens,
       },
       {
         onOutput: (content) => { app.log.debug({ sessionId }, `Agent output: ${content.substring(0, 100)}`) },

@@ -4,13 +4,14 @@ import type { AIModelDef, ModelProvider, ProviderId } from '../config/ai-models.
 import { PROVIDER_CONFIG } from '../config/ai-models.js'
 
 export interface OpenCodeProviderConfig {
-  npm: string
-  name: string
+  npm?: string
+  name?: string
   options: {
-    baseURL: string
-    apiKey: string
+    baseURL?: string
+    apiKey?: string
+    [key: string]: unknown
   }
-  models: Record<string, { name: string }>
+  models?: Record<string, { name: string }>
 }
 
 export interface OpenCodeConfig {
@@ -69,7 +70,9 @@ export function generateProviderConfig(
     },
   }
 
-  config.model = `${provider.id}/${provider.modelId}`
+  // When only one provider is configured, OpenCode resolves models by the
+  // key in the provider's models list (no providerId/ prefix needed).
+  config.model = provider.modelId
 
   return config
 }
@@ -147,6 +150,42 @@ export async function writeZenAuthJson(
   }
   await writeFile(authPath, JSON.stringify(authData, null, 2), 'utf8')
   await chmod(authPath, 0o600)
+}
+
+/**
+ * Generate an OpenCode provider config that routes through a local LiteLLM Proxy
+ * instead of hitting the upstream provider directly. This enables per-project
+ * dynamic routing, custom pricing, and budget enforcement.
+ */
+export function generateLiteLLMProviderConfig(
+  model: AIModelDef,
+  litellmUrl: string,
+  masterKey: string,
+): OpenCodeConfig {
+  // Use OpenCode's built-in `openai` provider with a custom baseURL.
+  // This avoids the known bug with @ai-sdk/openai-compatible where options
+  // are not forwarded (https://github.com/anomalyco/opencode/issues/5674).
+  const config: OpenCodeConfig = {
+    $schema: 'https://opencode.ai/config.json',
+    permission: 'allow',
+    tools: { question: false },
+    provider: {
+      openai: {
+        options: {
+          baseURL: `${litellmUrl}/v1`,
+          apiKey: masterKey,
+        },
+        models: {
+          [model.id]: {
+            name: model.name,
+          },
+        },
+      },
+    },
+    model: `openai/${model.id}`,
+  }
+
+  return config
 }
 
 

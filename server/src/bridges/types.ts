@@ -16,6 +16,8 @@ export interface BridgeTask {
     userHomeDir?: string
     username?: string
     firecrawlApiKey?: string
+    litellmUrl?: string
+    maxOutputTokens?: number
   }
 }
 

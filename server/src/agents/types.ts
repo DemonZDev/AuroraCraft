@@ -24,6 +24,8 @@ export interface AgentExecutionContext {
   userId?: string
   estimatedCost?: number
   providerId?: string
+  litellmUrl?: string
+  maxOutputTokens?: number
 }
 
 export interface AgentExecutionResult {

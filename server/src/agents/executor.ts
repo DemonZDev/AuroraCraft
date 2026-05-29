@@ -65,6 +65,8 @@ export class AgentExecutor {
             javaVersion: context.javaVersion,
             projectDirectory: context.projectDirectory,
             firecrawlApiKey: context.firecrawlApiKey,
+            litellmUrl: context.litellmUrl,
+            maxOutputTokens: context.maxOutputTokens,
           },
         },
         (event) => {
@@ -130,7 +132,7 @@ export class AgentExecutor {
               modelDef,
               context.providerId as any,
             )
-            await reconcileTokens(
+            const reconcileResult = await reconcileTokens(
               context.userId,
               context.estimatedCost,
               actualCost,
@@ -138,6 +140,9 @@ export class AgentExecutor {
               context.providerId,
               context.sessionId,
             )
+            if (reconcileResult.balanceExhausted) {
+              await this.addLog(context.sessionId, 'warning', 'Token balance exhausted during generation. AI output may have been truncated to available credits.')
+            }
           }
         } catch (reconcileErr) {
           console.warn('[AgentExecutor] Token reconciliation failed:', reconcileErr)

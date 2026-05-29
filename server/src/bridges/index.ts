@@ -3,6 +3,7 @@ import { OpenCodeBridge } from './opencode.js'
 import { KiroBridge } from './kiro.js'
 import { processManager } from './opencode-process-manager.js'
 import { kiroProcessManager } from './kiro-process-manager.js'
+import { litellmProcessManager } from './litellm-process-manager.js'
 import { sessionEventBus } from './session-event-bus.js'
 
 class BridgeRegistry {
@@ -44,12 +45,14 @@ bridgeRegistry.register(kiroBridge)
 process.on('SIGTERM', () => {
   processManager.shutdown().catch(() => {})
   kiroProcessManager.shutdown()
+  litellmProcessManager.shutdown().catch(() => {})
 })
 process.on('SIGINT', () => {
   processManager.shutdown().catch(() => {})
   kiroProcessManager.shutdown()
+  litellmProcessManager.shutdown().catch(() => {})
 })
 
-export { processManager, kiroProcessManager, sessionEventBus }
+export { processManager, kiroProcessManager, litellmProcessManager, sessionEventBus }
 export type { BridgeInterface, BridgeTask, BridgeResult, BridgeStreamEvent, MessagePart, TodoItem, StreamEvent, StreamTodoItem } from './types.js'
 export { SubscriptionManager } from './opencode.js'
