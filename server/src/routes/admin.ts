@@ -7,7 +7,7 @@ import { projects } from '../db/schema/projects.js'
 import { agentSessions } from '../db/schema/agent-sessions.js'
 import { providerApiKeys } from '../db/schema/provider-api-keys.js'
 import { authMiddleware, adminGuard } from '../middleware/auth.js'
-import { grantTokens } from '../utils/token-service.js'
+import { grantTokens, getUserTokens, deductTokens } from '../utils/token-service.js'
 
 export async function adminRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authMiddleware)
@@ -226,6 +226,29 @@ export async function adminRoutes(app: FastifyInstance) {
 
     await grantTokens(id, amount, description || 'Admin grant', request.user!.id)
     return { success: true, granted: amount }
+  })
+
+  // Admin deduct tokens from a user
+  app.post('/api/admin/users/:id/tokens/deduct', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { amount, description } = request.body as { amount: number; description?: string }
+
+    if (!amount || amount <= 0) {
+      return reply.status(400).send({ message: 'Amount must be positive', statusCode: 400 })
+    }
+
+    const currentBalance = await getUserTokens(id)
+    if (amount > currentBalance) {
+      return reply.status(400).send({
+        message: `Cannot deduct ${amount} tokens. User only has ${currentBalance} tokens available.`,
+        statusCode: 400,
+        currentBalance,
+        requestedAmount: amount,
+      })
+    }
+
+    await deductTokens(id, amount, description || `Admin deduction by ${request.user!.username}`, undefined)
+    return { success: true, deducted: amount, remainingBalance: currentBalance - amount }
   })
 
   // Per-user provider key management

@@ -551,7 +551,20 @@ GITHUB_CALLBACK_URL=https://codeaurora.online/api/auth/github/callback
 3. In AuroraCraft Admin Panel → Users → click "Grant Access" on any user
 4. Paste the API key
 
-### 4. Set Up HTTPS / Reverse Proxy (Recommended for Production)
+### 4. Configure User Token Balances (Optional)
+
+New users start with 0 AI tokens. To let users access premium models, administrators must grant tokens via the Admin Panel:
+
+1. Go to **Admin Panel → Users**
+2. Find the user in the list
+3. Click **+Grant** next to the token balance column
+4. Enter the number of tokens to grant (1 USD = 1000 tokens)
+
+Administrators can also **-Deduct** tokens from any user. If the deduction amount exceeds the user's current balance, the operation is rejected with a clear error message.
+
+**Note:** Free models (DeepSeek V4 Flash Free, Nemotron 3 Super Free) do not consume tokens and can be used without any token balance.
+
+### 5. Set Up HTTPS / Reverse Proxy (Recommended for Production)
 
 Use Nginx or Caddy to terminate SSL and proxy to port 3000:
 
@@ -592,7 +605,7 @@ CLIENT_URL=https://your-domain.com
 
 Restart: `./auroracraft.sh restart`
 
-### 5. Firewall
+### 6. Firewall
 
 ```bash
 ufw allow 22/tcp
@@ -741,6 +754,16 @@ Tokens = ceil(Cost($) × 1000)
 **Automatic reconciliation:** After each AI session completes, the system reconciles estimated vs actual token usage:
 - **Refund:** If actual < estimated, the difference is refunded to the user's balance
 - **Cap:** If actual > estimated, the user is charged at most 2× the estimate (prevents runaway costs)
+
+**Admin token management:** Administrators can grant or deduct tokens from any user via the Admin Panel → Users page:
+- **Grant tokens:** Click the **+Grant** button next to a user's balance to add tokens
+- **Deduct tokens:** Click the **-Deduct** button to remove tokens. If the deduction amount exceeds the user's current balance, the operation is rejected with an error showing the available balance
+- All token transactions (grants, deductions, pre-charges, refunds) are logged in the `token_transactions` table for audit purposes
+
+**Token enforcement on message sending:**
+- **Free models** (e.g., `opencode-deepseek-v4-flash-free`, `opencode-nemotron-3-super-free`) do not require tokens and can be used even with a 0 balance
+- **Premium models** require a positive token balance. When a user attempts to send a message to a premium model with insufficient tokens, the server returns HTTP 402 with the estimated cost
+- The token check happens after the provider API key validation, so missing API keys return 503 before the token check is reached
 
 ### AI Agent Sandbox
 

@@ -62,6 +62,7 @@ import { api } from '@/lib/api'
 import { AI_MODELS, DEFAULT_MODEL_ID } from '@/types'
 import type {
   AgentMessage,
+  AgentSession,
   MessageMetadata,
   MessagePart,
   TodoItem,
@@ -1273,8 +1274,15 @@ function ChatPanel({ projectId, projectBridge, selectedModel, selectedSpeed, onM
   onAiRunningChange?: (running: boolean) => void
   stopAiRef?: React.MutableRefObject<(() => void) | null>
 }) {
-  const { isLoading: sessionsLoading, createSession } = useAgentSessions(projectId)
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+  const { sessions, isLoading: sessionsLoading, createSession } = useAgentSessions(projectId)
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(() => {
+    // Try to restore saved session from localStorage
+    const saved = loadSessionPreference(projectId)
+    if (saved && sessions?.some((s: AgentSession) => s.id === saved)) {
+      return saved
+    }
+    return null
+  })
   const [pendingMessage, setPendingMessage] = useState<{ content: string; model: string } | null>(null)
   
   const availableModels = AI_MODELS.filter(() => {
@@ -1283,6 +1291,27 @@ function ChatPanel({ projectId, projectBridge, selectedModel, selectedSpeed, onM
   })
   
   const resolvedSessionId = activeSessionId
+
+  // Auto-select the most recent session when sessions load and no active session is set
+  useEffect(() => {
+    if (activeSessionId) return
+    if (!sessions || sessions.length === 0) return
+    // Prefer the saved session if it still exists in the list
+    const saved = loadSessionPreference(projectId)
+    const savedSession = saved ? sessions.find((s: AgentSession) => s.id === saved) : null
+    if (savedSession) {
+      setActiveSessionId(savedSession.id)
+    } else {
+      setActiveSessionId(sessions[0].id)
+    }
+  }, [sessions, activeSessionId, projectId])
+
+  // Persist active session to localStorage
+  useEffect(() => {
+    if (activeSessionId) {
+      saveSessionPreference(projectId, activeSessionId)
+    }
+  }, [activeSessionId, projectId])
 
   const handleSessionCreated = useCallback((id: string, message: string) => {
     setActiveSessionId(id)
@@ -2049,6 +2078,26 @@ function saveModelPreference(projectId: string | undefined, model: string, speed
   if (!projectId) return
   try {
     localStorage.setItem(getModelPreferenceKey(projectId), JSON.stringify({ model, speed }))
+  } catch { /* ignore localStorage errors (e.g. quota exceeded) */ }
+}
+
+function getSessionPreferenceKey(projectId: string): string {
+  return `auroracraft:session:${projectId}`
+}
+
+function loadSessionPreference(projectId: string | undefined): string | null {
+  if (!projectId) return null
+  try {
+    const raw = localStorage.getItem(getSessionPreferenceKey(projectId))
+    if (raw) return JSON.parse(raw)
+  } catch { /* ignore corrupt localStorage */ }
+  return null
+}
+
+function saveSessionPreference(projectId: string | undefined, sessionId: string): void {
+  if (!projectId) return
+  try {
+    localStorage.setItem(getSessionPreferenceKey(projectId), JSON.stringify(sessionId))
   } catch { /* ignore localStorage errors (e.g. quota exceeded) */ }
 }
 

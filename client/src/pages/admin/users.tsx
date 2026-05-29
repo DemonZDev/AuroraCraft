@@ -65,6 +65,8 @@ export default function AdminUsersPage() {
   const [error, setError] = useState<string | null>(null)
   const [tokenGrantOpen, setTokenGrantOpen] = useState(false)
   const [tokenGrantUser, setTokenGrantUser] = useState<{ id: string; username: string } | null>(null)
+  const [tokenDeductOpen, setTokenDeductOpen] = useState(false)
+  const [tokenDeductUser, setTokenDeductUser] = useState<{ id: string; username: string; tokens: number } | null>(null)
   const [tierUpdateOpen, setTierUpdateOpen] = useState(false)
   const [tierUpdateUser, setTierUpdateUser] = useState<{ id: string; username: string; tier: string } | null>(null)
 
@@ -161,6 +163,7 @@ export default function AdminUsersPage() {
   }
 
   const [tokenGrantError, setTokenGrantError] = useState('')
+  const [tokenDeductError, setTokenDeductError] = useState('')
   const [tierUpdateError, setTierUpdateError] = useState('')
   const [providerKeysOpen, setProviderKeysOpen] = useState(false)
   const [providerKeysUser, setProviderKeysUser] = useState<{ id: string; username: string } | null>(null)
@@ -247,6 +250,36 @@ export default function AdminUsersPage() {
       refetch()
     }).catch(() => {
       setTokenGrantError('Failed to grant tokens')
+    })
+  }
+
+  const handleDeductTokens = (value: string) => {
+    if (!tokenDeductUser) return
+    const amount = parseInt(value, 10)
+    if (!value.trim() || isNaN(amount) || amount <= 0) {
+      setTokenDeductError('Must be a positive number')
+      return
+    }
+    if (amount > tokenDeductUser.tokens) {
+      setTokenDeductError(`Cannot deduct ${amount} tokens — user only has ${tokenDeductUser.tokens.toLocaleString()}`)
+      return
+    }
+    setTokenDeductError('')
+    fetch(`/api/admin/users/${tokenDeductUser.id}/tokens/deduct`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ amount, description: 'Admin deduction' }),
+    }).then(async res => {
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.message || `Failed to deduct tokens (HTTP ${res.status})`)
+      }
+      setTokenDeductOpen(false)
+      setTokenDeductUser(null)
+      refetch()
+    }).catch((err: any) => {
+      setTokenDeductError(err.message || 'Failed to deduct tokens')
     })
   }
 
@@ -343,6 +376,15 @@ export default function AdminUsersPage() {
                           className="text-xs text-primary hover:underline"
                         >
                           +Grant
+                        </button>
+                        <button
+                          onClick={() => {
+                            setTokenDeductUser({ id: user.id, username: user.username, tokens: user.aiTokens ?? 0 })
+                            setTokenDeductOpen(true)
+                          }}
+                          className="text-xs text-red-500 hover:underline"
+                        >
+                          -Deduct
                         </button>
                       </div>
                       <button
@@ -503,6 +545,22 @@ export default function AdminUsersPage() {
         confirmText="Grant"
         placeholder="e.g. 5000"
         errorText={tokenGrantError || undefined}
+      />
+
+      <GlassyPromptModal
+        isOpen={tokenDeductOpen}
+        onClose={() => {
+          setTokenDeductOpen(false)
+          setTokenDeductUser(null)
+          setTokenDeductError('')
+        }}
+        onConfirm={handleDeductTokens}
+        title={`Deduct Tokens — ${tokenDeductUser?.username}`}
+        description={`Current balance: ${tokenDeductUser?.tokens.toLocaleString() ?? 0} tokens. Enter the number of tokens to deduct.`}
+        icon={Coins}
+        confirmText="Deduct"
+        placeholder="e.g. 1000"
+        errorText={tokenDeductError || undefined}
       />
 
       <GlassyConfirmModal
