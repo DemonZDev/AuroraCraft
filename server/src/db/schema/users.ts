@@ -16,7 +16,7 @@ export const users = pgTable('users', {
   githubUsername: varchar('github_username', { length: 255 }),
   githubConnectedAt: timestamp('github_connected_at', { withTimezone: true }),
   coderabbitEnabled: boolean('coderabbit_enabled').default(false),
-  coderabbitGrantedBy: uuid('coderabbit_granted_by').references(() => users.id),
+  coderabbitGrantedBy: uuid('coderabbit_granted_by').references((): any => users.id),
   coderabbitGrantedAt: timestamp('coderabbit_granted_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

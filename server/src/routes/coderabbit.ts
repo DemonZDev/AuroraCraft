@@ -3,10 +3,15 @@ import { db } from '../db'
 import { users } from '../db/schema/users'
 import { projects } from '../db/schema/projects'
 import { codeReviews } from '../db/schema/code-reviews'
-import { eq, and, desc, or } from 'drizzle-orm'
+import { eq, and, desc, or, sql } from 'drizzle-orm'
 import { authMiddleware, adminGuard } from '../middleware/auth'
 import { access, readdir, unlink, rm } from 'fs/promises'
 import { join } from 'path'
+
+declare global {
+  // eslint-disable-next-line no-var
+  var coderabbitLoginProcesses: Record<string, { userHome: string; sessionName: string }> | undefined
+}
 
 async function cleanupCoderabbitCache(userHome: string) {
   const dirs = [
@@ -52,7 +57,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
 
     const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1)
     if (!user) {
-      return reply.status(404).send({ error: 'User not found' })
+      reply.status(404).send({ error: 'User not found' }); return
     }
 
     const userHome = `/home/auroracraft-${user.username}`
@@ -70,7 +75,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
         await execAsync('which tmux')
       } catch {
         app.log.error('tmux is not installed on the server')
-        return reply.status(500).send({ error: 'tmux is not installed. Please install tmux first.' })
+        reply.status(500).send({ error: 'tmux is not installed. Please install tmux first.' }); return
       }
 
       // Ensure user home directory exists
@@ -81,7 +86,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
       if (!coderabbitPath) {
         const msg = 'CodeRabbit CLI is not installed. Please install it system-wide via: curl -fsSL https://cli.coderabbit.ai/install.sh | CODERABBIT_INSTALL_DIR=/usr/local/bin sh'
         app.log.error(msg)
-        return reply.status(500).send({ error: msg })
+        reply.status(500).send({ error: msg }); return
       }
       app.log.info(`Using CodeRabbit CLI: ${coderabbitPath}`)
 
@@ -96,7 +101,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
         await execAsync(`tmux new-session -d -s ${sessionName} -x 200 -y 50 "HOME=${userHome} ${coderabbitPath} auth login"`)
       } catch (tmuxErr: any) {
         app.log.error({ err: tmuxErr }, 'Failed to create tmux session')
-        return reply.status(500).send({ error: `Failed to start authentication session: ${tmuxErr.message || 'tmux error'}` })
+        reply.status(500).send({ error: `Failed to start authentication session: ${tmuxErr.message || 'tmux error'}` }); return
       }
 
       // The CLI can take 3-5 seconds to output the URL. Retry capture with backoff.
@@ -131,7 +136,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
       if (!loginUrl) {
         await execAsync(`tmux kill-session -t ${sessionName} 2>/dev/null || true`)
         app.log.error('No login URL found in tmux output after all retries')
-        return reply.status(500).send({ error: 'CodeRabbit CLI did not produce a login URL within the expected time. Please try again.' })
+        reply.status(500).send({ error: 'CodeRabbit CLI did not produce a login URL within the expected time. Please try again.' }); return
       }
 
       // Store session info
@@ -142,7 +147,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
     } catch (err: any) {
       app.log.error({ err }, 'Failed to initiate CodeRabbit login')
       const detail = errors.length > 0 ? errors.join('; ') : (err?.message || 'Unknown error')
-      return reply.status(500).send({ error: `Failed to initiate login: ${detail}` })
+      reply.status(500).send({ error: `Failed to initiate login: ${detail}` }); return
     }
   })
 
@@ -152,13 +157,13 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
     const { token } = request.body as { token: string }
 
     if (!token) {
-      return reply.status(400).send({ error: 'Token is required' })
+      reply.status(400).send({ error: 'Token is required' }); return
     }
 
     try {
       const processInfo = global.coderabbitLoginProcesses?.[id]
       if (!processInfo) {
-        return reply.status(400).send({ error: 'No active login session' })
+        reply.status(400).send({ error: 'No active login session' }); return
       }
 
       const { promisify } = await import('util')
@@ -169,7 +174,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
       try {
         await execAsync(`tmux has-session -t ${processInfo.sessionName}`)
       } catch {
-        return reply.status(400).send({ error: 'Login session expired. Please generate a new login URL.' })
+        reply.status(400).send({ error: 'Login session expired. Please generate a new login URL.' }); return
       }
 
       // Send token to tmux session
@@ -189,13 +194,13 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
       // Check if authentication failed in the output
       if (tmuxOutput.includes('Authentication failed') || tmuxOutput.includes('Invalid')) {
         app.log.error('CodeRabbit authentication failed in tmux output')
-        return reply.status(400).send({ error: 'Authentication failed - invalid token or state mismatch' })
+        reply.status(400).send({ error: 'Authentication failed - invalid token or state mismatch' }); return
       }
 
       // Verify authentication
       const coderabbitPath = await resolveCoderabbitPath(processInfo.userHome)
       if (!coderabbitPath) {
-        return reply.status(500).send({ error: 'CodeRabbit CLI not found' })
+        reply.status(500).send({ error: 'CodeRabbit CLI not found' }); return
       }
       const { stdout } = await execAsync(`${coderabbitPath} auth status --agent`, {
         env: { ...process.env, HOME: processInfo.userHome }
@@ -217,7 +222,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
 
       if (!authenticated) {
         app.log.error('CodeRabbit not authenticated after token submission')
-        return reply.status(400).send({ error: 'Authentication failed' })
+        reply.status(400).send({ error: 'Authentication failed' }); return
       }
 
       await db
@@ -239,12 +244,12 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
         app.log.warn({ chownErr }, 'Failed to fix ownership, but authentication succeeded')
       }
 
-      delete global.coderabbitLoginProcesses[id]
+      global.coderabbitLoginProcesses?.[id] !== undefined && delete global.coderabbitLoginProcesses[id]
 
       return { success: true }
     } catch (err) {
       app.log.error({ err }, 'Failed to complete CodeRabbit login')
-      return reply.status(500).send({ error: 'Failed to complete login' })
+      reply.status(500).send({ error: 'Failed to complete login' }); return
     }
   })
 
@@ -254,7 +259,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
 
     const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1)
     if (!user) {
-      return reply.status(404).send({ error: 'User not found' })
+      reply.status(404).send({ error: 'User not found' }); return
     }
 
     const userHome = `/home/auroracraft-${user.username}`
@@ -266,7 +271,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
 
       const coderabbitPath = await resolveCoderabbitPath(userHome)
       if (!coderabbitPath) {
-        return reply.status(500).send({ error: 'CodeRabbit CLI not found' })
+        reply.status(500).send({ error: 'CodeRabbit CLI not found' }); return
       }
       await execAsync(`cd ${userHome} && ${coderabbitPath} auth logout`, {
         env: { ...process.env, HOME: userHome }
@@ -284,7 +289,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
       return { success: true }
     } catch (err) {
       app.log.error({ err }, 'Failed to logout')
-      return reply.status(500).send({ error: 'Failed to logout' })
+      reply.status(500).send({ error: 'Failed to logout' }); return
     }
   })
 
@@ -294,7 +299,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
 
     const [project] = await db.select().from(projects).where(eq(projects.id, id)).limit(1)
     if (!project || project.userId !== request.user!.id) {
-      return reply.status(404).send({ error: 'Project not found' })
+      reply.status(404).send({ error: 'Project not found' }); return
     }
 
     const [user] = await db
@@ -313,7 +318,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
 
     const [project] = await db.select().from(projects).where(eq(projects.id, id)).limit(1)
     if (!project || project.userId !== request.user!.id) {
-      return reply.status(404).send({ error: 'Project not found' })
+      reply.status(404).send({ error: 'Project not found' }); return
     }
 
     const [user] = await db
@@ -323,12 +328,12 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
       .limit(1)
 
     if (!user.coderabbitEnabled) {
-      return reply.status(403).send({ error: 'CodeRabbit not enabled for your account' })
+      reply.status(403).send({ error: 'CodeRabbit not enabled for your account' }); return
     }
 
     const projectDir = project.linkId ? `/home/auroracraft-${user.username}/${project.linkId}` : null
     if (!projectDir) {
-      return reply.status(404).send({ error: 'Project directory not found' })
+      reply.status(404).send({ error: 'Project directory not found' }); return
     }
 
     const userHome = `/home/auroracraft-${user.username}`
@@ -362,7 +367,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
       // Run CodeRabbit review asynchronously — the CLI can take 60+ seconds
       const coderabbitPath = await resolveCoderabbitPath(userHome)
       if (!coderabbitPath) {
-        return reply.status(500).send({ error: 'CodeRabbit CLI not found' })
+        reply.status(500).send({ error: 'CodeRabbit CLI not found' }); return
       }
       const typeFlag = 'uncommitted'
       const systemUser = `auroracraft-${user.username}`
@@ -498,7 +503,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
       return { reviewId: review.id, status: 'pending', message: 'Code review is running in the background. Check review history for results.' }
     } catch (err: any) {
       app.log.error({ err }, 'Failed to run CodeRabbit review')
-      return reply.status(500).send({ error: `Failed to run code review: ${err?.message || 'Unknown error'}` })
+      reply.status(500).send({ error: `Failed to run code review: ${err?.message || 'Unknown error'}` }); return
     }
   })
 
@@ -508,7 +513,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
 
     const [project] = await db.select().from(projects).where(eq(projects.id, id)).limit(1)
     if (!project || project.userId !== request.user!.id) {
-      return reply.status(404).send({ error: 'Project not found' })
+      reply.status(404).send({ error: 'Project not found' }); return
     }
 
     const allReviews = await db
@@ -533,7 +538,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
 
     const [project] = await db.select().from(projects).where(eq(projects.id, id)).limit(1)
     if (!project || project.userId !== request.user!.id) {
-      return reply.status(404).send({ error: 'Project not found' })
+      reply.status(404).send({ error: 'Project not found' }); return
     }
 
     await db
@@ -551,7 +556,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
 
     const [project] = await db.select().from(projects).where(eq(projects.id, id)).limit(1)
     if (!project || project.userId !== request.user!.id) {
-      return reply.status(404).send({ error: 'Project not found' })
+      reply.status(404).send({ error: 'Project not found' }); return
     }
 
     const [review] = await db
@@ -561,7 +566,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
       .limit(1)
 
     if (!review) {
-      return reply.status(404).send({ error: 'Review not found' })
+      reply.status(404).send({ error: 'Review not found' }); return
     }
 
     const issues = Array.isArray(review.issuesJson) ? review.issuesJson : []
@@ -599,16 +604,13 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
 
     const [project] = await db.select().from(projects).where(eq(projects.id, id)).limit(1)
     if (!project || project.userId !== request.user!.id) {
-      return reply.status(404).send({ error: 'Project not found' })
+      reply.status(404).send({ error: 'Project not found' }); return
     }
 
     // Clean up stale pending reviews (older than 10 minutes — likely orphaned by server restart)
     try {
-      await db.execute(
-        `UPDATE code_reviews SET status = 'stale', issues_json = '[{"type":"error","message":"Review was interrupted (server restart or timeout)"}]', resolved_at = NOW()
-         WHERE project_id = $1 AND user_id = $2 AND status = 'pending' AND created_at < NOW() - INTERVAL '10 minutes'`,
-        [id, request.user!.id]
-      )
+      await db.execute(sql`UPDATE code_reviews SET status = 'stale', issues_json = '[{"type":"error","message":"Review was interrupted (server restart or timeout)"}]', resolved_at = NOW()
+         WHERE project_id = ${id} AND user_id = ${request.user!.id} AND status = 'pending' AND created_at < NOW() - INTERVAL '10 minutes'`)
     } catch {
       // Non-fatal
     }
@@ -671,7 +673,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
 
     const [project] = await db.select().from(projects).where(eq(projects.id, id)).limit(1)
     if (!project || project.userId !== request.user!.id) {
-      return reply.status(404).send({ error: 'Project not found' })
+      reply.status(404).send({ error: 'Project not found' }); return
     }
 
     await db

@@ -7,11 +7,12 @@ import { users } from '../db/schema/users.js'
 export async function authMiddleware(
   request: FastifyRequest,
   reply: FastifyReply,
-) {
+): Promise<void> {
   const token = request.cookies.session
 
   if (!token) {
-    return reply.status(401).send({ message: 'Not authenticated', statusCode: 401 })
+    reply.status(401).send({ message: 'Not authenticated', statusCode: 401 })
+    return
   }
 
   const [session] = await db
@@ -27,7 +28,8 @@ export async function authMiddleware(
 
   if (!session) {
     reply.clearCookie('session', { path: '/' })
-    return reply.status(401).send({ message: 'Session expired', statusCode: 401 })
+    reply.status(401).send({ message: 'Session expired', statusCode: 401 })
+    return
   }
 
   const [user] = await db
@@ -44,7 +46,8 @@ export async function authMiddleware(
     .limit(1)
 
   if (!user) {
-    return reply.status(401).send({ message: 'User not found', statusCode: 401 })
+    reply.status(401).send({ message: 'User not found', statusCode: 401 })
+    return
   }
 
   request.user = user
@@ -54,9 +57,10 @@ export function adminGuard(
   request: FastifyRequest,
   reply: FastifyReply,
   done: () => void,
-) {
+): void {
   if (!request.user || request.user.role !== 'admin') {
-    return reply.status(403).send({ message: 'Forbidden', statusCode: 403 })
+    reply.status(403).send({ message: 'Forbidden', statusCode: 403 })
+    return
   }
   done()
 }
