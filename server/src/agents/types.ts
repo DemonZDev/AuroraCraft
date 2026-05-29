@@ -21,6 +21,9 @@ export interface AgentExecutionContext {
   projectDirectory?: string
   userHomeDir?: string
   firecrawlApiKey?: string
+  userId?: string
+  estimatedCost?: number
+  providerId?: string
 }
 
 export interface AgentExecutionResult {

@@ -11,15 +11,19 @@ export interface ModelProvider {
   requiresApiKey: boolean
 }
 
+export interface ModelPricing {
+  inputPer1M: number
+  cachedInputPer1M?: number
+  outputPer1M: number
+}
+
 export interface AIModelDef {
   id: string
   name: string
   providers: ModelProvider[]
   description: string
-  pricing: {
-    inputPer1M: number
-    outputPer1M: number
-  }
+  pricing: ModelPricing
+  providerPricing?: Partial<Record<ProviderId, ModelPricing>>
   minTier: UserTier
 }
 
@@ -49,10 +53,29 @@ export const PROVIDER_CONFIG: Record<ProviderId, { name: string; baseUrl: string
 export const TOKEN_MULTIPLIER = 1.2
 export const TOKENS_PER_USD = 1000
 
-export function calculateTokenCost(inputTokens: number, outputTokens: number, model: AIModelDef): number {
-  const inputCost = (inputTokens / 1_000_000) * model.pricing.inputPer1M
-  const outputCost = (outputTokens / 1_000_000) * model.pricing.outputPer1M
-  const totalCost = (inputCost + outputCost) * TOKEN_MULTIPLIER * TOKENS_PER_USD
+export function getModelPricing(model: AIModelDef, providerId?: ProviderId): ModelPricing {
+  if (providerId && model.providerPricing?.[providerId]) {
+    return model.providerPricing[providerId] as ModelPricing
+  }
+  return model.pricing
+}
+
+export function calculateTokenCost(
+  inputTokens: number,
+  outputTokens: number,
+  model: AIModelDef,
+  providerId?: ProviderId,
+  cachedInputTokens?: number,
+): number {
+  const pricing = getModelPricing(model, providerId)
+
+  const uncachedInputTokens = Math.max(0, inputTokens - (cachedInputTokens ?? 0))
+  const inputCost = (uncachedInputTokens / 1_000_000) * pricing.inputPer1M
+  const cachedCost = cachedInputTokens && pricing.cachedInputPer1M
+    ? (cachedInputTokens / 1_000_000) * pricing.cachedInputPer1M
+    : 0
+  const outputCost = (outputTokens / 1_000_000) * pricing.outputPer1M
+  const totalCost = (inputCost + cachedCost + outputCost) * TOKEN_MULTIPLIER * TOKENS_PER_USD
   return Math.ceil(totalCost)
 }
 
@@ -68,7 +91,7 @@ export const AI_MODELS: AIModelDef[] = [
       { id: 'fireworks', speed: 'fast', modelId: 'accounts/fireworks/models/glm-5p1', requiresApiKey: true },
     ],
     description: 'Zhipu GLM-5.1 frontier model (premium)',
-    pricing: { inputPer1M: 1.4, outputPer1M: 4.4 },
+    pricing: { inputPer1M: 1.4, cachedInputPer1M: 0.26, outputPer1M: 4.4 },
     minTier: 'paid',
   },
   {
@@ -89,7 +112,10 @@ export const AI_MODELS: AIModelDef[] = [
       { id: 'bluesminds', speed: 'slow', modelId: 'moonshotai/kimi-k2.6', requiresApiKey: true },
     ],
     description: 'Moonshot Kimi K2.6 - SOTA coding and agentic performance',
-    pricing: { inputPer1M: 0.95, outputPer1M: 4.0 },
+    pricing: { inputPer1M: 0.95, cachedInputPer1M: 0.16, outputPer1M: 4.0 },
+    providerPricing: {
+      bluesminds: { inputPer1M: 0.28, outputPer1M: 0.154 },
+    },
     minTier: 'paid',
   },
   {
@@ -100,7 +126,10 @@ export const AI_MODELS: AIModelDef[] = [
       { id: 'bluesminds', speed: 'slow', modelId: 'qwen3.6-plus', requiresApiKey: true },
     ],
     description: 'Alibaba Qwen3.6 Plus - Multilingual and coding',
-    pricing: { inputPer1M: 0.5, outputPer1M: 3.0 },
+    pricing: { inputPer1M: 0.5, cachedInputPer1M: 0.1, outputPer1M: 3.0 },
+    providerPricing: {
+      bluesminds: { inputPer1M: 1.2, outputPer1M: 2.88 },
+    },
     minTier: 'paid',
   },
   {
@@ -110,7 +139,7 @@ export const AI_MODELS: AIModelDef[] = [
       { id: 'fireworks', speed: 'fast', modelId: 'accounts/fireworks/models/minimax-m2p7', requiresApiKey: true },
     ],
     description: 'MiniMax M2.7 - Agentic coding specialist',
-    pricing: { inputPer1M: 0.3, outputPer1M: 1.2 },
+    pricing: { inputPer1M: 0.3, cachedInputPer1M: 0.06, outputPer1M: 1.2 },
     minTier: 'paid',
   },
   {
@@ -121,7 +150,10 @@ export const AI_MODELS: AIModelDef[] = [
       { id: 'bluesminds', speed: 'slow', modelId: 'accounts/fireworks/models/deepseek-v4-pro', requiresApiKey: true },
     ],
     description: 'DeepSeek V4 Pro with selectable thinking mode',
-    pricing: { inputPer1M: 1.74, outputPer1M: 3.48 },
+    pricing: { inputPer1M: 1.74, cachedInputPer1M: 0.145, outputPer1M: 3.48 },
+    providerPricing: {
+      bluesminds: { inputPer1M: 1.74, outputPer1M: 3.84 },
+    },
     minTier: 'paid',
   },
   {
@@ -131,7 +163,7 @@ export const AI_MODELS: AIModelDef[] = [
       { id: 'bluesminds', speed: 'slow', modelId: 'qwen3.6-max-preview', requiresApiKey: true },
     ],
     description: 'Alibaba Qwen3.6 Max - Enhanced reasoning',
-    pricing: { inputPer1M: 1.0, outputPer1M: 3.2 },
+    pricing: { inputPer1M: 2.0, outputPer1M: 8.0 },
     minTier: 'paid',
   },
   {

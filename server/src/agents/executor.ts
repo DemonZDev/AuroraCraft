@@ -5,6 +5,7 @@ import { agentMessages } from '../db/schema/agent-messages.js'
 import { agentLogs } from '../db/schema/agent-logs.js'
 import { bridgeRegistry } from '../bridges/index.js'
 import type { AgentExecutionContext, AgentStreamCallback, AgentExecutionResult } from './types.js'
+import { calculateActualCost, reconcileTokens } from '../utils/token-service.js'
 
 function cleanBadgeMarkers(text: string): string {
   if (!text) return text
@@ -116,6 +117,32 @@ export class AgentExecutor {
         content: cleanBadgeMarkers(result.output),
         metadata: result.metadata?.parts ? { parts: result.metadata.parts } : undefined,
       })
+
+      // Reconcile pre-charged tokens against actual usage
+      if (context.userId && context.estimatedCost && context.estimatedCost > 0 && context.model) {
+        try {
+          const { getModelById } = await import('../config/ai-models.js')
+          const modelDef = getModelById(context.model)
+          if (modelDef) {
+            const actualCost = calculateActualCost(
+              context.prompt,
+              result.output,
+              modelDef,
+              context.providerId as any,
+            )
+            await reconcileTokens(
+              context.userId,
+              context.estimatedCost,
+              actualCost,
+              modelDef.name,
+              context.providerId,
+              context.sessionId,
+            )
+          }
+        } catch (reconcileErr) {
+          console.warn('[AgentExecutor] Token reconciliation failed:', reconcileErr)
+        }
+      }
 
       // Store bridge session IDs for future message reuse
       await db

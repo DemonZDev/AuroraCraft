@@ -2,7 +2,7 @@ import { db } from '../db/index.js'
 import { users } from '../db/schema/users.js'
 import { tokenTransactions, providerApiKeys } from '../db/schema/provider-api-keys.js'
 import { eq, sql, and } from 'drizzle-orm'
-import type { UserTier } from '../config/ai-models.js'
+import type { UserTier, ProviderId } from '../config/ai-models.js'
 import { calculateTokenCost, estimateTokens } from '../config/ai-models.js'
 import type { AIModelDef } from '../config/ai-models.js'
 
@@ -89,10 +89,56 @@ export async function refundTokens(
     .where(eq(users.id, userId))
 }
 
-export function estimateMessageCost(inputText: string, model: AIModelDef): number {
+export function estimateMessageCost(inputText: string, model: AIModelDef, providerId?: ProviderId): number {
   const estimatedInput = estimateTokens(inputText)
   const estimatedOutput = estimatedInput * 2
-  return calculateTokenCost(estimatedInput, estimatedOutput, model)
+  return calculateTokenCost(estimatedInput, estimatedOutput, model, providerId)
+}
+
+export function calculateActualCost(
+  inputText: string,
+  outputText: string,
+  model: AIModelDef,
+  providerId?: ProviderId,
+): number {
+  const actualInput = estimateTokens(inputText)
+  const actualOutput = estimateTokens(outputText)
+  return calculateTokenCost(actualInput, actualOutput, model, providerId)
+}
+
+/**
+ * Reconcile pre-charged estimated tokens against actual usage.
+ * Refunds the difference if actual < estimated, charges additional if actual > estimated
+ * (capped at 2x estimate to prevent surprise overcharges from runaway generation).
+ */
+export async function reconcileTokens(
+  userId: string,
+  estimatedCost: number,
+  actualCost: number,
+  modelName: string,
+  providerId?: string,
+  sessionId?: string,
+): Promise<void> {
+  const cap = Math.ceil(estimatedCost * 2)
+  const clampedActual = Math.min(actualCost, cap)
+
+  if (clampedActual < estimatedCost) {
+    const refund = estimatedCost - clampedActual
+    await refundTokens(
+      userId,
+      refund,
+      `Refund for ${modelName}${providerId ? ` (${providerId})` : ''}: estimated ${estimatedCost}, actual ${clampedActual}`,
+      sessionId,
+    )
+  } else if (clampedActual > estimatedCost) {
+    const extra = clampedActual - estimatedCost
+    await deductTokens(
+      userId,
+      extra,
+      `Additional charge for ${modelName}${providerId ? ` (${providerId})` : ''}: estimated ${estimatedCost}, actual ${clampedActual}`,
+      sessionId,
+    )
+  }
 }
 
 export function getMinTier(model: AIModelDef): UserTier {

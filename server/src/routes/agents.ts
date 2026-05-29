@@ -280,6 +280,9 @@ export async function agentRoutes(app: FastifyInstance) {
     const projectDir = getProjectDirectory(username, project.linkId)
     const bridgeName = parsed.data.bridge || session.bridge || 'opencode'
     let resolvedModelId: string | undefined
+    let estimatedCost = 0
+    let providerId: string | undefined
+    let modelDef: ReturnType<typeof getModelById> = undefined
 
     const [user] = await db.select().from(users).where(eq(users.id, request.user!.id)).limit(1)
     const userTier = user?.tier ?? 'free'
@@ -289,7 +292,7 @@ export async function agentRoutes(app: FastifyInstance) {
     const userKeys = await getUserProviderKeys(request.user!.id)
 
     if (requestedModelId) {
-      const modelDef = getModelById(requestedModelId)
+      modelDef = getModelById(requestedModelId)
       if (!modelDef) {
         return reply.status(400).send({ message: 'Unknown model selected', statusCode: 400 })
       }
@@ -302,6 +305,7 @@ export async function agentRoutes(app: FastifyInstance) {
 
       const provider = getProviderForModel(requestedModelId, requestedSpeed, userKeys)
       if (provider) {
+        providerId = provider.id
         // OpenCode provider model IDs already include the 'opencode/' prefix.
         // External providers need the '{provider}/{model}' format.
         resolvedModelId = provider.id === 'opencode'
@@ -335,7 +339,7 @@ export async function agentRoutes(app: FastifyInstance) {
         }
 
         if (modelDef.minTier !== 'free') {
-          const estimatedCost = estimateMessageCost(parsed.data.content, modelDef)
+          estimatedCost = estimateMessageCost(parsed.data.content, modelDef, provider.id)
           const hasTokens = await hasEnoughTokens(request.user!.id, estimatedCost)
           if (!hasTokens) {
             return reply.status(402).send({
@@ -386,8 +390,6 @@ export async function agentRoutes(app: FastifyInstance) {
           app.log.warn({ err, projectDir }, 'Failed to write Zen auth.json')
         }
       }
-
-
     }
 
     // Save the user message
@@ -413,7 +415,11 @@ export async function agentRoutes(app: FastifyInstance) {
       // Pass API keys as env vars so they are never written to disk
       let instanceUrl: string | undefined
       try {
-        instanceUrl = await processManager.acquire(projectDir)
+        instanceUrl = await processManager.acquire({
+          directory: projectDir,
+          javaVersion: project.javaVersion ?? '21',
+          compiler: project.compiler ?? 'maven',
+        })
       } catch (err) {
         app.log.warn({ err, sessionId }, 'Failed to start OpenCode instance')
       }
@@ -474,6 +480,9 @@ export async function agentRoutes(app: FastifyInstance) {
         projectDirectory: projectDir,
         userHomeDir: `/home/auroracraft-${username}`,
         firecrawlApiKey: userTier === 'paid' ? userKeys.firecrawl : undefined,
+        userId: request.user!.id,
+        estimatedCost,
+        providerId,
       },
       {
         onOutput: (content) => { app.log.debug({ sessionId }, `Agent output: ${content.substring(0, 100)}`) },
@@ -555,7 +564,11 @@ export async function agentRoutes(app: FastifyInstance) {
     }
 
     const directory = getProjectDirectory(request.user!.username, project.linkId)
-    const url = await processManager.acquire(directory)
+    const url = await processManager.acquire({
+      directory,
+      javaVersion: project.javaVersion ?? '21',
+      compiler: project.compiler ?? 'maven',
+    })
 
     try {
       await fetch(`${url}/session/${opencodeSessionId}/question/${questionId}`, {

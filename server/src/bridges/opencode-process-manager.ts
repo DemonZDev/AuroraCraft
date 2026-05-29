@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess, execFile } from 'child_process'
 import { mkdir, writeFile, chown, access, chmod } from 'fs/promises'
-import { constants } from 'fs'
+import { constants, existsSync } from 'fs'
 import { promisify } from 'util'
 import { env } from '../env.js'
 import { getProjectConfigDirectory } from '../utils/provider-config.js'
@@ -53,6 +53,36 @@ function shellQuote(s: string): string {
 
 // ── Process Manager ─────────────────────────────────────────────────
 
+export interface AcquireOptions {
+  directory: string
+  javaVersion?: string
+  compiler?: string
+  language?: string
+}
+
+function getJavaHomePath(javaVersion: string | undefined): string {
+  // Map common version strings to installed JDK paths
+  const versionMap: Record<string, string> = {
+    '8': '/usr/lib/jvm/java-8-openjdk-amd64',
+    '11': '/usr/lib/jvm/java-11-openjdk-amd64',
+    '17': '/usr/lib/jvm/java-17-openjdk-amd64',
+    '21': '/usr/lib/jvm/java-21-openjdk-amd64',
+    '22': '/usr/lib/jvm/java-25-openjdk-amd64', // 25 is closest to 22 available
+    '25': '/usr/lib/jvm/java-25-openjdk-amd64',
+  }
+
+  // Extract major version number
+  const major = javaVersion?.replace(/^1\./, '').replace(/[^0-9].*$/, '')
+  const mapped = major ? versionMap[major] : undefined
+
+  if (mapped && existsSync(mapped)) {
+    return mapped
+  }
+
+  // Fallback to Java 21 (most compatible with modern Paper API)
+  return '/usr/lib/jvm/java-21-openjdk-amd64'
+}
+
 export class OpenCodeProcessManager {
   private instances = new Map<string, OpenCodeInstance>()
   private startPromises = new Map<string, Promise<OpenCodeInstance>>()
@@ -70,7 +100,11 @@ export class OpenCodeProcessManager {
     this.idleTimeoutMs = env.OPENCODE_IDLE_TIMEOUT
   }
 
-  async acquire(directory: string): Promise<string> {
+  async acquire(options: AcquireOptions | string): Promise<string> {
+    // Support legacy string-only calls
+    const opts = typeof options === 'string' ? { directory: options } : options
+    const directory = opts.directory
+
     const existing = this.instances.get(directory)
     if (existing && existing.status === 'ready') {
       this.cancelIdleTimer(existing)
@@ -90,7 +124,7 @@ export class OpenCodeProcessManager {
       return instance.url
     }
 
-    const startPromise = this.startInstance(directory)
+    const startPromise = this.startInstance(opts)
     this.startPromises.set(directory, startPromise)
 
     try {
@@ -156,7 +190,8 @@ export class OpenCodeProcessManager {
    * registered instance) is torn down and the promise rejects. This guarantees
    * a hung startup can never permanently deadlock the bridge.
    */
-  private startInstance(directory: string): Promise<OpenCodeInstance> {
+  private startInstance(opts: AcquireOptions): Promise<OpenCodeInstance> {
+    const { directory } = opts
     // Tracked resources so the timeout handler can clean up partial state
     const state: { port: number | null; child: ChildProcess | null; settled: boolean } = {
       port: null,
@@ -186,7 +221,7 @@ export class OpenCodeProcessManager {
       }, this.STARTUP_TIMEOUT_MS)
     })
 
-    const startPromise = this.startInstanceInternal(directory, state)
+    const startPromise = this.startInstanceInternal(opts, state)
 
     return Promise.race([startPromise, timeoutPromise]).finally(() => {
       state.settled = true
@@ -195,9 +230,10 @@ export class OpenCodeProcessManager {
   }
 
   private async startInstanceInternal(
-    directory: string,
+    opts: AcquireOptions,
     state: { port: number | null; child: ChildProcess | null; settled: boolean },
   ): Promise<OpenCodeInstance> {
+    const { directory, javaVersion, compiler } = opts
     const port = this.allocatePort()
     state.port = port
     const url = `http://localhost:${port}`
@@ -229,6 +265,39 @@ export class OpenCodeProcessManager {
         // this directory and is written by agents.ts with 600 perms.
         await mkdir(`${isolatedConfigDir}/.local/share/opencode`, { recursive: true })
         await chownRecursive(isolatedConfigDir, uid, gid)
+
+        // Shared Maven cache: create .m2/settings.xml in isolated HOME
+        const m2Dir = `${isolatedConfigDir}/.m2`
+        await mkdir(m2Dir, { recursive: true })
+        const mavenSettingsPath = `${m2Dir}/settings.xml`
+        const hasMavenSettings = await access(mavenSettingsPath, constants.F_OK).then(() => true).catch(() => false)
+        if (!hasMavenSettings) {
+          await writeFile(mavenSettingsPath, `<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+  <localRepository>/var/lib/maven/shared/repository</localRepository>
+</settings>`, 'utf8')
+          await chown(mavenSettingsPath, uid, gid)
+          await chmod(mavenSettingsPath, 0o644)
+        }
+
+        // Shared Gradle cache: create .gradle/init.gradle in isolated HOME
+        const gradleDir = `${isolatedConfigDir}/.gradle`
+        await mkdir(gradleDir, { recursive: true })
+        const gradleInitPath = `${gradleDir}/init.gradle`
+        const hasGradleInit = await access(gradleInitPath, constants.F_OK).then(() => true).catch(() => false)
+        if (!hasGradleInit) {
+          await writeFile(gradleInitPath, `allprojects {
+    buildCache {
+        local {
+            directory = new File('/var/lib/gradle/shared/caches')
+        }
+    }
+}
+`, 'utf8')
+          await chown(gradleInitPath, uid, gid)
+          await chmod(gradleInitPath, 0o644)
+        }
 
         // Project-level config: write a minimal stub only if nothing exists yet.
         // Agents.ts will overwrite this with a proper minimal config (no secrets).
@@ -264,12 +333,33 @@ export class OpenCodeProcessManager {
     // IMPORTANT: The binary must be in a path accessible to all system users (e.g. /usr/local/share/nvm),
     // NOT in a user-specific home directory (e.g. /home/codespace/nvm) which other users cannot access.
     const opencodePath = '/usr/local/bin/opencode'
+    const sandboxPath = '/usr/local/bin/aurora-sandbox'
+
+    // Java / Maven / Gradle environment for compilation support.
+    const resolvedJavaVersion = getJavaHomePath(javaVersion)
+    const mavenSharedRepo = '/var/lib/maven/shared/repository'
+    const gradleSharedCache = '/var/lib/gradle/shared/caches'
+    // (Maven settings.xml is created in isolated HOME below)
+
+    // Sandbox environment variables
+    const sandboxEnv = {
+      AURORA_PROJECT_DIR: directory,
+      AURORA_JAVA_HOME: resolvedJavaVersion,
+      AURORA_COMPILER: compiler || 'maven',
+    }
 
     let child: ChildProcess
     if (systemUser) {
       const shellCmd =
         `cd ${shellQuote(directory)} && ` +
         `export HOME=${shellQuote(isolatedConfigDir)} && ` +
+        `export JAVA_HOME=${shellQuote(resolvedJavaVersion)} && ` +
+        `export PATH=${shellQuote(`${resolvedJavaVersion}/bin:/usr/local/bin:/usr/bin:/bin`)} && ` +
+        `export MAVEN_OPTS=${shellQuote(`-Dmaven.repo.local=${mavenSharedRepo}`)} && ` +
+        `export GRADLE_USER_HOME=${shellQuote(gradleSharedCache)} && ` +
+        `export AURORA_PROJECT_DIR=${shellQuote(directory)} && ` +
+        `export AURORA_JAVA_HOME=${shellQuote(resolvedJavaVersion)} && ` +
+        `export AURORA_COMPILER=${shellQuote(compiler || 'maven')} && ` +
         `OPENCODE_DANGEROUSLY_SKIP_PERMISSIONS=true ` +
         `${shellQuote(opencodePath)} serve --port ${port}`
 
@@ -288,8 +378,14 @@ export class OpenCodeProcessManager {
         env: {
           ...process.env,
           OPENCODE_DANGEROUSLY_SKIP_PERMISSIONS: 'true',
-          PATH: process.env.PATH,
+          PATH: `${resolvedJavaVersion}/bin:${process.env.PATH || '/usr/local/bin:/usr/bin:/bin'}`,
           HOME: isolatedConfigDir,
+          JAVA_HOME: resolvedJavaVersion,
+          MAVEN_OPTS: `-Dmaven.repo.local=${mavenSharedRepo}`,
+          GRADLE_USER_HOME: gradleSharedCache,
+          AURORA_PROJECT_DIR: directory,
+          AURORA_JAVA_HOME: resolvedJavaVersion,
+          AURORA_COMPILER: compiler || 'maven',
         },
       })
     }

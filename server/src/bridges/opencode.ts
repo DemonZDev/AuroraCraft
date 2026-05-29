@@ -3,6 +3,7 @@ import { processManager } from './opencode-process-manager.js'
 import { AGENT_SYSTEM_PROMPT } from './system-prompt.js'
 import { existsSync } from 'fs'
 import { join } from 'path'
+import { estimateTokens } from '../config/ai-models.js'
 
 // No default model override — let OpenCode use its configured default
 
@@ -890,7 +891,11 @@ export class OpenCodeBridge implements BridgeInterface {
     let baseUrl: string
 
     try {
-      baseUrl = await processManager.acquire(directory)
+      baseUrl = await processManager.acquire({
+        directory,
+        javaVersion: task.context?.javaVersion ?? '21',
+        compiler: task.context?.compiler ?? 'maven',
+      })
     } catch (err) {
       this.activeSessions.delete(task.sessionId)
       const msg = err instanceof Error ? err.message : 'Unknown error'
@@ -1252,12 +1257,20 @@ export class OpenCodeBridge implements BridgeInterface {
         parts.push({ type: 'todo-list', items: latestTodos })
       }
 
+      // Calculate token usage from actual text lengths for reconciliation
+      const inputTokens = estimateTokens(task.prompt)
+      const outputTokens = estimateTokens(outputText)
+
       return {
         success: true,
         output: outputText,
         metadata: {
           opencodeSessionId,
           parts: parts.length > 0 ? parts : undefined,
+          usage: {
+            inputTokens,
+            outputTokens,
+          },
         },
       }
     } catch (err) {

@@ -38,6 +38,12 @@ export interface TodoItem {
   status: 'pending' | 'in-progress' | 'completed'
 }
 
+export interface TokenUsage {
+  inputTokens: number
+  outputTokens: number
+  cachedInputTokens?: number
+}
+
 export interface BridgeResult {
   success: boolean
   output: string
@@ -47,6 +53,7 @@ export interface BridgeResult {
     opencodeSessionId?: string
     kiroSessionId?: string
     parts?: MessagePart[]
+    usage?: TokenUsage
   }
 }
 

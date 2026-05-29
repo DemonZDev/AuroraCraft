@@ -87,6 +87,10 @@ function removeLeakedBadgeText(content: string): string {
     // keep bullet lists compact and non-indented
     .replace(/^\s{2,}([-*]\s)/gm, '$1')
     .replace(/\n\s*\n(?=\s*[-*]\s)/g, '\n')
+    // Strip any literal thinking/reasoning tags that leaked through
+    .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
+    .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '')
+    .replace(/\n\s*?thinking[\s\S]*?<\/think>\s*\n?/gi, '\n')
 
   // Remove raw tool/file markers and leftover ANSI fragments.
   return normalized
@@ -1053,15 +1057,16 @@ function StreamingMessage({ state, onAnswer }: {
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-xs font-medium text-text-muted">AI Agent</p>
-
-        {renderedItems.length > 0 || state.todos.length > 0 ? (
-          <RenderMessageBlocks blocks={renderedItems} todos={state.todos} onAnswer={onAnswer} />
-        ) : (
-          <div className="flex items-center gap-2 pt-1">
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-            <span className="text-xs text-text-dim">Connecting to AI agent...</span>
-          </div>
-        )}
+        <div className="mt-1">
+          {renderedItems.length > 0 || state.todos.length > 0 ? (
+            <RenderMessageBlocks blocks={renderedItems} todos={state.todos} onAnswer={onAnswer} />
+          ) : (
+            <div className="flex items-center gap-2 pt-1">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              <span className="text-xs text-text-dim">Connecting to AI agent...</span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -1073,10 +1078,10 @@ function MessageContent({ message, onFileSelect }: { message: AgentMessage; onFi
   const { blocks, todos } = buildRenderBlocksFromMetadata(message.metadata)
 
   if (blocks.length > 0 || todos.length > 0) {
-    return <div className="mt-0.5"><RenderMessageBlocks blocks={blocks} todos={todos} onFileSelect={onFileSelect} /></div>
+    return <RenderMessageBlocks blocks={blocks} todos={todos} onFileSelect={onFileSelect} />
   }
 
-  return <div className="mt-0.5">{message.content && <MarkdownContent content={message.content} />}</div>
+  return <>{message.content && <MarkdownContent content={message.content} />}</>
 }
 
 // ── Model selector ───────────────────────────────────────────────────
@@ -1253,9 +1258,13 @@ function getBridgeFromModel(modelId: string): 'opencode' | 'kiro' {
 
 
 
-function ChatPanel({ projectId, projectBridge, onRefreshFiles, onFileSelect, autoFixPayload, onAutoFixComplete, workspaceDisabled, onAiRunningChange, stopAiRef }: {
+function ChatPanel({ projectId, projectBridge, selectedModel, selectedSpeed, onModelChange, onSpeedChange, onRefreshFiles, onFileSelect, autoFixPayload, onAutoFixComplete, workspaceDisabled, onAiRunningChange, stopAiRef }: {
   projectId: string
-  projectBridge?: 'opencode' | 'kiro'
+  projectBridge?: string
+  selectedModel: string
+  selectedSpeed?: string
+  onModelChange: (modelId: string) => void
+  onSpeedChange?: (speed: string) => void
   onRefreshFiles?: () => void
   onFileSelect?: (path: string) => void
   autoFixPayload?: { prompt: string; model: string } | null
@@ -1264,9 +1273,7 @@ function ChatPanel({ projectId, projectBridge, onRefreshFiles, onFileSelect, aut
   onAiRunningChange?: (running: boolean) => void
   stopAiRef?: React.MutableRefObject<(() => void) | null>
 }) {
-  const { sessions, isLoading: sessionsLoading, createSession } = useAgentSessions(projectId)
-
-  const initialSessionId = sessions.length > 0 ? sessions[0].id : null
+  const { isLoading: sessionsLoading, createSession } = useAgentSessions(projectId)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [pendingMessage, setPendingMessage] = useState<{ content: string; model: string } | null>(null)
   
@@ -1274,11 +1281,8 @@ function ChatPanel({ projectId, projectBridge, onRefreshFiles, onFileSelect, aut
     if (!projectBridge) return true
     return true
   })
-  const defaultModel = availableModels[0]?.id ?? DEFAULT_MODEL_ID
-  const [selectedModel, setSelectedModel] = useState(defaultModel)
-  const [selectedSpeed, setSelectedSpeed] = useState('fast')
   
-  const resolvedSessionId = activeSessionId ?? initialSessionId
+  const resolvedSessionId = activeSessionId
 
   const handleSessionCreated = useCallback((id: string, message: string) => {
     setActiveSessionId(id)
@@ -1314,7 +1318,7 @@ function ChatPanel({ projectId, projectBridge, onRefreshFiles, onFileSelect, aut
   }
 
   if (!resolvedSessionId) {
-    return <ChatEmptyState onSessionCreated={handleSessionCreated} createSession={createSession} selectedModel={selectedModel} selectedSpeed={selectedSpeed} onModelChange={setSelectedModel} onSpeedChange={setSelectedSpeed} />
+    return <ChatEmptyState onSessionCreated={handleSessionCreated} createSession={createSession} selectedModel={selectedModel} selectedSpeed={selectedSpeed} onModelChange={onModelChange} onSpeedChange={onSpeedChange} />
   }
 
   return (
@@ -1325,8 +1329,8 @@ function ChatPanel({ projectId, projectBridge, onRefreshFiles, onFileSelect, aut
       onPendingMessageSent={() => setPendingMessage(null)}
       selectedModel={selectedModel}
       selectedSpeed={selectedSpeed}
-      onModelChange={setSelectedModel}
-      onSpeedChange={setSelectedSpeed}
+      onModelChange={onModelChange}
+      onSpeedChange={onSpeedChange}
       availableModels={availableModels}
       onRefreshFiles={onRefreshFiles}
       onFileSelect={onFileSelect}
@@ -1660,48 +1664,63 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
           </div>
         ) : (
           <div className="space-y-4">
-            {messagesToRender.map((msg) => (
-              <div key={msg.id} className={cn(
-                'flex gap-2.5',
-                msg.role === 'user' ? 'flex-row-reverse justify-start' : 'flex-row'
-              )}>
-                <div className={cn(
-                  'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full',
-                  msg.role === 'user' ? 'bg-primary/10' : 'bg-surface-hover'
-                )}>
-                  {msg.role === 'user'
-                    ? <User className="h-3.5 w-3.5 text-primary" />
-                    : <Bot className="h-3.5 w-3.5 text-text-muted" />}
-                </div>
-                <div className={cn(
-                  'min-w-0',
-                  msg.role === 'user' ? 'max-w-[80%] flex flex-col items-end' : 'flex-1'
-                )}>
-                  <p className="text-xs font-medium text-text-muted">
-                    {msg.role === 'user' ? 'You' : msg.role === 'system' ? 'System' : 'AI Agent'}
-                  </p>
-                  <div className={cn(msg.role === 'user' && 'w-full')}>
-                    <MessageContent message={msg} onFileSelect={onFileSelect} />
+            {messagesToRender.map((msg, idx) => {
+              const prevRole = idx > 0 ? messagesToRender[idx - 1].role : null
+              const isRoleChange = prevRole && prevRole !== msg.role
+              return (
+                <div
+                  key={msg.id}
+                  className={cn(
+                    'flex gap-2.5',
+                    msg.role === 'user' ? 'flex-row-reverse justify-start' : 'flex-row',
+                    isRoleChange && 'mt-6 pt-2'
+                  )}
+                >
+                  <div className={cn(
+                    'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full',
+                    msg.role === 'user' ? 'bg-primary/10' : 'bg-surface-hover'
+                  )}>
+                    {msg.role === 'user'
+                      ? <User className="h-3.5 w-3.5 text-primary" />
+                      : <Bot className="h-3.5 w-3.5 text-text-muted" />}
+                  </div>
+                  <div className={cn(
+                    'min-w-0',
+                    msg.role === 'user' ? 'max-w-[80%] flex flex-col items-end' : 'flex-1'
+                  )}>
+                    <p className="text-xs font-medium text-text-muted">
+                      {msg.role === 'user' ? 'You' : msg.role === 'system' ? 'System' : 'AI Agent'}
+                    </p>
+                    <div className={cn(
+                      'mt-1 rounded-lg',
+                      msg.role === 'user'
+                        ? 'bg-primary/5 px-3 py-2'
+                        : ''
+                    )}>
+                      <MessageContent message={msg} onFileSelect={onFileSelect} />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
 
             {handoffAgentMessage && (
-              <div className="flex gap-2.5">
+              <div className="mt-6 pt-2 flex gap-2.5">
                 <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-hover">
                   <Bot className="h-3.5 w-3.5 text-text-muted" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium text-text-muted">AI Agent</p>
-                  <div className="mt-0.5">
+                  <div className="mt-1">
                     <MessageContent message={handoffAgentMessage} onFileSelect={onFileSelect} />
                   </div>
                 </div>
               </div>
             )}
             {!handoffAgentMessage && showStreamingShell && (
-              <StreamingMessage state={streamingState} onAnswer={handleAnswer} />
+              <div className={messagesToRender.length > 0 && messagesToRender[messagesToRender.length - 1]?.role === 'user' ? 'mt-6 pt-2' : ''}>
+                <StreamingMessage state={streamingState} onAnswer={handleAnswer} />
+              </div>
             )}
 
             <div ref={messagesEndRef} />
@@ -2007,6 +2026,40 @@ function EditorPanel({ projectId, selectedFile, fileOps, disabled }: { projectId
 
 // ── Workspace page ───────────────────────────────────────────────────
 
+// ── Model Preference Persistence ──────────────────────────────────────
+
+function getModelPreferenceKey(projectId: string): string {
+  return `auroracraft:model:${projectId}`
+}
+
+function loadModelPreference(projectId: string | undefined): { model: string; speed: string } | null {
+  if (!projectId) return null
+  try {
+    const raw = localStorage.getItem(getModelPreferenceKey(projectId))
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (typeof parsed.model === 'string' && typeof parsed.speed === 'string') {
+      return parsed
+    }
+  } catch { /* ignore corrupt localStorage */ }
+  return null
+}
+
+function saveModelPreference(projectId: string | undefined, model: string, speed: string): void {
+  if (!projectId) return
+  try {
+    localStorage.setItem(getModelPreferenceKey(projectId), JSON.stringify({ model, speed }))
+  } catch { /* ignore localStorage errors (e.g. quota exceeded) */ }
+}
+
+function isModelAvailable(modelId: string, projectBridge: string | undefined): boolean {
+  const model = AI_MODELS.find(m => m.id === modelId)
+  if (!model) return false
+  if (!projectBridge) return true
+  const prefix = projectBridge === 'kiro' ? 'kiro/' : 'opencode/'
+  return model.id.startsWith(prefix)
+}
+
 export default function WorkspacePage() {
   const { projectId } = useParams<{ projectId: string }>()
   const { project, isLoading, updateProject } = useProject(projectId ?? '')
@@ -2041,8 +2094,42 @@ export default function WorkspacePage() {
   const [expandedReviews, setExpandedReviews] = useState<Set<string>>(new Set())
   const [expandedIssues, setExpandedIssues] = useState<Set<string>>(new Set())
   const [autoFixModalOpen, setAutoFixModalOpen] = useState(false)
-  const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL_ID)
-const [selectedIssues, setSelectedIssues] = useState<Array<{ reviewId: string; issueIdx: number }>>([])
+
+  // Load persisted model preference or fall back to default
+  const [selectedModel, setSelectedModel] = useState(() => {
+    const saved = loadModelPreference(projectId)
+    if (saved && isModelAvailable(saved.model, project?.bridge)) {
+      return saved.model
+    }
+    return DEFAULT_MODEL_ID
+  })
+  const [selectedSpeed, setSelectedSpeed] = useState(() => {
+    const saved = loadModelPreference(projectId)
+    return saved?.speed ?? 'fast'
+  })
+
+  // Persist model/speed whenever they change
+  useEffect(() => {
+    saveModelPreference(projectId, selectedModel, selectedSpeed)
+  }, [projectId, selectedModel, selectedSpeed])
+
+  // When project loads, validate saved model is still valid for this project's bridge
+  useEffect(() => {
+    if (!project) return
+    if (!isModelAvailable(selectedModel, project.bridge)) {
+      // Fallback to first available model for this bridge
+      const available = AI_MODELS.filter(m => {
+        if (!project.bridge) return true
+        return project.bridge === 'kiro' ? m.id.startsWith('kiro/') : m.id.startsWith('opencode/')
+      })
+      if (available.length > 0 && available[0].id !== selectedModel) {
+        setSelectedModel(available[0].id)
+        setSelectedSpeed('fast')
+      }
+    }
+  }, [project?.bridge, selectedModel])
+
+  const [selectedIssues, setSelectedIssues] = useState<Array<{ reviewId: string; issueIdx: number }>>([])
   const [autoFixPayload, setAutoFixPayload] = useState<{ prompt: string; model: string } | null>(null)
   const [fixConfirmOpen, setFixConfirmOpen] = useState(false)
 
@@ -2621,6 +2708,10 @@ const handleAutoFix = () => {
             <ChatPanel
               projectId={project.id}
               projectBridge={project.bridge}
+              selectedModel={selectedModel}
+              selectedSpeed={selectedSpeed}
+              onModelChange={setSelectedModel}
+              onSpeedChange={setSelectedSpeed}
               onRefreshFiles={refetchFiles}
               onFileSelect={handleFileSelect}
               autoFixPayload={autoFixPayload}
@@ -3348,6 +3439,10 @@ const handleAutoFix = () => {
               <ChatPanel
               projectId={project.id}
               projectBridge={project.bridge}
+              selectedModel={selectedModel}
+              selectedSpeed={selectedSpeed}
+              onModelChange={setSelectedModel}
+              onSpeedChange={setSelectedSpeed}
               onRefreshFiles={refetchFiles}
               onFileSelect={handleFileSelect}
               autoFixPayload={autoFixPayload}
@@ -3384,6 +3479,10 @@ const handleAutoFix = () => {
               <ChatPanel
               projectId={project.id}
               projectBridge={project.bridge}
+              selectedModel={selectedModel}
+              selectedSpeed={selectedSpeed}
+              onModelChange={setSelectedModel}
+              onSpeedChange={setSelectedSpeed}
               onRefreshFiles={refetchFiles}
               onFileSelect={handleFileSelect}
               autoFixPayload={autoFixPayload}

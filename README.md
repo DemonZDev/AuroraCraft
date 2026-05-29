@@ -5,7 +5,8 @@ AI-powered Minecraft plugin development platform. Describe what you want and an 
 ## Features
 
 - **AI Plugin Generation** — Chat with an AI coding agent (OpenCode) that writes, edits, and scaffolds Minecraft plugins
-- **Multi-Model Support** — Choose from free AI models (DeepSeek V4 Flash Free, Nemotron 3 Super Free)
+- **Multi-Model Support** — Choose from 9 AI models across free and paid tiers (DeepSeek V4 Flash Free, Nemotron 3 Super Free, GLM-5.1, MiniMax M2.7, Kimi K2.6, Qwen3.6, and more)
+- **Token-Based Pricing** — Precise per-message cost calculation with per-provider pricing differentiation, cached-input discounts, and automatic reconciliation (refunds when actual < estimated, capped overage when actual > estimated)
 - **Web Search via Firecrawl MCP** — Paid users get real-time web search, scraping, and crawling via Firecrawl's Model Context Protocol (MCP) server
 - **Project Management** — Create, configure, and manage multiple plugin projects
 - **Real-Time Streaming** — Live streaming of AI responses with thinking blocks, file operations, and progress tracking
@@ -24,6 +25,8 @@ AI-powered Minecraft plugin development platform. Describe what you want and an 
 | Review    | CodeRabbit CLI                                              |
 | Process   | PM2 (process manager with auto-restart)                      |
 | Language  | TypeScript (ES2024, strict mode)                             |
+| Sandbox   | Bash command wrapper with filesystem restriction & blocklist |
+| Build     | Java 8/11/17/21/25, Maven 3.8.7, Gradle 8.5                |
 
 ---
 
@@ -74,7 +77,31 @@ npm install -g pm2
 pm2 -v    # 7.x.x
 ```
 
-### Step 5 — PostgreSQL
+### Step 5 — Java, Maven & Gradle (Required for Plugin Compilation)
+
+AuroraCraft supports Java 8/11/17/21/25. Install OpenJDK 21 (default) and build tools:
+
+```bash
+apt update && apt install -y openjdk-21-jdk maven gradle
+```
+
+Verify:
+
+```bash
+java -version    # openjdk version "21.0.x"
+mvn -version     # Apache Maven 3.8.x
+gradle --version # Gradle 8.5
+```
+
+**Optional: Install additional Java versions** (for projects targeting older servers):
+
+```bash
+apt install -y openjdk-8-jdk openjdk-11-jdk openjdk-17-jdk openjdk-25-jdk
+```
+
+The AI agent sandbox automatically selects the correct Java version based on project configuration.
+
+### Step 6 — PostgreSQL
 
 PostgreSQL is already installed from Step 1. Enable and start it:
 
@@ -86,7 +113,7 @@ pg_isready
 
 Expected output: `/var/run/postgresql:5432 - accepting connections`
 
-### Step 6 — OpenCode (AI Agent)
+### Step 7 — OpenCode (AI Agent)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/opencode-ai/opencode/refs/heads/main/install | bash
@@ -120,7 +147,7 @@ cd /tmp
 
 **Why this is required:** OpenCode spawns under each user's Linux account (`runuser -l auroracraft-{username}`). A binary inside `/root/.nvm/...` or `/root/.local/share/pnpm/...` is **inaccessible** to other users. `/usr/local/bin/opencode` must be readable by everyone.
 
-### Step 7 — CodeRabbit (Code Review)
+### Step 8 — CodeRabbit (Code Review)
 
 ```bash
 curl -fsSL https://cli.coderabbit.ai/install.sh | CODERABBIT_INSTALL_DIR=/usr/local/bin sh
@@ -132,7 +159,7 @@ Verify:
 coderabbit --version   # 0.5.x
 ```
 
-### Step 8 — Clone and Install
+### Step 9 — Clone and Install
 
 ```bash
 cd /root   # or your preferred deployment directory
@@ -143,7 +170,7 @@ pnpm install
 
 This installs dependencies for both `client/` and `server/` workspaces.
 
-### Step 9 — Environment Configuration
+### Step 10 — Environment Configuration
 
 ```bash
 cp .env.example .env
@@ -188,7 +215,7 @@ GITHUB_CLIENT_SECRET=fa5e63f18b730f7f0f5b31415805b637032d796c
 GITHUB_CALLBACK_URL=https://codeaurora.online/api/auth/github/callback
 ```
 
-### Step 10 — Database Setup
+### Step 11 — Database Setup
 
 Create the PostgreSQL role and database:
 
@@ -206,7 +233,7 @@ Verify:
 PGPASSWORD=auroracraft psql -U auroracraft -d auroracraft -h localhost -c 'SELECT 1;'
 ```
 
-### Step 11 — Run Migrations
+### Step 12 — Run Migrations
 
 ```bash
 cd /root/AuroraCraft/server
@@ -225,7 +252,7 @@ Expected output: `Migrations complete`
 >
 > This fixes project deletion by changing `token_transactions.session_id` from `ON DELETE NO ACTION` to `ON DELETE SET NULL`.
 
-### Step 12 — Seed the Database
+### Step 13 — Seed the Database
 
 ```bash
 cd /root/AuroraCraft/server
@@ -266,16 +293,20 @@ Default admin credentials:
 
 > **Change the admin password after your first login.**
 
-### Step 13 — Build the Frontend
+### Step 14 — Build
+
+Build both frontend and backend:
 
 ```bash
-cd /root/AuroraCraft/client
-pnpm build
+cd /root/AuroraCraft
+pnpm --filter client build && pnpm --filter server build
 ```
 
-This creates `client/dist/` with static files. The backend serves these automatically.
+This creates `client/dist/` with static files (served by backend) and `server/dist/` with compiled JavaScript.
 
-### Step 14 — Initialize Shared Caches
+> **Note:** The server build uses `noEmitOnError: false` in `server/tsconfig.json` because pre-existing type errors in legacy files (`coderabbit.ts`, `users.ts`) would otherwise block all builds. The server still compiles successfully despite these warnings.
+
+### Step 15 — Initialize Shared Caches
 
 OpenCode, Gradle, and Maven caches are shared across all users to prevent storage duplication. Every `auroracraft-{username}` user needs read/write access.
 
@@ -305,7 +336,7 @@ chmod -R 777 /var/lib/maven/shared
 
 > **Why 777?** Each user runs as their own UID. A group-based approach would require a shared `auroracraft` group and `sg` on every `runuser` call, which is fragile. `777` on shared caches is the simplest correct solution.
 
-### Step 15 — Verify OpenCode Accessibility
+### Step 16 — Verify OpenCode Accessibility
 
 Before starting the server, confirm OpenCode works as a non-root user:
 
@@ -313,9 +344,9 @@ Before starting the server, confirm OpenCode works as a non-root user:
 su - auroracraft-admin -c "opencode --version"
 ```
 
-If this fails with "command not found", the binary is not in a globally accessible path. Go back to Step 6 and fix the symlink.
+If this fails with "command not found", the binary is not in a globally accessible path. Go back to Step 7 and fix the symlink.
 
-### Step 16 — Start with PM2
+### Step 17 — Start with PM2
 
 AuroraCraft includes a unified management script:
 
@@ -347,7 +378,7 @@ Verify all services are online:
 > ```
 > Adjust the exact path to match your installed tsx version.
 
-### Step 17 — Auto-Start on Boot
+### Step 18 — Auto-Start on Boot
 
 Save the PM2 process list:
 
@@ -383,7 +414,7 @@ The `auroracraft.sh start` command will:
 4. Restart to load latest code
 5. Save the process list
 
-### Step 18 — Verify Full Deployment
+### Step 19 — Verify Full Deployment
 
 Run the unified status command:
 
@@ -461,10 +492,20 @@ echo "12. Isolated config base directory (for per-project API key isolation):"
 ls -ld /var/lib/auroracraft/configs/ 2>/dev/null && echo "OK" || echo "MISSING — create with: mkdir -p /var/lib/auroracraft/configs && chmod 700 /var/lib/auroracraft && chmod 711 /var/lib/auroracraft/configs"
 
 echo ""
+echo "13. Java, Maven & Gradle:"
+java -version 2>&1 | head -1
+mvn -version 2>&1 | head -1
+gradle --version 2>&1 | head -1
+
+echo ""
+echo "14. AI agent sandbox:"
+test -x /usr/local/bin/aurora-sandbox && echo "OK" || echo "MISSING"
+
+echo ""
 echo "All checks complete."
 ```
 
-Expected: All green, 11 checks passed, all versions showing.
+Expected: All green, 14 checks passed, all versions showing.
 
 ---
 
@@ -667,6 +708,60 @@ Firecrawl MCP provides web search, scraping, and crawling capabilities to the AI
 6. If the key is removed, the backend calls `POST /mcp/firecrawl/disconnect` to clean up
 
 **Note:** Firecrawl MCP is **not** configured in `opencode.json` — it is registered dynamically via the OpenCode HTTP API after the instance starts. This prevents config validation errors (`Unrecognized key: mcpServers`).
+
+### Token Pricing System
+
+AuroraCraft uses a precise token-based pricing system with **per-provider pricing differentiation** and **cached-input discounts**.
+
+**Pricing formula:**
+```
+$1 = 1000 tokens
+TOKEN_MULTIPLIER = 1.2 (20% platform commission)
+
+Cost($) = ((uncached_input / 1M × inputPer1M)
+        + (cached_input / 1M × cachedInputPer1M)
+        + (output / 1M × outputPer1M)) × 1.2
+Tokens = ceil(Cost($) × 1000)
+```
+
+**Example — DeepSeek V4 Pro via Fireworks:**
+| Token Type | Per-1M Price | Cached Price |
+|-----------|--------------|--------------|
+| Input | $1.74 | $0.145 |
+| Output | $3.48 | — |
+
+**Per-provider pricing:** The same model may have different prices on different providers:
+| Model | Fireworks | Blueminds |
+|-------|-----------|-----------|
+| Kimi K2.6 | $0.95 / $4.00 | $0.28 / $0.154 |
+| Qwen3.6 Plus | $0.50 / $3.00 | $1.20 / $2.88 |
+
+**Free models** (DeepSeek V4 Flash Free, Nemotron 3 Super Free) consume **0 tokens**.
+
+**Automatic reconciliation:** After each AI session completes, the system reconciles estimated vs actual token usage:
+- **Refund:** If actual < estimated, the difference is refunded to the user's balance
+- **Cap:** If actual > estimated, the user is charged at most 2× the estimate (prevents runaway costs)
+
+### AI Agent Sandbox
+
+All AI-generated commands run through a sandboxed wrapper (`/usr/local/bin/aurora-sandbox`) that enforces security boundaries:
+
+**Blocked commands:** `curl`, `wget`, `ssh`, `sudo`, `rm -rf /`, `eval`, `mount`, `docker`, and any command reading `/etc/passwd`, `/etc/shadow`, or `opencode.json`.
+
+**Filesystem restriction:** The AI can only access files within the project directory, `/tmp`, and shared Maven/Gradle caches. Attempts to access files outside the project return `COMMAND_REJECTED`.
+
+**Build tool restriction:** If a project is configured for Maven, `gradle` commands are blocked; if configured for Gradle, `mvn` commands are blocked.
+
+**Java version isolation:** Projects can specify a target Java version (8, 11, 17, 21, or 25). The sandbox sets `JAVA_HOME` to the appropriate JDK before running commands.
+
+### Model Selection Persistence
+
+The workspace remembers your chosen AI model and speed per project across page refreshes:
+
+- Selection is saved to `localStorage` under key `auroracraft:model:{projectId}`
+- On page load, the saved model is validated against the project's bridge (Kiro vs OpenCode)
+- If the saved model is incompatible (e.g., a Kiro model on an OpenCode project), it falls back to the default
+- Each project has its own independent selection
 
 ### Shared Caches
 
@@ -1007,6 +1102,71 @@ This is by design. Firecrawl is a paid-only provider. Remove the Firecrawl key f
 1. Admin Panel → Users → click the user
 2. API Keys → delete `firecrawl`
 3. Then change tier to **free**
+
+### Java compilation fails / "java: command not found"
+
+The AI agent requires Java to compile plugins. If the AI reports that compilation is unavailable:
+
+1. **Verify Java is installed:**
+   ```bash
+   java -version  # Should show OpenJDK 21
+   ```
+
+2. **Verify all Java versions are accessible to Linux users:**
+   ```bash
+   su - auroracraft-admin -c "java -version"
+   ```
+
+3. **Check that the sandbox is in PATH:**
+   ```bash
+   which aurora-sandbox  # Should show /usr/local/bin/aurora-sandbox
+   ```
+
+4. **Reinstall Java if missing:**
+   ```bash
+   apt install -y openjdk-21-jdk maven gradle
+   ```
+
+The system prompt explicitly instructs the AI to compile after writing code. If the AI still says compilation is unavailable, the `JAVA_HOME` or `MAVEN_OPTS` environment variables may not be set correctly in `opencode-process-manager.ts`.
+
+### Token balance went negative / unexpected charges
+
+**Check 1 — Was the model priced correctly?**
+```bash
+# Check actual pricing in ai-models.ts
+grep -A5 "deepseek-v4-pro" /root/AuroraCraft/server/src/config/ai-models.ts
+```
+
+**Check 2 — Reconciliation log:**
+Check server logs for "Reconciling tokens" — if actual usage was lower than estimated, a refund should have been issued automatically.
+
+**Check 3 — Provider mismatch:**
+If the frontend selected one provider but the backend used another, the pricing may differ. Verify `providerPricing` is set correctly in `ai-models.ts` for the model/provider combination.
+
+### Model selection resets after page refresh
+
+If the selected model reverts to default after refreshing the page:
+
+1. **Check localStorage:** Open browser DevTools → Application → Local Storage → your domain
+2. Look for keys starting with `auroracraft:model:`
+3. If the key exists but the model is wrong, the validation may be rejecting it due to bridge mismatch (e.g., Kiro model on OpenCode project)
+4. **Fix:** Select a model compatible with the project's bridge, then refresh
+
+### AI says "I cannot compile" or "Compilation unavailable"
+
+This should not happen with the current system prompt. If it does:
+
+1. Restart the server to ensure the latest system prompt is loaded:
+   ```bash
+   ./auroracraft.sh restart
+   ```
+
+2. Check that Java is installed (see "Java compilation fails" above)
+
+3. Verify the system prompt is being prepended to OpenCode prompts:
+   ```bash
+   grep "AGENT_SYSTEM_PROMPT" /root/AuroraCraft/server/src/bridges/opencode.ts
+   ```
 
 ---
 

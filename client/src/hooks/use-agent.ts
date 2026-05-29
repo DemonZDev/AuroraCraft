@@ -173,20 +173,34 @@ const EMPTY_STREAMING_STATE: StreamingState = {
   fileChanges: [],
 }
 
+/**
+ * Strip thinking/reasoning tags that some models emit as literal text
+ * instead of native thinking parts. Prevents raw `<thinking>` from
+ * showing up in the rendered output.
+ */
+function stripThinkingTags(text: string): string {
+  return text
+    .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
+    .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '')
+    .replace(/\n\s*<think>[\s\S]*?<\/think>\s*\n?/gi, '\n')
+}
+
 function processStreamEvent(acc: StreamAccumulator, event: StreamEvent): void {
   switch (event.type) {
     case 'text-delta': {
+      const cleanContent = stripThinkingTags(event.content)
+      if (!cleanContent) break
       // Find or create a text item for current position
       const lastItem = acc.items[acc.items.length - 1]
       if (lastItem && lastItem.kind === 'text') {
-        lastItem.textContent = (lastItem.textContent || '') + event.content
+        lastItem.textContent = (lastItem.textContent || '') + cleanContent
       } else {
         // Create new text item at current position
         const textItem: StreamingItem = {
           id: `text-${acc.nextOrder++}`,
           kind: 'text',
           order: acc.nextOrder,
-          textContent: event.content,
+          textContent: cleanContent,
         }
         acc.items.push(textItem)
         acc.itemById.set(textItem.id, textItem)
