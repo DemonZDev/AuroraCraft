@@ -1,1 +1,1 @@
-{"nodes": [{"id": "client_favicon_svg", "label": "AuroraCraft Logo", "file_type": "image", "source_file": "client/public/favicon.svg", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null}], "edges": [], "hyperedges": []}
+{"nodes": [{"id": "client_public_favicon", "label": "AuroraCraft Favicon", "file_type": "image", "source_file": "client/public/favicon.svg", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null}], "edges": [], "hyperedges": []}

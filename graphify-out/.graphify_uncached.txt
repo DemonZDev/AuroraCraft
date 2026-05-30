@@ -12,6 +12,8 @@
 /root/AuroraCraft/server/drizzle/0004_hard_corsair.sql
 /root/AuroraCraft/server/drizzle/0007_compiler_both.sql
 /root/AuroraCraft/server/drizzle/0013_remove_admin_tier.sql
+/root/AuroraCraft/server/drizzle/0016_community_features.sql
+/root/AuroraCraft/server/drizzle/0015_expand_software_column.sql
 /root/AuroraCraft/server/drizzle/0001_foamy_shockwave.sql
 /root/AuroraCraft/server/drizzle/0009_next_vulture.sql
 /root/AuroraCraft/server/drizzle/0004_add_coderabbit.sql
@@ -34,6 +36,7 @@
 /root/AuroraCraft/server/drizzle/meta/0004_snapshot.json
 /root/AuroraCraft/server/src/env.ts
 /root/AuroraCraft/server/src/index.ts
+/root/AuroraCraft/server/src/utils/litellm-config.ts
 /root/AuroraCraft/server/src/utils/shared-cache.ts
 /root/AuroraCraft/server/src/utils/opencode-mcp.ts
 /root/AuroraCraft/server/src/utils/system-user.ts
@@ -49,6 +52,8 @@
 /root/AuroraCraft/server/src/db/index.ts
 /root/AuroraCraft/server/src/db/schema/agent-logs.ts
 /root/AuroraCraft/server/src/db/schema/sessions.ts
+/root/AuroraCraft/server/src/db/schema/project-views.ts
+/root/AuroraCraft/server/src/db/schema/project-likes.ts
 /root/AuroraCraft/server/src/db/schema/users.ts
 /root/AuroraCraft/server/src/db/schema/agent-messages.ts
 /root/AuroraCraft/server/src/db/schema/agent-sessions.ts
@@ -59,6 +64,7 @@
 /root/AuroraCraft/server/src/bridges/kiro-process-manager.ts
 /root/AuroraCraft/server/src/bridges/opencode.ts
 /root/AuroraCraft/server/src/bridges/kiro-output-parser.ts
+/root/AuroraCraft/server/src/bridges/litellm-process-manager.ts
 /root/AuroraCraft/server/src/bridges/opencode-process-manager.ts
 /root/AuroraCraft/server/src/bridges/types.ts
 /root/AuroraCraft/server/src/bridges/system-prompt.ts
@@ -103,6 +109,7 @@
 /root/AuroraCraft/client/src/pages/admin/ai-runtime.tsx
 /root/AuroraCraft/client/src/pages/admin/users.tsx
 /root/AuroraCraft/client/src/pages/admin/provider-keys.tsx
+/root/AuroraCraft/client/src/lib/software-options.ts
 /root/AuroraCraft/client/src/lib/api.ts
 /root/AuroraCraft/client/src/lib/utils.ts
 /root/AuroraCraft/client/src/types/index.ts

@@ -12,6 +12,7 @@ import { authMiddleware } from '../middleware/auth.js'
 import { agentExecutor } from '../agents/executor.js'
 import { opencodeBridge, sessionEventBus } from '../bridges/index.js'
 import { processManager } from '../bridges/opencode-process-manager.js'
+import { generateOpenCodeKnowledge } from '../utils/opencode-knowledge.js'
 import { AI_MODELS, getModelById, getProviderForModel, canUseModel, modelCanUseZen } from '../config/ai-models.js'
 import { getUserTokens, hasEnoughTokens, deductTokens, estimateMessageCost, canAccessTier, getUserProviderKeys, calculateMaxOutputTokens, MIN_PREMIUM_BALANCE } from '../utils/token-service.js'
 import { generateProviderConfig, generateLiteLLMProviderConfig, generateMinimalProjectConfig, writeProjectConfig, writeIsolatedProjectConfig, writeZenAuthJson } from '../utils/provider-config.js'
@@ -466,6 +467,13 @@ export async function agentRoutes(app: FastifyInstance) {
       const modelChanged = !!(requestedModel && lastModel && requestedModel !== lastModel)
       if (requestedModel) sessionModelTracker.set(sessionId, requestedModel)
 
+      // Generate project-specific rules and skills for OpenCode
+      try {
+        await generateOpenCodeKnowledge(project, username)
+      } catch (err) {
+        app.log.warn({ err, sessionId }, 'Failed to generate OpenCode knowledge — continuing without custom rules')
+      }
+
       // Start OpenCode instance for this project directory
       // Pass API keys as env vars so they are never written to disk
       let instanceUrl: string | undefined
@@ -628,6 +636,13 @@ export async function agentRoutes(app: FastifyInstance) {
     const opencodeSessionId = session.opencodeSessionId ?? undefined
     if (!opencodeSessionId) {
       return reply.status(400).send({ message: 'No OpenCode session found', statusCode: 400 })
+    }
+
+    // Generate project-specific rules and skills for OpenCode
+    try {
+      await generateOpenCodeKnowledge(project, request.user!.username)
+    } catch (err) {
+      app.log.warn({ err, sessionId }, 'Failed to generate OpenCode knowledge — continuing without custom rules')
     }
 
     const directory = getProjectDirectory(request.user!.username, project.linkId)

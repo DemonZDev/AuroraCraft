@@ -540,6 +540,22 @@ export async function projectRoutes(app: FastifyInstance) {
       })
     }
 
+    // Clean up isolated config directory (rules, skills, caches, provider configs)
+    if (existing.linkId && projectOwner?.username) {
+      const isolatedConfigDir = `/var/lib/auroracraft/configs/auroracraft-${projectOwner.username}/${existing.linkId}`
+      import('child_process').then(({ exec }) => {
+        exec(`sudo rm -rf "${isolatedConfigDir}"`, (err) => {
+          if (err) {
+            app.log.warn({ err, isolatedConfigDir }, 'Failed to remove isolated config directory')
+          } else {
+            app.log.info({ isolatedConfigDir }, 'Isolated config directory removed successfully')
+          }
+        })
+      }).catch((err) => {
+        app.log.warn({ err, isolatedConfigDir }, 'Failed to import child_process for config cleanup')
+      })
+    }
+
     return reply.status(204).send()
   })
 
