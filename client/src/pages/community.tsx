@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router'
-import { Search, Globe, Filter, User } from 'lucide-react'
+import { Search, Globe, Filter, User, Heart, Eye } from 'lucide-react'
 import { useCommunityProjects } from '@/hooks/use-community'
+import { SOFTWARE_LABELS } from '@/lib/software-options'
 import type { CommunityProject } from '@/types'
 
-const softwareOptions = [
+import { SOFTWARE_CATEGORIES } from '@/lib/software-options'
+
+const softwareOptions: { value: string; label: string; disabled?: boolean }[] = [
   { value: '', label: 'All Software' },
-  { value: 'paper', label: 'Paper' },
-  { value: 'spigot', label: 'Spigot' },
-  { value: 'bukkit', label: 'Bukkit' },
-  { value: 'velocity', label: 'Velocity' },
-  { value: 'bungeecord', label: 'BungeeCord' },
+  ...SOFTWARE_CATEGORIES.flatMap((cat) => [
+    { value: `__cat_${cat.id}`, label: `— ${cat.label}`, disabled: true as const },
+    ...cat.options.map((o) => ({ value: o.value, label: `  ${o.label}` })),
+  ]),
 ]
 
 const languageOptions = [
@@ -20,6 +22,10 @@ const languageOptions = [
 ]
 
 const sortOptions = [
+  { value: 'smart', label: 'Smart Mix' },
+  { value: 'popular', label: 'Most Popular' },
+  { value: 'likes', label: 'Most Liked' },
+  { value: 'views', label: 'Most Viewed' },
   { value: 'newest', label: 'Newest' },
   { value: 'oldest', label: 'Oldest' },
 ]
@@ -65,7 +71,7 @@ function ProjectCard({ project }: { project: CommunityProject }) {
 
       <div className="mt-3 flex items-center gap-2 flex-wrap">
         <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-          {project.software}
+          {SOFTWARE_LABELS[project.software] ?? project.software}
         </span>
         <span className="rounded bg-accent px-2 py-0.5 text-xs text-text-muted">
           {project.language}
@@ -77,9 +83,17 @@ function ProjectCard({ project }: { project: CommunityProject }) {
         )}
       </div>
 
-      <p className="mt-3 text-[11px] text-text-dim">
-        Created {formatDate(project.createdAt)}
-      </p>
+      <div className="mt-3 flex items-center gap-3 text-[11px] text-text-dim">
+        <span className="inline-flex items-center gap-1">
+          <Heart className="h-3 w-3" />
+          {project.likes ?? 0}
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <Eye className="h-3 w-3" />
+          {project.views ?? 0}
+        </span>
+        <span className="ml-auto">{formatDate(project.createdAt)}</span>
+      </div>
     </Link>
   )
 }
@@ -89,7 +103,7 @@ export default function CommunityPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [software, setSoftware] = useState('')
   const [language, setLanguage] = useState('')
-  const [sort, setSort] = useState<'newest' | 'oldest'>('newest')
+  const [sort, setSort] = useState<'smart' | 'popular' | 'likes' | 'views' | 'newest' | 'oldest'>('smart')
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchInput), 300)
@@ -142,7 +156,7 @@ export default function CommunityPage() {
             className="rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           >
             {softwareOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+              <option key={opt.value} value={opt.value} disabled={opt.disabled}>{opt.label}</option>
             ))}
           </select>
           <select
@@ -156,7 +170,7 @@ export default function CommunityPage() {
           </select>
           <select
             value={sort}
-            onChange={(e) => setSort(e.target.value as 'newest' | 'oldest')}
+            onChange={(e) => setSort(e.target.value as typeof sort)}
             className="rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           >
             {sortOptions.map((opt) => (

@@ -1,12 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { Project, CommunityProject, AgentMessage, FileTreeEntry } from '@/types'
+import type { Project, CommunityProject, AgentMessage, FileTreeEntry, ProjectAccess } from '@/types'
 
 interface CommunityProjectsParams {
   search?: string
   software?: string
   language?: string
-  sort?: 'newest' | 'oldest'
+  sort?: 'smart' | 'popular' | 'likes' | 'views' | 'newest' | 'oldest'
 }
 
 export function useCommunityProjects(params: CommunityProjectsParams) {
@@ -39,6 +39,19 @@ export function useCommunityProject(id: string) {
 
   return {
     project: data ?? null,
+    isLoading,
+  }
+}
+
+export function useProjectAccess(projectId: string) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['community', 'projects', projectId, 'access'],
+    queryFn: () => api.get<ProjectAccess>(`/community/projects/${projectId}/access`),
+    enabled: !!projectId,
+  })
+
+  return {
+    access: data ?? null,
     isLoading,
   }
 }
@@ -80,6 +93,40 @@ export function useCommunityMessages(projectId: string) {
   return {
     messages: data?.messages ?? [],
     isLoading,
+  }
+}
+
+export function useLikeProject() {
+  const queryClient = useQueryClient()
+
+  const mutation = useMutation({
+    mutationFn: (projectId: string) => api.post<{ likes: number; isLiked: boolean }>(`/community/projects/${projectId}/like`),
+    onSuccess: (_, projectId) => {
+      queryClient.invalidateQueries({ queryKey: ['community', 'projects', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['community', 'projects'] })
+    },
+  })
+
+  return {
+    likeProject: mutation.mutateAsync,
+    unlikeProject: async (projectId: string) => {
+      const result = await api.delete<{ likes: number; isLiked: boolean }>(`/community/projects/${projectId}/like`)
+      queryClient.invalidateQueries({ queryKey: ['community', 'projects', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['community', 'projects'] })
+      return result
+    },
+    isLiking: mutation.isPending,
+  }
+}
+
+export function useViewProject() {
+  const mutation = useMutation({
+    mutationFn: (projectId: string) => api.post<{ views: number; isViewed: boolean }>(`/community/projects/${projectId}/view`),
+  })
+
+  return {
+    viewProject: mutation.mutateAsync,
+    isViewing: mutation.isPending,
   }
 }
 

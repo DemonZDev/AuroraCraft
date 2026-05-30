@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { SOFTWARE_LABELS } from '@/lib/software-options'
 import { Link, useParams, useNavigate } from 'react-router'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -23,6 +24,10 @@ import {
   Archive,
   Blocks,
   MessageCircle,
+  Heart,
+  Eye,
+  Lock,
+  Zap,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -34,6 +39,9 @@ import {
   useCommunityFileContent,
   useCommunityMessages,
   useForkProject,
+  useLikeProject,
+  useViewProject,
+  useProjectAccess,
 } from '@/hooks/use-community'
 import type { FileTreeEntry, AgentMessage } from '@/types'
 
@@ -164,9 +172,10 @@ function FileTreePanel({ files, isLoading, onFileSelect, selectedFile }: {
 
 // ── Read-only editor panel ───────────────────────────────────────────
 
-function ReadOnlyEditorPanel({ projectId, selectedFile }: {
+function ReadOnlyEditorPanel({ projectId, selectedFile, canViewEditor }: {
   projectId: string
   selectedFile: string | null
+  canViewEditor: boolean
 }) {
   const { content, isLoading, error } = useCommunityFileContent(projectId, selectedFile)
 
@@ -211,7 +220,7 @@ function ReadOnlyEditorPanel({ projectId, selectedFile }: {
           <AlertCircle className="h-6 w-6 text-destructive" />
           <p className="mt-2 text-sm text-text-muted">Failed to load file</p>
         </div>
-      ) : (
+      ) : canViewEditor ? (
         <Editor
           height="100%"
           theme="vs-dark"
@@ -232,6 +241,21 @@ function ReadOnlyEditorPanel({ projectId, selectedFile }: {
             domReadOnly: true,
           }}
         />
+      ) : (
+        <div className="flex flex-1 flex-col items-center justify-center text-center px-6">
+          <Lock className="h-8 w-8 text-text-dim/50" />
+          <p className="mt-4 text-sm font-medium text-text-muted">Editor view locked</p>
+          <p className="mt-1 max-w-xs text-xs text-text-dim">
+            Upgrade to a paid plan to open files in the code editor and fork this project.
+          </p>
+          <Link
+            to="/dashboard"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary-hover"
+          >
+            <Zap className="h-3 w-3" />
+            Upgrade Plan
+          </Link>
+        </div>
       )}
     </div>
   )
@@ -300,7 +324,7 @@ function ChatHistoryPanel({ projectId }: { projectId: string }) {
 
 // ── Download dropdown ────────────────────────────────────────────────
 
-function DownloadDropdown({ projectId }: { projectId: string }) {
+function DownloadDropdown({ projectId, canDownloadSource }: { projectId: string; canDownloadSource: boolean }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -317,23 +341,32 @@ function DownloadDropdown({ projectId }: { projectId: string }) {
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute right-0 top-full z-20 mt-1 w-52 rounded-lg border border-border bg-surface py-1 shadow-lg">
+            {canDownloadSource ? (
+              <a
+                href={`/api/community/projects/${projectId}/download/zip`}
+                download
+                onClick={() => setOpen(false)}
+                className="flex w-full items-center gap-2 px-3 py-2 text-xs text-text-muted hover:bg-surface-hover hover:text-text"
+              >
+                <Archive className="h-3.5 w-3.5" />
+                Download Source (.zip)
+              </a>
+            ) : (
+              <div className="flex w-full items-center gap-2 px-3 py-2 text-xs text-text-dim cursor-not-allowed opacity-50">
+                <Lock className="h-3.5 w-3.5" />
+                Download Source (.zip)
+                <span className="ml-auto text-[10px]">Paid</span>
+              </div>
+            )}
             <a
-              href={`/api/community/projects/${projectId}/download/zip`}
+              href={`/api/community/projects/${projectId}/download/jar`}
               download
               onClick={() => setOpen(false)}
               className="flex w-full items-center gap-2 px-3 py-2 text-xs text-text-muted hover:bg-surface-hover hover:text-text"
             >
-              <Archive className="h-3.5 w-3.5" />
-              Download Source (.zip)
-            </a>
-            <button
-              disabled
-              className="flex w-full items-center gap-2 px-3 py-2 text-xs text-text-dim cursor-not-allowed opacity-50"
-            >
               <Download className="h-3.5 w-3.5" />
               Download Compiled (.jar)
-              <span className="ml-auto text-[10px]">Soon</span>
-            </button>
+            </a>
           </div>
         </>
       )}
@@ -372,12 +405,28 @@ export default function CommunityProjectPage() {
   const { isAuthenticated } = useAuth()
   const isMobile = useIsMobile()
   const { project, isLoading } = useCommunityProject(projectId ?? '')
+  const { access } = useProjectAccess(projectId ?? '')
   const { files, isLoading: filesLoading } = useCommunityProjectFiles(projectId ?? '')
   const { forkProject, isForking } = useForkProject()
+  const { likeProject, unlikeProject, isLiking } = useLikeProject()
+  const { viewProject } = useViewProject()
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const isChatFirst = project?.layoutMode === 'chat-first'
   const [mobileTab, setMobileTab] = useState<'files' | 'code' | 'chat'>('chat')
   const initialTabSetRef = useRef(false)
+  const hasViewedRef = useRef(false)
+
+  const canFork = access?.canFork ?? false
+  const canDownloadSource = access?.canDownload ?? false
+  const canViewEditor = access?.canViewFiles ?? true
+
+  // Track view on mount
+  useEffect(() => {
+    if (projectId && !hasViewedRef.current) {
+      hasViewedRef.current = true
+      viewProject(projectId).catch(() => {})
+    }
+  }, [projectId, viewProject])
 
   useEffect(() => {
     if (project && !initialTabSetRef.current) {
@@ -402,12 +451,33 @@ export default function CommunityProjectPage() {
       const newProject = await forkProject(projectId)
       toast.success('Project forked successfully!')
       navigate(`/workspace/${newProject.id}`)
-    } catch {
-      toast.error('Failed to fork project')
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'message' in err ? String(err.message) : 'Failed to fork project'
+      toast.error(msg)
     }
   }
 
-  if (isLoading) {
+  const handleLike = async () => {
+    if (!isAuthenticated) {
+      toast.error('Please log in to like projects')
+      navigate('/login')
+      return
+    }
+    if (!projectId) return
+    try {
+      if (project?.isLiked) {
+        await unlikeProject(projectId)
+        toast.success('Unliked')
+      } else {
+        await likeProject(projectId)
+        toast.success('Liked!')
+      }
+    } catch {
+      toast.error('Failed to update like')
+    }
+  }
+
+  if (isLoading || !access) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
@@ -448,17 +518,23 @@ export default function CommunityProjectPage() {
               <span className="truncate text-sm font-medium text-text">{project.name}</span>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <a
-                href={`/api/community/projects/${projectId}/download/zip`}
-                download
-                className="rounded-md border border-border p-1.5 text-text-dim transition-colors hover:text-text-muted"
-                title="Download project"
+              <button
+                onClick={handleLike}
+                disabled={isLiking}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors',
+                  project.isLiked
+                    ? 'border-rose-200 bg-rose-50 text-rose-500 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-400'
+                    : 'border-border text-text-dim hover:text-text-muted'
+                )}
               >
-                <Download className="h-3.5 w-3.5" />
-              </a>
+                <Heart className={cn('h-3.5 w-3.5', project.isLiked && 'fill-current')} />
+                {project.likes ?? 0}
+              </button>
+              <DownloadDropdown projectId={projectId ?? ''} canDownloadSource={canDownloadSource} />
               <button
                 onClick={handleFork}
-                disabled={isForking}
+                disabled={isForking || !canFork}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:opacity-50"
               >
                 {isForking ? <Loader2 className="h-3 w-3 animate-spin" /> : <GitFork className="h-3 w-3" />}
@@ -469,8 +545,12 @@ export default function CommunityProjectPage() {
           <div className="flex items-center gap-2 text-xs">
             <User className="h-3 w-3 text-text-dim" />
             <span className="text-text-dim">@{project.ownerUsername}</span>
-            <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">{project.software}</span>
+            <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">{SOFTWARE_LABELS[project.software] ?? project.software}</span>
             <span className="rounded bg-accent px-1.5 py-0.5 text-[10px] text-text-muted">{project.language}</span>
+            <span className="inline-flex items-center gap-1 text-text-dim ml-auto">
+              <Eye className="h-3 w-3" />
+              {project.views ?? 0}
+            </span>
           </div>
         </header>
 
@@ -483,7 +563,7 @@ export default function CommunityProjectPage() {
             <FileTreePanel files={files} isLoading={filesLoading} onFileSelect={handleFileSelect} selectedFile={selectedFile} />
           </div>
           <div className={cn('h-full', mobileTab !== 'code' && 'hidden')}>
-            <ReadOnlyEditorPanel projectId={projectId ?? ''} selectedFile={selectedFile} />
+            <ReadOnlyEditorPanel projectId={projectId ?? ''} selectedFile={selectedFile} canViewEditor={canViewEditor} />
           </div>
         </div>
 
@@ -512,19 +592,36 @@ export default function CommunityProjectPage() {
             <User className="h-3 w-3" />
             <span>@{project.ownerUsername}</span>
           </div>
-          <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary shrink-0">{project.software}</span>
+          <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary shrink-0">{SOFTWARE_LABELS[project.software] ?? project.software}</span>
           <span className="rounded bg-accent px-2 py-0.5 text-xs text-text-dim shrink-0">{project.language}</span>
+          <span className="inline-flex items-center gap-1 rounded bg-surface-hover px-2 py-0.5 text-xs text-text-dim shrink-0">
+            <Eye className="h-3 w-3" />
+            {project.views ?? 0}
+          </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button
+            onClick={handleLike}
+            disabled={isLiking}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+              project.isLiked
+                ? 'border-rose-200 bg-rose-50 text-rose-500 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-400'
+                : 'border-border text-text-muted hover:text-text'
+            )}
+          >
+            <Heart className={cn('h-3.5 w-3.5', project.isLiked && 'fill-current')} />
+            {project.likes ?? 0}
+          </button>
+          <DownloadDropdown projectId={projectId ?? ''} canDownloadSource={canDownloadSource} />
+          <button
             onClick={handleFork}
-            disabled={isForking}
+            disabled={isForking || !canFork}
             className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:opacity-50"
           >
             {isForking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GitFork className="h-3.5 w-3.5" />}
             Fork Project
           </button>
-          <DownloadDropdown projectId={projectId ?? ''} />
         </div>
       </header>
 
@@ -541,7 +638,7 @@ export default function CommunityProjectPage() {
             </aside>
 
             <main className="flex-1 overflow-hidden">
-              <ReadOnlyEditorPanel projectId={projectId ?? ''} selectedFile={selectedFile} />
+              <ReadOnlyEditorPanel projectId={projectId ?? ''} selectedFile={selectedFile} canViewEditor={canViewEditor} />
             </main>
           </>
         ) : (
@@ -551,7 +648,7 @@ export default function CommunityProjectPage() {
             </aside>
 
             <main className="flex-1 overflow-hidden">
-              <ReadOnlyEditorPanel projectId={projectId ?? ''} selectedFile={selectedFile} />
+              <ReadOnlyEditorPanel projectId={projectId ?? ''} selectedFile={selectedFile} canViewEditor={canViewEditor} />
             </main>
 
             <aside className="flex w-[380px] shrink-0 flex-col border-l border-border bg-surface">

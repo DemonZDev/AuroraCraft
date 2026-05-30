@@ -1,24 +1,82 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router'
-import { ArrowLeft, ArrowRight, Check, Square, CheckSquare } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Square, CheckSquare, Globe, Lock, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjects } from '@/hooks/use-projects'
+import { useUserTokens } from '@/hooks/use-user-tokens'
 
 const steps = ['Project Info', 'Platform', 'Build Config', 'AI Tool', 'Source']
 
-const softwareOptions = [
-  { value: 'paper', label: 'Paper', description: 'High performance Minecraft fork' },
-  { value: 'spigot', label: 'Spigot', description: 'Popular Bukkit fork' },
-  { value: 'bukkit', label: 'Bukkit', description: 'Original modding API' },
-  { value: 'velocity', label: 'Velocity', description: 'Modern proxy server' },
-  { value: 'bungeecord', label: 'BungeeCord', description: 'Legacy proxy server' },
-]
+import { SOFTWARE_CATEGORIES } from '@/lib/software-options'
 
 const javaVersions = ['21', '17', '11', '8']
 const compilers = [
   { value: 'gradle', label: 'Gradle', description: 'Modern build tool (recommended)' },
   { value: 'maven', label: 'Maven', description: 'Traditional build tool' },
 ]
+
+function VisibilitySelector({
+  form,
+  setForm,
+}: {
+  form: { visibility: 'public' | 'private' }
+  setForm: React.Dispatch<React.SetStateAction<any>>
+}) {
+  const { tokens } = useUserTokens()
+  const isPaid = tokens?.tier === 'paid'
+
+  return (
+    <div>
+      <label className="mb-1.5 block text-sm font-medium text-text">Visibility</label>
+      <div className="space-y-2">
+        <button
+          onClick={() => setForm((prev: any) => ({ ...prev, visibility: 'public' }))}
+          className={cn(
+            'flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors',
+            form.visibility === 'public'
+              ? 'border-primary bg-primary/5'
+              : 'border-border hover:border-border-bright hover:bg-surface-hover'
+          )}
+        >
+          <Globe className="h-4 w-4 shrink-0 text-primary" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-text">Public</p>
+            <p className="text-xs text-text-muted">Anyone can discover and view this project</p>
+          </div>
+          {form.visibility === 'public' && (
+            <Check className="ml-auto h-4 w-4 shrink-0 text-primary" />
+          )}
+        </button>
+
+        <button
+          onClick={() => isPaid && setForm((prev: any) => ({ ...prev, visibility: 'private' }))}
+          disabled={!isPaid}
+          className={cn(
+            'flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors',
+            form.visibility === 'private'
+              ? 'border-primary bg-primary/5'
+              : 'border-border hover:border-border-bright hover:bg-surface-hover',
+            !isPaid && 'cursor-not-allowed opacity-60'
+          )}
+        >
+          <Lock className="h-4 w-4 shrink-0 text-text-dim" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-text">Private</p>
+            <p className="text-xs text-text-muted">Only you can access this project</p>
+          </div>
+          {!isPaid ? (
+            <span className="ml-auto inline-flex items-center gap-1 rounded bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary shrink-0">
+              <Zap className="h-3 w-3" />
+              Paid
+            </span>
+          ) : form.visibility === 'private' ? (
+            <Check className="ml-auto h-4 w-4 shrink-0 text-primary" />
+          ) : null}
+        </button>
+      </div>
+    </div>
+  )
+}
 
 export default function NewProjectPage() {
   const navigate = useNavigate()
@@ -44,6 +102,7 @@ export default function NewProjectPage() {
     source: 'blank' as 'blank' | 'zip' | 'github',
     branch: '',
     commit: '',
+    visibility: 'public' as 'public' | 'private',
   })
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -178,6 +237,7 @@ export default function NewProjectPage() {
             branch: form.branch.trim() || undefined,
             commit: form.commit.trim() || undefined,
             isPrivate: isPrivateRepo,
+            visibility: form.visibility,
           }),
         })
         
@@ -199,6 +259,7 @@ export default function NewProjectPage() {
         formData.append('javaVersion', form.javaVersion)
         formData.append('compiler', compilerValue)
         formData.append('bridge', form.bridge)
+        formData.append('visibility', form.visibility)
         formData.append('zipFile', zipFile)
         
         const response = await fetch('/api/projects/upload', {
@@ -225,6 +286,7 @@ export default function NewProjectPage() {
           javaVersion: form.javaVersion,
           compiler: compilerValue,
           bridge: form.bridge,
+          visibility: form.visibility,
         })
         navigate(`/workspace/${project.id}`)
       }
@@ -345,6 +407,9 @@ export default function NewProjectPage() {
                 <p className="text-xs text-text-muted">Server-side plugin for Minecraft Java Edition</p>
               </div>
             </div>
+
+            {/* Visibility */}
+            <VisibilitySelector form={form} setForm={setForm} />
           </div>
         )}
 
@@ -352,31 +417,42 @@ export default function NewProjectPage() {
           <div className="space-y-4">
             <div>
               <label className="mb-3 block text-sm font-medium text-text">Server Software</label>
-              <div className="space-y-2">
-                {softwareOptions.map((sw) => (
-                  <button
-                    key={sw.value}
-                    onClick={() => setForm({ ...form, software: sw.value })}
-                    className={cn(
-                      'flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors',
-                      form.software === sw.value
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border hover:border-border-bright hover:bg-surface-hover'
-                    )}
-                  >
-                    <div className={cn(
-                      'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border',
-                      form.software === sw.value
-                        ? 'border-primary bg-primary'
-                        : 'border-border'
-                    )}>
-                      {form.software === sw.value && <div className="h-2 w-2 rounded-full bg-white" />}
+              <p className="mb-3 text-xs text-text-muted">Choose the platform your plugin targets — organized by server type</p>
+              <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
+                {SOFTWARE_CATEGORIES.map((cat) => (
+                  <div key={cat.id} className="space-y-2">
+                    <div className={cn('rounded-lg border px-3 py-2', cat.color)}>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-text">{cat.label}</p>
+                      <p className="text-[10px] text-text-muted">{cat.description}</p>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-text">{sw.label}</p>
-                      <p className="text-xs text-text-muted">{sw.description}</p>
+                    <div className="space-y-1.5">
+                      {cat.options.map((sw) => (
+                        <button
+                          key={sw.value}
+                          onClick={() => setForm({ ...form, software: sw.value })}
+                          className={cn(
+                            'flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors',
+                            form.software === sw.value
+                              ? 'border-primary bg-primary/5'
+                              : 'border-border hover:border-border-bright hover:bg-surface-hover'
+                          )}
+                        >
+                          <div className={cn(
+                            'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border',
+                            form.software === sw.value
+                              ? 'border-primary bg-primary'
+                              : 'border-border'
+                          )}>
+                            {form.software === sw.value && <div className="h-2 w-2 rounded-full bg-white" />}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-text">{sw.label}</p>
+                            <p className="text-xs text-text-muted">{sw.description}</p>
+                          </div>
+                        </button>
+                      ))}
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             </div>

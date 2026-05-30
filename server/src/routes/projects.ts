@@ -20,7 +20,7 @@ const createProjectSchema = z.object({
   description: z.string().max(1000).optional(),
   logo: z.string().optional(),
   versions: z.string().optional(),
-  software: z.string().max(32).default('paper'),
+  software: z.string().max(64).default('paper'),
   language: z.enum(['java', 'kotlin']).default('java'),
   javaVersion: z.string().max(8).default('21'),
   compiler: z.enum(['maven', 'gradle', 'both']).default('gradle'),
@@ -35,7 +35,7 @@ const updateProjectSchema = z.object({
   versions: z.string().nullable().optional(),
   layoutMode: z.string().optional(),
   status: z.enum(['active', 'archived']).optional(),
-  software: z.string().max(32).optional(),
+  software: z.string().max(64).optional(),
   language: z.enum(['java', 'kotlin']).optional(),
   javaVersion: z.string().max(8).optional(),
   compiler: z.enum(['maven', 'gradle', 'both']).optional(),
@@ -262,6 +262,9 @@ export async function projectRoutes(app: FastifyInstance) {
       })
     }
 
+    const userTier = request.user!.tier ?? 'free'
+    const visibility = userTier === 'free' ? 'public' : parsed.data.visibility
+
     const linkId = generateLinkId(parsed.data.name)
     const username = request.user!.username
 
@@ -271,6 +274,7 @@ export async function projectRoutes(app: FastifyInstance) {
         userId: request.user!.id,
         linkId,
         ...parsed.data,
+        visibility,
       })
       .returning()
 
@@ -329,6 +333,9 @@ export async function projectRoutes(app: FastifyInstance) {
         return reply.status(400).send({ error: parsed.error.issues[0].message })
       }
 
+      const userTier = request.user!.tier ?? 'free'
+      const visibility = userTier === 'free' ? 'public' : parsed.data.visibility
+
       const linkId = generateLinkId(parsed.data.name)
       const username = request.user!.username
       const projectDir = `/home/auroracraft-${username}/${linkId}`
@@ -352,6 +359,7 @@ export async function projectRoutes(app: FastifyInstance) {
           userId: request.user!.id,
           linkId,
           ...parsed.data,
+          visibility,
         })
         .returning()
 
@@ -370,6 +378,9 @@ export async function projectRoutes(app: FastifyInstance) {
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.issues[0].message })
     }
+
+    const userTier = request.user!.tier ?? 'free'
+    const visibility = userTier === 'free' ? 'public' : parsed.data.visibility
 
     const linkId = generateLinkId(parsed.data.name)
     const username = request.user!.username
@@ -419,6 +430,7 @@ export async function projectRoutes(app: FastifyInstance) {
           repoUrl: repoUrlToSave,
           repoBranch: repoBranchToSave,
           ...parsed.data,
+          visibility,
         })
         .returning()
 
@@ -463,6 +475,11 @@ export async function projectRoutes(app: FastifyInstance) {
 
     if (!existing) {
       return reply.status(404).send({ message: 'Project not found', statusCode: 404 })
+    }
+
+    const userTier = request.user!.tier ?? 'free'
+    if (userTier === 'free' && parsed.data.visibility === 'private') {
+      return reply.status(403).send({ message: 'Free users can only create public projects. Upgrade to a paid plan for private projects.', statusCode: 403 })
     }
 
     const [updated] = await db

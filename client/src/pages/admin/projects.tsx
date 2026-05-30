@@ -1,5 +1,6 @@
 import { Loader2 } from 'lucide-react'
 import { useAdminProjects } from '@/hooks/use-admin'
+import { SOFTWARE_LABELS } from '@/lib/software-options'
 
 export default function AdminProjectsPage() {
   const { projects, isLoading } = useAdminProjects()
@@ -43,7 +44,7 @@ export default function AdminProjectsPage() {
                       {project.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-text-muted">{project.software}</td>
+                  <td className="px-4 py-3 text-text-muted">{SOFTWARE_LABELS[project.software] ?? project.software}</td>
                   <td className="px-4 py-3 text-text-dim">
                     {new Date(project.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                   </td>

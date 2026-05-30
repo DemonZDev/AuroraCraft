@@ -24,6 +24,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useProject, useProjectStats } from '@/hooks/use-projects'
+import { useUserTokens } from '@/hooks/use-user-tokens'
 import type { UpdateProjectInput } from '@/types'
 
 type TabId = 'overview' | 'stats' | 'compiler' | 'settings'
@@ -35,13 +36,7 @@ const tabs: { id: TabId; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'settings', label: 'Settings', icon: Settings },
 ]
 
-const softwareOptions = [
-  { value: 'paper', label: 'Paper' },
-  { value: 'spigot', label: 'Spigot' },
-  { value: 'bukkit', label: 'Bukkit' },
-  { value: 'velocity', label: 'Velocity' },
-  { value: 'bungeecord', label: 'BungeeCord' },
-]
+import { SOFTWARE_CATEGORIES } from '@/lib/software-options'
 
 const javaVersions = ['21', '17', '11', '8']
 
@@ -422,8 +417,12 @@ function OverviewTab({
             onChange={(e) => updateField('software', e.target.value)}
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           >
-            {softwareOptions.map((sw) => (
-              <option key={sw.value} value={sw.value}>{sw.label}</option>
+            {SOFTWARE_CATEGORIES.map((cat) => (
+              <optgroup key={cat.id} label={cat.label}>
+                {cat.options.map((sw) => (
+                  <option key={sw.value} value={sw.value}>{sw.label}</option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </div>
@@ -674,9 +673,15 @@ function SettingsTab({
   onDeleted: () => void
 }) {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const { tokens } = useUserTokens()
+  const isPaid = tokens?.tier === 'paid'
 
   const toggleVisibility = async () => {
     const newVisibility = project.visibility === 'public' ? 'private' : 'public'
+    if (newVisibility === 'private' && !isPaid) {
+      toast.error('Private projects require a paid subscription. Upgrade to enable private projects.')
+      return
+    }
     try {
       await updateProject({ visibility: newVisibility })
       toast.success(`Project is now ${newVisibility}`)

@@ -9,11 +9,13 @@ import * as agentMessages from './schema/agent-messages.js'
 import * as agentLogs from './schema/agent-logs.js'
 import * as codeReviews from './schema/code-reviews.js'
 import * as providerApiKeys from './schema/provider-api-keys.js'
+import * as projectLikes from './schema/project-likes.js'
+import * as projectViews from './schema/project-views.js'
 
 const client = postgres(env.DATABASE_URL)
 
 export const db = drizzle(client, {
-  schema: { ...users, ...sessions, ...projects, ...agentSessions, ...agentMessages, ...agentLogs, ...codeReviews, ...providerApiKeys },
+  schema: { ...users, ...sessions, ...projects, ...agentSessions, ...agentMessages, ...agentLogs, ...codeReviews, ...providerApiKeys, ...projectLikes, ...projectViews },
 })
 
 export type Database = typeof db

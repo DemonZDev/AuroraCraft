@@ -106,6 +106,20 @@
       "when": 1779978000000,
       "tag": "0014_fix_token_transactions_fk",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1780086000000,
+      "tag": "0015_expand_software_column",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1780086600000,
+      "tag": "0016_community_features",
+      "breakpoints": true
     }
   ]
 }

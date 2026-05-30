@@ -38,6 +38,7 @@ export async function authMiddleware(
       username: users.username,
       email: users.email,
       role: users.role,
+      tier: users.tier,
       createdAt: users.createdAt,
       updatedAt: users.updatedAt,
     })
@@ -51,6 +52,49 @@ export async function authMiddleware(
   }
 
   request.user = user
+}
+
+export async function optionalAuthMiddleware(
+  request: FastifyRequest,
+): Promise<void> {
+  const token = request.cookies.session
+
+  if (!token) {
+    return
+  }
+
+  const [session] = await db
+    .select()
+    .from(sessions)
+    .where(
+      and(
+        eq(sessions.token, token),
+        gt(sessions.expiresAt, new Date()),
+      ),
+    )
+    .limit(1)
+
+  if (!session) {
+    return
+  }
+
+  const [user] = await db
+    .select({
+      id: users.id,
+      username: users.username,
+      email: users.email,
+      role: users.role,
+      tier: users.tier,
+      createdAt: users.createdAt,
+      updatedAt: users.updatedAt,
+    })
+    .from(users)
+    .where(eq(users.id, session.userId))
+    .limit(1)
+
+  if (user) {
+    request.user = user
+  }
 }
 
 export function adminGuard(
@@ -73,6 +117,7 @@ declare module 'fastify' {
       username: string
       email: string
       role: 'user' | 'admin'
+      tier: 'free' | 'paid' | null
       createdAt: Date
       updatedAt: Date
     }

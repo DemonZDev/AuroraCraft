@@ -41,6 +41,7 @@ export interface CreateProjectInput {
   javaVersion?: string
   compiler?: 'maven' | 'gradle' | 'both'
   bridge?: 'opencode' | 'kiro'
+  visibility?: 'public' | 'private'
 }
 
 export interface UpdateProjectInput {
@@ -80,6 +81,22 @@ export interface CommunityProject {
   createdAt: string
   updatedAt: string
   ownerUsername: string
+  likes?: number
+  views?: number
+  isLiked?: boolean
+  isViewed?: boolean
+}
+
+export interface ProjectAccess {
+  level: 'owner' | 'paid' | 'free' | 'anonymous'
+  canEdit: boolean
+  canFork: boolean
+  canDownload: boolean
+  canDownloadJar: boolean
+  canViewFiles: boolean
+  canUseAI: boolean
+  canGitHub: boolean
+  canReview: boolean
 }
 
 export type AgentStatus = 'idle' | 'running' | 'completed' | 'failed' | 'cancelled'

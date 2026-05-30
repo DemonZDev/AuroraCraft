@@ -15,6 +15,42 @@ AI-powered Minecraft plugin development platform. Describe what you want and an 
 - **Multi-User** — Role-based access control (admin / user)
 - **CodeRabbit Integration** — AI-powered code review for uncommitted changes
 
+## Supported Server Software
+
+AuroraCraft supports **18 Minecraft server platforms** organized into 4 categories:
+
+### Game Servers (Plugin-Compatible)
+| Platform | Description | Fork Of |
+|----------|-------------|---------|
+| **Paper** | Industry standard — high performance, stable, most plugins | Spigot |
+| **Purpur** | Paper + 400+ gameplay config options (rideable mobs, etc.) | Paper |
+| **Pufferfish** | Paper optimized for 100+ players (DAB, SIMD) | Paper |
+| **Folia** | Paper with regionized multi-threading for massive servers | Paper |
+| **Spigot** | Legacy Bukkit fork — maximum plugin compatibility | CraftBukkit |
+| **Leaf** | Paper fork balancing performance, vanilla parity & stability | Paper |
+| **Leaves** | Paper fork repairing broken vanilla redstone/mechanics | Paper |
+| **DivineMC** | Purpur fork with parallel ticking, async ops, 1024-bit seeds | Purpur |
+| **Pluto** | Pufferfish fork with memory, hopper & farm optimizations | Pufferfish |
+| **ASPaper** | Paper with Slime World Manager built-in for instancing | Paper |
+
+### Hybrid Servers (Mods + Plugins)
+| Platform | Description | Mod Loader |
+|----------|-------------|------------|
+| **Mohist** | Forge + Bukkit/Spigot/Paper APIs (formerly Thermos) | Forge |
+| **Arclight** | Bukkit on Forge/NeoForge/Fabric via Mixin remapping | Forge/NeoForge/Fabric |
+| **Magma** | NeoForge + Spigot — next-gen hybrid server | NeoForge |
+| **Youer** | NeoForge + Paper/Purpur API (MohistMC successor) | NeoForge |
+
+### Proxy Servers (Multi-Server Networks)
+| Platform | Description | Fork Of |
+|----------|-------------|---------|
+| **Velocity** | Modern, secure, high-performance proxy (recommended) | — |
+| **BungeeCord** | Legacy proxy — mature but slower development | — |
+| **Waterfall** | Paper-maintained BungeeCord fork (discontinued) | BungeeCord |
+| **Velocity-CTD** | Velocity fork with queues, extra commands & fixes | Velocity |
+
+> **Note:** The AI agent tailors generated code, `plugin.yml` descriptors, and API imports based on the selected platform. Hybrid servers get both plugin and mod-aware scaffolding.
+
 ## Tech Stack
 
 | Layer     | Technology                                                  |

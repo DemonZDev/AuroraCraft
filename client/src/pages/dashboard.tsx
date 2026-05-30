@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { Plus, Search, MoreHorizontal, Trash2, Pencil, Archive, Settings } from 'lucide-react'
 import { useProjects } from '@/hooks/use-projects'
 import { cn } from '@/lib/utils'
+import { SOFTWARE_LABELS } from '@/lib/software-options'
 import type { Project } from '@/types'
 
 function formatRelativeDate(dateStr: string): string {
@@ -124,7 +125,7 @@ export default function DashboardPage() {
                       )}
                       <div className="mt-2 flex items-center gap-2 flex-wrap">
                         <span className="rounded bg-accent px-2 py-0.5 text-xs text-text-muted">
-                          {project.software}
+                          {SOFTWARE_LABELS[project.software] ?? project.software}
                         </span>
                         <span className="rounded bg-accent px-2 py-0.5 text-xs text-text-muted">
                           {project.language}

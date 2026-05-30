@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react'
+import { SOFTWARE_LABELS } from '@/lib/software-options'
 import { Link, useParams } from 'react-router'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -2645,7 +2646,7 @@ const handleAutoFix = () => {
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <span className="truncate text-sm font-medium text-text">{project.name}</span>
-          <span className="shrink-0 rounded bg-accent px-1.5 py-0.5 text-[10px] text-text-dim">{project.software}</span>
+          <span className="shrink-0 rounded bg-accent px-1.5 py-0.5 text-[10px] text-text-dim">{SOFTWARE_LABELS[project.software] ?? project.software}</span>
           <div className="ml-auto flex items-center gap-1.5">
             {gitStatus?.connected ? (
               <>
@@ -3377,7 +3378,7 @@ const handleAutoFix = () => {
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <span className="text-sm font-medium text-text">{project.name}</span>
-          <span className="rounded bg-accent px-2 py-0.5 text-xs text-text-dim">{project.software}</span>
+          <span className="rounded bg-accent px-2 py-0.5 text-xs text-text-dim">{SOFTWARE_LABELS[project.software] ?? project.software}</span>
           <span className="rounded bg-accent px-2 py-0.5 text-xs text-text-dim">{project.language}</span>
         </div>
         <div className="flex items-center gap-2">
