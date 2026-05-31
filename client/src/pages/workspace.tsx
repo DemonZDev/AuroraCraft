@@ -1678,10 +1678,17 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
 
   const sessionIsTerminal =
     session?.status === 'completed' || session?.status === 'failed' || session?.status === 'cancelled'
+  // If the newest persisted message is the user's, the agent hasn't replied yet, so the
+  // session is in-flight even if `status` hasn't reached us as 'running' yet (e.g. right
+  // after a page refresh, before the 2s status refetch lands, or during the brief window
+  // before the backend flips status). Derived from server state, so it survives refresh.
+  // Gated by !sessionIsTerminal so a failed/cancelled run that never produced a reply
+  // doesn't show a perpetual loader.
+  const lastPersistedIsUser = messages[messages.length - 1]?.role === 'user'
   const showStreamingShell =
     !sessionIsTerminal &&
     !handoffAgentMessage &&
-    (awaitingStream || session?.status === 'running' || streamHasContent)
+    (awaitingStream || session?.status === 'running' || streamHasContent || lastPersistedIsUser)
 
   const messagesToRender =
     handoffAgentMessage ? messages.filter((m) => m.id !== handoffAgentMessage.id) : messages

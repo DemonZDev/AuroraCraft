@@ -278,6 +278,39 @@ export async function agentRoutes(app: FastifyInstance) {
       return reply.status(409).send({ message: 'Agent is already processing', statusCode: 409 })
     }
 
+    // Persist the user message and flip the session to 'running' IMMEDIATELY —
+    // before any of the slow provisioning below (LiteLLM proxy cold-start, OpenCode
+    // instance spawn, knowledge generation), which can take 10-20s on a fresh
+    // project or premium model. This is the durable, refresh-proof signal that a
+    // request is in flight: if the user reloads mid-setup, the reload reads the saved
+    // message + 'running' status from the DB and restores the loading UI, instead of
+    // showing an empty "Session started" / idle chat while the backend keeps working.
+    // (Previously the save happened only AFTER LiteLLM/OpenCode startup, so a refresh
+    // during that window lost the message entirely.) Validation below may still reject
+    // the request; on those paths rejectSend() rolls back so nothing is left dangling.
+    const prevSessionStatus = session.status
+    const [message] = await db
+      .insert(agentMessages)
+      .values({ sessionId, role: 'user', content: parsed.data.content })
+      .returning()
+    await db
+      .update(agentSessions)
+      .set({ status: 'running', updatedAt: new Date() })
+      .where(eq(agentSessions.id, sessionId))
+
+    // Roll back the optimistic message + status when validation rejects the send,
+    // so a rejected request doesn't leave a dangling user message on a stuck
+    // 'running' session.
+    const rejectSend = async (statusCode: number, msg: string) => {
+      await db.delete(agentMessages).where(eq(agentMessages.id, message.id)).catch(() => {})
+      await db
+        .update(agentSessions)
+        .set({ status: prevSessionStatus, updatedAt: new Date() })
+        .where(eq(agentSessions.id, sessionId))
+        .catch(() => {})
+      return reply.status(statusCode).send({ message: msg, statusCode })
+    }
+
     // Resolve project directory and bridge
     const username = request.user!.username
     const projectDir = getProjectDirectory(username, project.linkId)
@@ -301,13 +334,10 @@ export async function agentRoutes(app: FastifyInstance) {
     if (requestedModelId) {
       modelDef = getModelById(requestedModelId)
       if (!modelDef) {
-        return reply.status(400).send({ message: 'Unknown model selected', statusCode: 400 })
+        return rejectSend(400, 'Unknown model selected')
       }
       if (!canUseModel(requestedModelId, userTier)) {
-        return reply.status(403).send({
-          message: `Model ${modelDef.name} requires a paid subscription. Upgrade your account to access it.`,
-          statusCode: 403,
-        })
+        return rejectSend(403, `Model ${modelDef.name} requires a paid subscription. Upgrade your account to access it.`)
       }
 
       const provider = getProviderForModel(requestedModelId, requestedSpeed, userKeys)
@@ -320,38 +350,26 @@ export async function agentRoutes(app: FastifyInstance) {
           : `${provider.id}/${provider.modelId}`
       }
       if (!provider) {
-        return reply.status(400).send({
-          message: `Provider not available for ${modelDef.name} at ${requestedSpeed} speed`,
-          statusCode: 400,
-        })
+        return rejectSend(400, `Provider not available for ${modelDef.name} at ${requestedSpeed} speed`)
       }
 
       if (provider.requiresApiKey) {
         const userApiKey = userKeys[provider.id]
 
         if (!userApiKey) {
-          return reply.status(503).send({
-            message: `You don't have an API key for ${provider.id}. Please contact an administrator to set one up.`,
-            statusCode: 503,
-          })
+          return rejectSend(503, `You don't have an API key for ${provider.id}. Please contact an administrator to set one up.`)
         }
 
         if (modelDef.minTier !== 'free') {
           const currentBalance = await getUserTokens(request.user!.id)
           if (currentBalance < MIN_PREMIUM_BALANCE) {
-            return reply.status(402).send({
-              message: `Your token balance is too low for premium models. Minimum required: ${MIN_PREMIUM_BALANCE} tokens. You have ${currentBalance} tokens. Please purchase more tokens or use a free model.`,
-              statusCode: 402,
-            })
+            return rejectSend(402, `Your token balance is too low for premium models. Minimum required: ${MIN_PREMIUM_BALANCE} tokens. You have ${currentBalance} tokens. Please purchase more tokens or use a free model.`)
           }
 
           estimatedCost = estimateMessageCost(parsed.data.content, modelDef, provider.id)
           const hasTokens = await hasEnoughTokens(request.user!.id, estimatedCost)
           if (!hasTokens) {
-            return reply.status(402).send({
-              message: `Insufficient AI tokens. Estimated cost: ${estimatedCost} tokens. Please purchase more tokens or use a free model.`,
-              statusCode: 402,
-            })
+            return rejectSend(402, `Insufficient AI tokens. Estimated cost: ${estimatedCost} tokens. Please purchase more tokens or use a free model.`)
           }
 
           deductResult = await deductTokens(
@@ -447,16 +465,6 @@ export async function agentRoutes(app: FastifyInstance) {
         }
       }
     }
-
-    // Save the user message
-    const [message] = await db
-      .insert(agentMessages)
-      .values({
-        sessionId,
-        role: 'user',
-        content: parsed.data.content,
-      })
-      .returning()
 
     let opencodeSessionId: string | undefined
 
