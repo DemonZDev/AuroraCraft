@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, memo } from 'react'
 import { Link } from 'react-router'
 import { cn } from '@/lib/utils'
 import {
   Sparkles,
-
   Blocks,
   Code2,
   Shield,
@@ -12,25 +11,28 @@ import {
   Zap,
   Terminal,
   ChevronRight,
-  Cpu,
   GitBranch,
   MessageSquare,
   Play,
-  Layers,
   Server,
   Rocket,
+  Brain,
+  Workflow,
 } from 'lucide-react'
 
 /* ═══════════════════════════════════════
-   Ambient Particle Background
+   Ultra-Smooth Canvas Background - 30fps throttled
    ═══════════════════════════════════════ */
-function AmbientBackground() {
+const AmbientBackground = memo(function AmbientBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const animationRef = useRef<number | undefined>(undefined)
+  const isVisibleRef = useRef(true)
+  const lastFrameTimeRef = useRef(0)
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const ctx = canvas.getContext('2d')
+    const ctx = canvas.getContext('2d', { alpha: true, desynchronized: true })
     if (!ctx) return
 
     let w = window.innerWidth
@@ -40,71 +42,148 @@ function AmbientBackground() {
     canvas.height = h * dpr
     ctx.scale(dpr, dpr)
 
-    const particles: Array<{
-      x: number; y: number; r: number; dx: number; dy: number; opacity: number; speed: number
-    }> = []
-    const PARTICLE_COUNT = Math.min(60, Math.floor(w * h / 25000))
+    // Optimized grid system
+    const gridSize = 60
+    const dots: Array<{ x: number; y: number; opacity: number; pulse: number; active: boolean }> = []
 
-    for (let i = 0; i < PARTICLE_COUNT; i++) {
-      particles.push({
+    // Reduce dot count for better performance
+    for (let x = 0; x < w; x += gridSize) {
+      for (let y = 0; y < h; y += gridSize) {
+        if (Math.random() > 0.3) { // Only create 70% of dots
+          dots.push({
+            x: x + (Math.random() - 0.5) * 10,
+            y: y + (Math.random() - 0.5) * 10,
+            opacity: Math.random() * 0.15 + 0.05,
+            pulse: Math.random() * Math.PI * 2,
+            active: Math.random() > 0.7,
+          })
+        }
+      }
+    }
+
+    // Reduce line count
+    const lines: Array<{ x: number; y: number; vx: number; vy: number; length: number; opacity: number }> = []
+    for (let i = 0; i < 5; i++) { // Reduced from 8 to 5
+      lines.push({
         x: Math.random() * w,
         y: Math.random() * h,
-        r: Math.random() * 1.5 + 0.3,
-        dx: (Math.random() - 0.5) * 0.3,
-        dy: (Math.random() - 0.5) * 0.3,
-        opacity: Math.random() * 0.4 + 0.1,
-        speed: Math.random() * 0.5 + 0.2,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: (Math.random() - 0.5) * 0.5,
+        length: Math.random() * 100 + 50,
+        opacity: Math.random() * 0.1 + 0.05,
       })
     }
 
-    let animId: number
-    const animate = () => {
+    let frame = 0
+    const FPS_TARGET = 30 // Throttle to 30fps - background doesn't need 60fps
+    const FRAME_INTERVAL = 1000 / FPS_TARGET
+
+    const animate = (currentTime: number) => {
+      if (!isVisibleRef.current) {
+        animationRef.current = requestAnimationFrame(animate)
+        return
+      }
+
+      // Throttle to 30fps
+      const elapsed = currentTime - lastFrameTimeRef.current
+      if (elapsed < FRAME_INTERVAL) {
+        animationRef.current = requestAnimationFrame(animate)
+        return
+      }
+      lastFrameTimeRef.current = currentTime - (elapsed % FRAME_INTERVAL)
+
       ctx.clearRect(0, 0, w, h)
-      for (const p of particles) {
-        p.x += p.dx * p.speed
-        p.y += p.dy * p.speed
-        if (p.x < 0) p.x = w
-        if (p.x > w) p.x = 0
-        if (p.y < 0) p.y = h
-        if (p.y > h) p.y = 0
+      frame++
+
+      // Draw dots (optimized)
+      for (const dot of dots) {
+        dot.pulse += 0.015
+        const pulseOpacity = dot.opacity * (0.7 + Math.sin(dot.pulse) * 0.3)
 
         ctx.beginPath()
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(148, 163, 184, ${p.opacity})`
+        ctx.arc(dot.x, dot.y, dot.active ? 1.5 : 1, 0, Math.PI * 2)
+        ctx.fillStyle = dot.active
+          ? `rgba(16, 185, 129, ${pulseOpacity})`
+          : `rgba(100, 116, 139, ${pulseOpacity * 0.6})`
         ctx.fill()
       }
 
-      // Draw faint connection lines
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x
-          const dy = particles[i].y - particles[j].y
-          const dist = Math.sqrt(dx * dx + dy * dy)
-          if (dist < 150) {
-            ctx.beginPath()
-            ctx.moveTo(particles[i].x, particles[i].y)
-            ctx.lineTo(particles[j].x, particles[j].y)
-            ctx.strokeStyle = `rgba(148, 163, 184, ${0.04 * (1 - dist / 150)})`
-            ctx.lineWidth = 0.5
-            ctx.stroke()
+      // Draw lines (optimized)
+      for (const line of lines) {
+        line.x += line.vx
+        line.y += line.vy
+
+        if (line.x < 0) line.x = w
+        if (line.x > w) line.x = 0
+        if (line.y < 0) line.y = h
+        if (line.y > h) line.y = 0
+
+        const angle = Math.atan2(line.vy, line.vx)
+        const endX = line.x + Math.cos(angle) * line.length
+        const endY = line.y + Math.sin(angle) * line.length
+
+        ctx.beginPath()
+        ctx.moveTo(line.x, line.y)
+        ctx.lineTo(endX, endY)
+        ctx.strokeStyle = `rgba(16, 185, 129, ${line.opacity})`
+        ctx.lineWidth = 1
+        ctx.stroke()
+      }
+
+      // Connections (only every 4 frames for better performance)
+      if (frame % 4 === 0) {
+        const activeDots = dots.filter(d => d.active).slice(0, 8) // Limit to 8 active dots
+        for (let i = 0; i < activeDots.length; i++) {
+          for (let j = i + 1; j < Math.min(activeDots.length, i + 2); j++) {
+            const dot1 = activeDots[i]
+            const dot2 = activeDots[j]
+            const dx = dot1.x - dot2.x
+            const dy = dot1.y - dot2.y
+            const dist = Math.sqrt(dx * dx + dy * dy)
+
+            if (dist < gridSize * 2) {
+              ctx.beginPath()
+              ctx.moveTo(dot1.x, dot1.y)
+              ctx.lineTo(dot2.x, dot2.y)
+              ctx.strokeStyle = `rgba(16, 185, 129, ${0.03 * (1 - dist / (gridSize * 2))})`
+              ctx.lineWidth = 0.5
+              ctx.stroke()
+            }
           }
         }
       }
-      animId = requestAnimationFrame(animate)
-    }
-    animate()
 
-    const handleResize = () => {
-      w = window.innerWidth
-      h = window.innerHeight
-      canvas.width = w * dpr
-      canvas.height = h * dpr
-      ctx.scale(dpr, dpr)
+      animationRef.current = requestAnimationFrame(animate)
     }
-    window.addEventListener('resize', handleResize)
+    animationRef.current = requestAnimationFrame(animate)
+
+    // Pause animation when tab is not visible
+    const handleVisibilityChange = () => {
+      isVisibleRef.current = !document.hidden
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    // Debounced resize handler
+    let resizeTimeout: NodeJS.Timeout
+    const handleResize = () => {
+      clearTimeout(resizeTimeout)
+      resizeTimeout = setTimeout(() => {
+        w = window.innerWidth
+        h = window.innerHeight
+        canvas.width = w * dpr
+        canvas.height = h * dpr
+        ctx.scale(dpr, dpr)
+      }, 250)
+    }
+    window.addEventListener('resize', handleResize, { passive: true })
+
     return () => {
-      cancelAnimationFrame(animId)
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current)
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('resize', handleResize)
+      clearTimeout(resizeTimeout)
     }
   }, [])
 
@@ -112,13 +191,13 @@ function AmbientBackground() {
     <canvas
       ref={canvasRef}
       className="pointer-events-none fixed inset-0 z-0"
-      style={{ opacity: 0.6 }}
+      style={{ opacity: 0.5, willChange: 'contents' }}
     />
   )
-}
+})
 
 /* ═══════════════════════════════════════
-   Scroll Reveal Hook
+   Individual Scroll Reveal Hook - Per Element
    ═══════════════════════════════════════ */
 function useScrollReveal(threshold = 0.15) {
   const ref = useRef<HTMLDivElement>(null)
@@ -144,187 +223,400 @@ function useScrollReveal(threshold = 0.15) {
 }
 
 /* ═══════════════════════════════════════
-   Glass Card Component
+   Optimized Glass Card with Memoization
    ═══════════════════════════════════════ */
-function GlassCard({
+const GlassCard = memo(function GlassCard({
   children,
   className = '',
   hover = true,
   delay = 0,
-  isVisible = true,
 }: {
   children: React.ReactNode
   className?: string
   hover?: boolean
   delay?: number
-  isVisible?: boolean
 }) {
+  const cardRef = useRef<HTMLDivElement>(null)
+  const { ref: revealRef, isVisible } = useScrollReveal(0.2)
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!cardRef.current) return
+    const rect = cardRef.current.getBoundingClientRect()
+    const x = ((e.clientX - rect.left) / rect.width) * 100
+    const y = ((e.clientY - rect.top) / rect.height) * 100
+    // Use CSS custom properties instead of setState to avoid re-renders
+    cardRef.current.style.setProperty('--mouse-x', `${x}%`)
+    cardRef.current.style.setProperty('--mouse-y', `${y}%`)
+  }, [])
+
+  // Merge refs
+  const setRefs = useCallback((node: HTMLDivElement | null) => {
+    cardRef.current = node
+    if (revealRef) {
+      (revealRef as React.MutableRefObject<HTMLDivElement | null>).current = node
+    }
+  }, [revealRef])
+
   return (
     <div
+      ref={setRefs}
+      onMouseMove={handleMouseMove}
       className={`
-        relative overflow-hidden rounded-2xl border border-[#1e1e2e]/60
-        bg-[#0f0f14]/60 backdrop-blur-xl
-        transition-all duration-700 ease-out
-        ${hover ? 'hover:border-[#2a2a3d]/80 hover:bg-[#161621]/70 hover:-translate-y-1 hover:shadow-[0_8px_32px_-8px_rgba(59,130,246,0.08)]' : ''}
-        ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}
+        group relative overflow-hidden rounded-2xl border border-[#1a1a24]/80
+        bg-gradient-to-br from-[#0a0a0f]/95 to-[#0f0f14]/90
+        transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+        ${hover ? 'hover:border-[#10b981]/40 hover:bg-[#12121a]/95 hover:-translate-y-2 hover:shadow-[0_20px_60px_-15px_rgba(16,185,129,0.15),0_0_0_1px_rgba(16,185,129,0.05)]' : ''}
+        ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0'}
         ${className}
       `}
-      style={{ transitionDelay: `${delay}ms` }}
+      style={{
+        transitionDelay: isVisible ? `${delay}ms` : '0ms',
+        transform: hover ? `perspective(1000px) rotateX(0deg) rotateY(0deg)` : undefined,
+        willChange: 'transform, opacity',
+        '--mouse-x': '50%',
+        '--mouse-y': '50%',
+      } as React.CSSProperties}
     >
-      {/* Subtle top highlight */}
-      <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#3b82f6]/20 to-transparent" />
+      {/* Animated gradient overlay on hover */}
+      {hover && (
+        <div
+          className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+          style={{
+            background: `radial-gradient(600px circle at var(--mouse-x) var(--mouse-y), rgba(16, 185, 129, 0.06), transparent 40%)`,
+          }}
+        />
+      )}
+
+      {/* Enhanced top highlight */}
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#10b981]/30 to-transparent" />
+
+      {/* Subtle inner glow */}
+      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-[#10b981]/[0.02] via-transparent to-[#06b6d4]/[0.02]" />
+
       {children}
     </div>
   )
-}
+})
 
 /* ═══════════════════════════════════════
-   Feature Data
+   Feature Data with Enhanced Styling
    ═══════════════════════════════════════ */
 const features = [
   {
-    icon: Sparkles,
+    icon: Brain,
     title: 'AI Workspace',
     description: 'Chat with AI to plan, architect, and generate complete plugin code with intelligent context awareness.',
-    accent: 'from-blue-500/10 to-blue-600/5',
+    accent: 'from-blue-500/15 via-blue-600/10 to-transparent',
     iconColor: 'text-blue-400',
+    iconBg: 'bg-blue-500/10',
+    borderGlow: 'group-hover:shadow-[0_0_20px_-5px_rgba(59,130,246,0.3)]',
   },
   {
     icon: Terminal,
     title: 'Live Editor',
     description: 'Full code editor with syntax highlighting, file tree, and real-time AI-powered file operations.',
-    accent: 'from-emerald-500/10 to-emerald-600/5',
+    accent: 'from-emerald-500/15 via-emerald-600/10 to-transparent',
     iconColor: 'text-emerald-400',
+    iconBg: 'bg-emerald-500/10',
+    borderGlow: 'group-hover:shadow-[0_0_20px_-5px_rgba(16,185,129,0.3)]',
   },
   {
     icon: Blocks,
     title: 'Multi-Platform',
     description: 'Paper, Spigot, Bukkit, Velocity — Java or Kotlin, Maven or Gradle. Your stack, your choice.',
-    accent: 'from-amber-500/10 to-amber-600/5',
+    accent: 'from-amber-500/15 via-amber-600/10 to-transparent',
     iconColor: 'text-amber-400',
+    iconBg: 'bg-amber-500/10',
+    borderGlow: 'group-hover:shadow-[0_0_20px_-5px_rgba(245,158,11,0.3)]',
   },
   {
     icon: GitBranch,
     title: 'Git Integration',
     description: 'Connect your GitHub repositories. Push, reset, and review code with seamless version control.',
-    accent: 'from-purple-500/10 to-purple-600/5',
+    accent: 'from-purple-500/15 via-purple-600/10 to-transparent',
     iconColor: 'text-purple-400',
+    iconBg: 'bg-purple-500/10',
+    borderGlow: 'group-hover:shadow-[0_0_20px_-5px_rgba(168,85,247,0.3)]',
   },
   {
-    icon: Cpu,
+    icon: Shield,
     title: 'Code Review',
     description: 'AI-powered code review with CodeRabbit integration. Catch issues before they reach production.',
-    accent: 'from-rose-500/10 to-rose-600/5',
+    accent: 'from-rose-500/15 via-rose-600/10 to-transparent',
     iconColor: 'text-rose-400',
+    iconBg: 'bg-rose-500/10',
+    borderGlow: 'group-hover:shadow-[0_0_20px_-5px_rgba(244,63,94,0.3)]',
   },
   {
-    icon: Layers,
+    icon: Workflow,
     title: 'Project System',
     description: 'Organize plugins with workspaces, configurations, and intelligent project scaffolding.',
-    accent: 'from-cyan-500/10 to-cyan-600/5',
+    accent: 'from-cyan-500/15 via-cyan-600/10 to-transparent',
     iconColor: 'text-cyan-400',
+    iconBg: 'bg-cyan-500/10',
+    borderGlow: 'group-hover:shadow-[0_0_20px_-5px_rgba(6,182,212,0.3)]',
   },
 ]
 
 /* ═══════════════════════════════════════
-   Workflow Steps
+   Workflow Steps with Detailed Descriptions
    ═══════════════════════════════════════ */
 const workflowSteps = [
   {
     icon: MessageSquare,
     label: 'Describe',
-    desc: 'Tell the AI what plugin you want',
+    desc: 'Tell the AI what plugin you want to build',
+    details: 'Simply describe your plugin idea in natural language. The AI understands your requirements and asks clarifying questions to ensure perfect implementation.',
     color: 'text-blue-400',
     bg: 'bg-blue-500/10',
+    borderColor: 'border-blue-500/20',
+    glowColor: 'rgba(59, 130, 246, 0.3)',
   },
   {
     icon: Zap,
     label: 'Generate',
-    desc: 'AI creates the complete codebase',
+    desc: 'AI creates the complete codebase instantly',
+    details: 'Watch as the AI generates production-ready code with proper structure, best practices, and comprehensive documentation. All files created in seconds.',
     color: 'text-amber-400',
     bg: 'bg-amber-500/10',
+    borderColor: 'border-amber-500/20',
+    glowColor: 'rgba(245, 158, 11, 0.3)',
   },
   {
     icon: Code2,
     label: 'Edit',
-    desc: 'Refine in the live code editor',
+    desc: 'Refine and customize in the live editor',
+    details: 'Use the powerful code editor to make adjustments. The AI assists with refactoring, bug fixes, and feature additions in real-time.',
     color: 'text-emerald-400',
     bg: 'bg-emerald-500/10',
+    borderColor: 'border-emerald-500/20',
+    glowColor: 'rgba(16, 185, 129, 0.3)',
   },
   {
     icon: Shield,
     label: 'Review',
-    desc: 'AI reviews for issues and bugs',
+    desc: 'AI analyzes code for issues and optimizations',
+    details: 'Automated code review catches bugs, security issues, and performance problems. Get actionable suggestions before deployment.',
     color: 'text-rose-400',
     bg: 'bg-rose-500/10',
+    borderColor: 'border-rose-500/20',
+    glowColor: 'rgba(244, 63, 94, 0.3)',
   },
   {
     icon: Rocket,
     label: 'Deploy',
-    desc: 'Push to GitHub and build',
+    desc: 'Push to GitHub and build your plugin',
+    details: 'One-click deployment to GitHub with automatic versioning. Build artifacts are generated and ready for your Minecraft server.',
     color: 'text-purple-400',
     bg: 'bg-purple-500/10',
+    borderColor: 'border-purple-500/20',
+    glowColor: 'rgba(168, 85, 247, 0.3)',
   },
 ]
 
 /* ═══════════════════════════════════════
-   Terminal Code Snippet
+   Optimized Animated Arrow - Memoized
    ═══════════════════════════════════════ */
+const AnimatedArrow = memo(function AnimatedArrow({
+  direction,
+  delay
+}: {
+  direction: 'down-right' | 'down-left'
+  delay: number
+}) {
+  const isRight = direction === 'down-right'
+  const { ref, isVisible } = useScrollReveal(0.3)
+
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        'flex items-center justify-center transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)]',
+        isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
+      )}
+    >
+      <svg
+        width="240"
+        height="100"
+        viewBox="0 0 240 100"
+        className="overflow-visible"
+      >
+        <defs>
+          <linearGradient id={`arrowGradient-${delay}`} x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="rgba(16, 185, 129, 0.4)" />
+            <stop offset="50%" stopColor="rgba(6, 182, 212, 0.4)" />
+            <stop offset="100%" stopColor="rgba(16, 185, 129, 0.4)" />
+          </linearGradient>
+          <marker
+            id={`arrowhead-${delay}`}
+            markerWidth="10"
+            markerHeight="10"
+            refX="9"
+            refY="3"
+            orient="auto"
+            markerUnits="strokeWidth"
+          >
+            <polygon
+              points="0 0, 10 3, 0 6"
+              fill="rgba(16, 185, 129, 0.6)"
+            />
+          </marker>
+        </defs>
+
+        <path
+          d={isRight ? "M 120 0 L 120 30 L 200 30 L 200 100" : "M 120 0 L 120 30 L 40 30 L 40 100"}
+          fill="none"
+          stroke={`url(#arrowGradient-${delay})`}
+          strokeWidth="2"
+          strokeDasharray="8 4"
+          markerEnd={`url(#arrowhead-${delay})`}
+          className={cn(
+            'transition-all duration-1500',
+            isVisible ? 'animate-dash' : ''
+          )}
+          style={{
+            strokeDashoffset: isVisible ? '0' : '1000',
+          }}
+        />
+      </svg>
+    </div>
+  )
+})
+
+/* ═══════════════════════════════════════
+   Optimized Workflow Card - Memoized
+   ═══════════════════════════════════════ */
+const WorkflowCard = memo(function WorkflowCard({
+  step,
+  index,
+}: {
+  step: typeof workflowSteps[0]
+  index: number
+}) {
+  const { ref, isVisible } = useScrollReveal(0.2)
+
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        'group relative transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)]',
+        isVisible ? 'translate-y-0 opacity-100' : 'translate-y-16 opacity-0'
+      )}
+      style={{ willChange: 'transform, opacity' }}
+    >
+      <div
+        className={cn(
+          'relative overflow-hidden rounded-2xl border bg-gradient-to-br from-[#0a0a0f]/95 to-[#0f0f14]/90',
+          'shadow-[0_8px_32px_-8px_rgba(0,0,0,0.3)]',
+          'transition-all duration-700 hover:shadow-[0_12px_48px_-8px_var(--glow-color)]',
+          'hover:-translate-y-1 cursor-default',
+          'w-full max-w-lg',
+          step.borderColor
+        )}
+        style={{ '--glow-color': step.glowColor, willChange: 'transform, opacity' } as React.CSSProperties}
+      >
+        {/* Top highlight */}
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
+
+        {/* Content */}
+        <div className="flex items-start gap-4 p-6">
+          {/* Icon */}
+          <div className={cn(
+            'flex-shrink-0 flex h-14 w-14 items-center justify-center rounded-xl',
+            'transition-all duration-700 group-hover:scale-110 group-hover:rotate-3',
+            step.bg,
+            'shadow-lg'
+          )}>
+            <step.icon className={cn('h-7 w-7 transition-all duration-700', step.color)} />
+          </div>
+
+          {/* Text Content */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-2">
+              <h3 className={cn(
+                'text-lg font-semibold text-[#fafafa] transition-all duration-500',
+                'group-hover:text-emerald-400'
+              )}>
+                {step.label}
+              </h3>
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#1a1a24]/80 text-[10px] font-bold text-[#64748b] transition-all duration-500 group-hover:text-[#94a3b8] group-hover:bg-[#1a1a24]">
+                {index + 1}
+              </span>
+            </div>
+            <p className="text-sm text-[#94a3b8] leading-relaxed transition-all duration-500 group-hover:text-[#cbd5e1]">
+              {step.details}
+            </p>
+          </div>
+        </div>
+
+        {/* Hover glow effect */}
+        <div
+          className="absolute inset-0 opacity-0 transition-opacity duration-700 group-hover:opacity-100 pointer-events-none rounded-2xl"
+          style={{
+            background: `radial-gradient(600px circle at 50% 50%, ${step.glowColor}, transparent 40%)`
+          }}
+        />
+      </div>
+    </div>
+  )
+})
 function TerminalSnippet({ isVisible }: { isVisible: boolean }) {
   const lines = [
-    { text: '> auroracraft init --name "EpicPvP" --platform paper', color: 'text-[#a1a1aa]' },
+    { text: '> auroracraft init --name "EpicPvP" --platform paper', color: 'text-[#94a3b8]' },
     { text: '✓ Project scaffolded in 0.8s', color: 'text-emerald-400', indent: true },
     { text: '', color: '' },
-    { text: '> auroracraft chat "Create a ranked PvP system with ELO"', color: 'text-[#a1a1aa]' },
+    { text: '> auroracraft chat "Create a ranked PvP system with ELO"', color: 'text-[#94a3b8]' },
     { text: '✓ Generated 12 files', color: 'text-emerald-400', indent: true },
-    { text: '✓ RankedArena.java', color: 'text-[#71717a]', indent: true, sub: true },
-    { text: '✓ EloCalculator.java', color: 'text-[#71717a]', indent: true, sub: true },
-    { text: '✓ MatchManager.java', color: 'text-[#71717a]', indent: true, sub: true },
+    { text: '✓ RankedArena.java', color: 'text-[#64748b]', indent: true, sub: true },
+    { text: '✓ EloCalculator.java', color: 'text-[#64748b]', indent: true, sub: true },
+    { text: '✓ MatchManager.java', color: 'text-[#64748b]', indent: true, sub: true },
     { text: '', color: '' },
-    { text: '> auroracraft review', color: 'text-[#a1a1aa]' },
+    { text: '> auroracraft review', color: 'text-[#94a3b8]' },
     { text: '✓ 0 critical issues', color: 'text-emerald-400', indent: true },
     { text: '⚡ 2 optimizations suggested', color: 'text-amber-400', indent: true },
     { text: '', color: '' },
-    { text: '> auroracraft push', color: 'text-[#a1a1aa]' },
+    { text: '> auroracraft push', color: 'text-[#94a3b8]' },
     { text: '✓ Committed and pushed to origin/main', color: 'text-emerald-400', indent: true },
   ]
 
   return (
     <div
       className={cn(
-        'relative rounded-2xl border border-[#1e1e2e]/80 bg-[#0a0a0f]/90 backdrop-blur-xl shadow-2xl transition-all duration-1000 ease-out max-w-full overflow-hidden',
-        isVisible ? 'translate-x-0 opacity-100' : 'translate-x-12 opacity-0 invisible'
+        'group relative rounded-2xl border border-[#1a1a24]/90 bg-[#05050a]/98 shadow-[0_20px_80px_-20px_rgba(0,0,0,0.5)] transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] max-w-full overflow-hidden hover:border-[#2563eb]/40 hover:shadow-[0_20px_80px_-20px_rgba(59,130,246,0.2)]',
+        isVisible ? 'translate-x-0 opacity-100' : 'translate-x-16 opacity-0 invisible'
       )}
+      style={{ willChange: 'transform, opacity' }}
     >
       {/* Window chrome */}
-      <div className="flex items-center gap-2 border-b border-[#1e1e2e]/60 px-3 py-2 md:px-5 md:py-3">
-        <div className="h-2.5 w-2.5 md:h-3 md:w-3 rounded-full bg-[#ef4444]/80 shrink-0" />
-        <div className="h-2.5 w-2.5 md:h-3 md:w-3 rounded-full bg-[#f59e0b]/80 shrink-0" />
-        <div className="h-2.5 w-2.5 md:h-3 md:w-3 rounded-full bg-[#22c55e]/80 shrink-0" />
-        <span className="ml-2 md:ml-3 text-[11px] md:text-xs text-[#71717a] font-mono truncate">auroracraft — zsh</span>
+      <div className="flex items-center gap-2 border-b border-[#1a1a24]/80 px-3 py-2 md:px-5 md:py-3 bg-gradient-to-r from-[#0a0a0f]/50 to-transparent">
+        <div className="h-2.5 w-2.5 md:h-3 md:w-3 rounded-full bg-[#ef4444]/80 shrink-0 shadow-[0_0_8px_rgba(239,68,68,0.4)] transition-all duration-500 group-hover:shadow-[0_0_12px_rgba(239,68,68,0.6)]" />
+        <div className="h-2.5 w-2.5 md:h-3 md:w-3 rounded-full bg-[#f59e0b]/80 shrink-0 shadow-[0_0_8px_rgba(245,158,11,0.4)] transition-all duration-500 group-hover:shadow-[0_0_12px_rgba(245,158,11,0.6)]" />
+        <div className="h-2.5 w-2.5 md:h-3 md:w-3 rounded-full bg-[#22c55e]/80 shrink-0 shadow-[0_0_8px_rgba(34,197,94,0.4)] transition-all duration-500 group-hover:shadow-[0_0_12px_rgba(34,197,94,0.6)]" />
+        <span className="ml-2 md:ml-3 text-[11px] md:text-xs text-[#64748b] font-mono truncate transition-colors duration-500 group-hover:text-[#94a3b8]">auroracraft — zsh</span>
       </div>
       <div className="overflow-x-auto p-3 md:p-5 font-mono text-xs md:text-sm leading-relaxed">
         {lines.map((line, i) => (
           <div
             key={i}
             className={cn(
-              'whitespace-nowrap transition-all duration-500 ease-out',
+              'whitespace-nowrap transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]',
               line.indent && 'pl-4',
               line.sub && 'pl-8',
-              isVisible ? 'translate-x-0 opacity-100' : 'translate-x-4 opacity-0 invisible'
+              isVisible ? 'translate-x-0 opacity-100' : 'translate-x-6 opacity-0 invisible'
             )}
-            style={{ transitionDelay: `${800 + i * 80}ms` }}
+            style={{ transitionDelay: `${800 + i * 80}ms`, willChange: 'transform, opacity' }}
           >
             <span className={line.color}>{line.text}</span>
           </div>
         ))}
         <div className="mt-2 flex items-center gap-2 whitespace-nowrap">
           <span className="text-[#3b82f6]">❯</span>
-          <span className="inline-block h-4 w-2 animate-pulse bg-[#a1a1aa]" />
+          <span className="inline-block h-4 w-2 animate-pulse bg-[#94a3b8] shadow-[0_0_8px_rgba(148,163,184,0.6)]" />
         </div>
       </div>
-      {/* Glass reflection */}
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#3b82f6]/20 to-transparent" />
+      {/* Enhanced glass reflection */}
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#3b82f6]/30 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-br from-[#3b82f6]/[0.01] via-transparent to-transparent pointer-events-none" />
     </div>
   )
 }
@@ -337,19 +629,21 @@ export default function HomePage() {
   const featuresReveal = useScrollReveal(0.08)
   const workflowReveal = useScrollReveal(0.1)
   const ctaReveal = useScrollReveal(0.15)
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
-
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    setMousePos({
-      x: ((e.clientX - rect.left) / rect.width) * 100,
-      y: ((e.clientY - rect.top) / rect.height) * 100,
-    })
-  }, [])
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-[#09090b]">
+    <div className="relative min-h-screen overflow-x-hidden bg-[#05050a]">
       <AmbientBackground />
+
+      {/* Noise texture overlay for depth */}
+      <div
+        className="pointer-events-none fixed inset-0 opacity-[0.015]"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
+        }}
+      />
+
+      {/* Subtle vignette */}
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.4)_100%)]" />
 
       {/* ═══════════════════════════════════
           Hero Section
@@ -357,22 +651,21 @@ export default function HomePage() {
       <section
         ref={heroReveal.ref}
         className="relative pt-32 pb-20 lg:pt-48 lg:pb-32"
-        onMouseMove={handleMouseMove}
+        style={{ contentVisibility: 'auto' }}
       >
-        {/* Ambient light orbs */}
+        {/* Subtle geometric accents - no AI cliché orbs */}
         <div
-          className="pointer-events-none absolute h-[600px] w-[600px] rounded-full opacity-[0.07] blur-[120px] transition-all duration-[2000ms] ease-out"
+          className="pointer-events-none absolute left-0 top-0 h-[300px] w-[300px] opacity-[0.02]"
           style={{
-            background: 'radial-gradient(circle, #3b82f6, transparent 70%)',
-            left: `${mousePos.x * 0.3}%`,
-            top: `${mousePos.y * 0.3}%`,
-            transform: 'translate(-50%, -50%)',
+            background: 'linear-gradient(135deg, transparent 0%, transparent 40%, rgba(16, 185, 129, 0.3) 50%, transparent 60%, transparent 100%)',
+            transform: 'rotate(45deg)',
           }}
         />
         <div
-          className="pointer-events-none absolute right-0 top-20 h-[400px] w-[400px] rounded-full opacity-[0.05] blur-[100px]"
+          className="pointer-events-none absolute right-0 bottom-0 h-[400px] w-[400px] opacity-[0.015]"
           style={{
-            background: 'radial-gradient(circle, #8b5cf6, transparent 70%)',
+            background: 'linear-gradient(-45deg, transparent 0%, transparent 40%, rgba(6, 182, 212, 0.3) 50%, transparent 60%, transparent 100%)',
+            transform: 'rotate(-30deg)',
           }}
         />
 
@@ -384,14 +677,17 @@ export default function HomePage() {
               <div
                 className={`
                   mb-8 inline-flex items-center gap-2.5 rounded-full
-                  border border-[#1e1e2e]/80 bg-[#0f0f14]/80 backdrop-blur-md px-5 py-2 text-sm text-[#a1a1aa]
-                  transition-all duration-700 ease-out
-                  ${heroReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}
+                  border border-[#1a1a24]/90 bg-gradient-to-r from-[#0a0a0f]/95 to-[#0f0f14]/90
+                  px-5 py-2.5 text-sm text-[#94a3b8] shadow-[0_0_20px_-5px_rgba(16,185,129,0.15)]
+                  transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+                  hover:border-[#10b981]/50 hover:shadow-[0_0_30px_-5px_rgba(16,185,129,0.25)]
+                  ${heroReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'}
                 `}
+                style={{ willChange: 'transform, opacity' }}
               >
                 <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75 duration-1000" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
                 </span>
                 AI-Powered Minecraft Plugin Development
               </div>
@@ -399,15 +695,15 @@ export default function HomePage() {
               {/* Headline */}
               <h1
                 className={`
-                  text-5xl font-bold tracking-tight text-[#f4f4f5] sm:text-6xl lg:text-7xl
-                  transition-all duration-1000 ease-out
-                  ${heroReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}
+                  text-5xl font-bold tracking-tight text-[#fafafa] sm:text-6xl lg:text-7xl
+                  transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+                  ${heroReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0'}
                 `}
-                style={{ transitionDelay: '150ms' }}
+                style={{ transitionDelay: '150ms', willChange: 'transform, opacity' }}
               >
                 Build plugins{' '}
                 <span className="relative inline-block">
-                  <span className="bg-gradient-to-r from-[#3b82f6] via-[#60a5fa] to-[#3b82f6] bg-clip-text text-transparent">
+                  <span className="bg-gradient-to-r from-[#10b981] via-[#06b6d4] to-[#10b981] bg-clip-text text-transparent animate-gradient bg-[length:200%_auto]">
                     with AI
                   </span>
                   <svg
@@ -421,14 +717,18 @@ export default function HomePage() {
                       stroke="url(#underline)"
                       strokeWidth="3"
                       strokeLinecap="round"
-                      className={`transition-all duration-1000 ease-out ${heroReveal.isVisible ? 'opacity-100' : 'opacity-0'}`}
-                      style={{ transitionDelay: '800ms' }}
+                      className={`transition-all duration-1200 ease-out ${heroReveal.isVisible ? 'opacity-100 stroke-dashoffset-0' : 'opacity-0 stroke-dashoffset-200'}`}
+                      style={{
+                        transitionDelay: '800ms',
+                        strokeDasharray: '200',
+                        strokeDashoffset: heroReveal.isVisible ? '0' : '200',
+                      }}
                     />
                     <defs>
                       <linearGradient id="underline" x1="0" y1="0" x2="200" y2="0">
-                        <stop stopColor="#3b82f6" stopOpacity="0" />
-                        <stop offset="0.5" stopColor="#3b82f6" />
-                        <stop offset="1" stopColor="#3b82f6" stopOpacity="0" />
+                        <stop stopColor="#10b981" stopOpacity="0" />
+                        <stop offset="0.5" stopColor="#10b981" stopOpacity="0.8" />
+                        <stop offset="1" stopColor="#10b981" stopOpacity="0" />
                       </linearGradient>
                     </defs>
                   </svg>
@@ -438,11 +738,11 @@ export default function HomePage() {
               {/* Subtitle */}
               <p
                 className={`
-                  mt-8 text-lg leading-relaxed text-[#a1a1aa] sm:text-xl
-                  transition-all duration-1000 ease-out
-                  ${heroReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}
+                  mt-8 text-lg leading-relaxed text-[#94a3b8] sm:text-xl
+                  transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+                  ${heroReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}
                 `}
-                style={{ transitionDelay: '300ms' }}
+                style={{ transitionDelay: '300ms', willChange: 'transform, opacity' }}
               >
                 A next-generation workspace for Minecraft developers.
                 Plan, generate, edit, and deploy plugins with intelligent AI assistance.
@@ -452,47 +752,52 @@ export default function HomePage() {
               <div
                 className={`
                   mt-10 flex flex-wrap items-center justify-center gap-4 lg:justify-start
-                  transition-all duration-1000 ease-out
-                  ${heroReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}
+                  transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+                  ${heroReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}
                 `}
-                style={{ transitionDelay: '450ms' }}
+                style={{ transitionDelay: '450ms', willChange: 'transform, opacity' }}
               >
                 <Link
                   to="/register"
-                  className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-xl bg-[#3b82f6] px-7 py-3.5 text-sm font-semibold text-white transition-all duration-300 hover:bg-[#2563eb] hover:shadow-[0_0_32px_-8px_rgba(59,130,246,0.4)] active:scale-[0.98]"
+                  className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-xl bg-gradient-to-r from-[#10b981] to-[#059669] px-8 py-4 text-sm font-semibold text-white shadow-[0_0_0_1px_rgba(16,185,129,0.3),0_8px_24px_-4px_rgba(16,185,129,0.3)] transition-all duration-500 hover:shadow-[0_0_0_1px_rgba(16,185,129,0.5),0_16px_48px_-8px_rgba(16,185,129,0.5),0_0_64px_-16px_rgba(16,185,129,0.4)] hover:scale-[1.02] active:scale-[0.98]"
                 >
                   <span className="relative z-10">Start Building</span>
-                  <ArrowRight className="relative z-10 h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-                  <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+                  <ArrowRight className="relative z-10 h-4 w-4 transition-transform duration-500 group-hover:translate-x-1" />
+                  <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-[#059669] to-[#047857] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
                 </Link>
                 <Link
                   to="/docs"
-                  className="group inline-flex items-center gap-2 rounded-xl border border-[#1e1e2e]/80 bg-[#0f0f14]/60 px-7 py-3.5 text-sm font-medium text-[#a1a1aa] backdrop-blur-md transition-all duration-300 hover:border-[#2a2a3d]/80 hover:bg-[#161621]/80 hover:text-[#f4f4f5]"
+                  className="group inline-flex items-center gap-2 rounded-xl border border-[#1a1a24]/90 bg-[#0a0a0f]/80 px-8 py-4 text-sm font-medium text-[#94a3b8] transition-all duration-500 hover:border-[#10b981]/50 hover:bg-[#12121a]/90 hover:text-[#fafafa] hover:shadow-[0_0_24px_-8px_rgba(16,185,129,0.2)]"
                 >
                   Read Documentation
-                  <ChevronRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
+                  <ChevronRight className="h-4 w-4 transition-transform duration-500 group-hover:translate-x-1" />
                 </Link>
               </div>
 
               {/* Stats row */}
               <div
                 className={`
-                  mt-16 flex items-center justify-center gap-8 border-t border-[#1e1e2e]/60 pt-8 lg:justify-start
-                  transition-all duration-1000 ease-out
-                  ${heroReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}
+                  mt-16 flex items-center justify-center gap-10 border-t border-[#1a1a24]/80 pt-8 lg:justify-start
+                  transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+                  ${heroReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}
                 `}
-                style={{ transitionDelay: '600ms' }}
+                style={{ transitionDelay: '600ms', willChange: 'transform, opacity' }}
               >
                 {[
-                  { value: '0s', label: 'Setup time' },
-                  { value: 'AI', label: 'Code generation' },
-                  { value: 'Git', label: 'Version control' },
-                ].map((stat) => (
-                  <div key={stat.label} className="group cursor-default">
-                    <div className="text-2xl font-bold text-[#f4f4f5] transition-colors duration-300 group-hover:text-[#3b82f6]">
+                  { value: '0s', label: 'Setup time', color: 'group-hover:text-emerald-400' },
+                  { value: 'AI', label: 'Code generation', color: 'group-hover:text-blue-400' },
+                  { value: 'Git', label: 'Version control', color: 'group-hover:text-purple-400' },
+                ].map((stat, i) => (
+                  <div
+                    key={stat.label}
+                    className="group cursor-default transition-all duration-500 hover:scale-110"
+                    style={{ transitionDelay: `${700 + i * 100}ms` }}
+                  >
+                    <div className={`text-2xl font-bold text-[#fafafa] transition-all duration-500 ${stat.color}`}>
                       {stat.value}
                     </div>
-                    <div className="mt-0.5 text-xs text-[#71717a]">{stat.label}</div>
+                    <div className="mt-1 text-xs text-[#64748b] transition-colors duration-500 group-hover:text-[#94a3b8]">{stat.label}</div>
                   </div>
                 ))}
               </div>
@@ -505,36 +810,36 @@ export default function HomePage() {
               {/* Floating accent cards */}
               <div
                 className={cn(
-                  'absolute right-2 top-[-1rem] xl:-right-4 xl:-top-6 rounded-xl border border-[#1e1e2e]/60 bg-[#0f0f14]/80 backdrop-blur-xl px-3 py-2 xl:px-4 xl:py-3 shadow-xl transition-all duration-1000 ease-out',
-                  heroReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0 invisible'
+                  'absolute right-2 top-[-1rem] xl:-right-4 xl:-top-6 rounded-xl border border-[#1a1a24]/80 bg-gradient-to-br from-[#0a0a0f]/95 to-[#0f0f14]/90 px-3 py-2 xl:px-4 xl:py-3 shadow-[0_8px_32px_-8px_rgba(16,185,129,0.2)] transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:scale-105 hover:shadow-[0_12px_48px_-8px_rgba(16,185,129,0.3)]',
+                  heroReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0 invisible'
                 )}
-                style={{ transitionDelay: '1200ms' }}
+                style={{ transitionDelay: '1200ms', willChange: 'transform, opacity' }}
               >
                 <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10">
-                    <Sparkles className="h-4 w-4 text-blue-400" />
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500/15 to-emerald-600/10 shadow-[0_0_20px_-8px_rgba(16,185,129,0.4)]">
+                    <Sparkles className="h-4 w-4 text-emerald-400" />
                   </div>
                   <div>
-                    <div className="text-xs font-medium text-[#f4f4f5]">AI Assistant</div>
-                    <div className="text-[11px] text-[#71717a]">Ready to help</div>
+                    <div className="text-xs font-medium text-[#fafafa]">AI Assistant</div>
+                    <div className="text-[11px] text-[#64748b]">Ready to help</div>
                   </div>
                 </div>
               </div>
 
               <div
                 className={cn(
-                  'absolute left-2 bottom-4 xl:-left-8 xl:bottom-12 rounded-xl border border-[#1e1e2e]/60 bg-[#0f0f14]/80 backdrop-blur-xl px-3 py-2 xl:px-4 xl:py-3 shadow-xl transition-all duration-1000 ease-out',
-                  heroReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0 invisible'
+                  'absolute left-2 bottom-4 xl:-left-8 xl:bottom-12 rounded-xl border border-[#1a1a24]/80 bg-gradient-to-br from-[#0a0a0f]/95 to-[#0f0f14]/90 px-3 py-2 xl:px-4 xl:py-3 shadow-[0_8px_32px_-8px_rgba(16,185,129,0.2)] transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:scale-105 hover:shadow-[0_12px_48px_-8px_rgba(16,185,129,0.3)]',
+                  heroReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0 invisible'
                 )}
-                style={{ transitionDelay: '1400ms' }}
+                style={{ transitionDelay: '1400ms', willChange: 'transform, opacity' }}
               >
                 <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500/15 to-emerald-600/10 shadow-[0_0_20px_-8px_rgba(16,185,129,0.4)]">
                     <Server className="h-4 w-4 text-emerald-400" />
                   </div>
                   <div>
-                    <div className="text-xs font-medium text-[#f4f4f5]">Build Ready</div>
-                    <div className="text-[11px] text-[#71717a]">Maven + Gradle</div>
+                    <div className="text-xs font-medium text-[#fafafa]">Build Ready</div>
+                    <div className="text-[11px] text-[#64748b]">Maven + Gradle</div>
                   </div>
                 </div>
               </div>
@@ -546,64 +851,67 @@ export default function HomePage() {
       {/* ═══════════════════════════════════
           Features Section
           ═══════════════════════════════════ */}
-      <section ref={featuresReveal.ref} className="relative py-24 lg:py-32">
+      <section ref={featuresReveal.ref} className="relative py-24 lg:py-32" style={{ contentVisibility: 'auto' }}>
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           {/* Section header */}
           <div className="mx-auto max-w-2xl text-center">
             <div
               className={`
-                mb-4 inline-flex items-center gap-2 rounded-full border border-[#1e1e2e]/60
-                bg-[#0f0f14]/60 px-4 py-1.5 text-xs font-medium text-[#71717a] backdrop-blur-md
-                transition-all duration-700
-                ${featuresReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}
+                mb-4 inline-flex items-center gap-2 rounded-full border border-[#1a1a24]/90
+                bg-gradient-to-r from-[#0a0a0f]/95 to-[#0f0f14]/90 px-4 py-2 text-xs font-medium text-[#64748b]
+                shadow-[0_0_20px_-8px_rgba(59,130,246,0.2)]
+                transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+                ${featuresReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'}
               `}
+              style={{ willChange: 'transform, opacity' }}
             >
-              <Puzzle className="h-3.5 w-3.5" />
+              <Puzzle className="h-3.5 w-3.5 text-blue-400" />
               Core Capabilities
             </div>
             <h2
               className={`
-                text-3xl font-bold tracking-tight text-[#f4f4f5] sm:text-4xl lg:text-5xl
-                transition-all duration-1000 ease-out
-                ${featuresReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}
+                text-3xl font-bold tracking-tight text-[#fafafa] sm:text-4xl lg:text-5xl
+                transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+                ${featuresReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}
               `}
-              style={{ transitionDelay: '100ms' }}
+              style={{ transitionDelay: '100ms', willChange: 'transform, opacity' }}
             >
               Everything you need to{' '}
-              <span className="text-[#3b82f6]">ship faster</span>
+              <span className="bg-gradient-to-r from-[#10b981] to-[#06b6d4] bg-clip-text text-transparent">ship faster</span>
             </h2>
             <p
               className={`
-                mt-5 text-lg text-[#a1a1aa]
-                transition-all duration-1000 ease-out
-                ${featuresReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}
+                mt-5 text-lg text-[#94a3b8]
+                transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+                ${featuresReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}
               `}
-              style={{ transitionDelay: '200ms' }}
+              style={{ transitionDelay: '200ms', willChange: 'transform, opacity' }}
             >
               A complete development environment designed for Minecraft plugin engineers.
             </p>
           </div>
 
-          {/* Feature Grid — Asymmetric */}
-          <div className="mt-20 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {features.map((feature, i) => (
+          {/* Feature Grid — Enhanced with Individual Reveals */}
+          <div className="mt-20 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {features.map((feature) => (
               <GlassCard
                 key={feature.title}
-                delay={i * 100}
-                isVisible={featuresReveal.isVisible}
-                className="group cursor-default p-7"
+                delay={0}
+                className={`group cursor-default p-8 ${feature.borderGlow}`}
               >
-                <div
-                  className={`mb-5 inline-flex rounded-xl bg-gradient-to-br ${feature.accent} p-3 transition-transform duration-500 group-hover:scale-110`}
-                >
-                  <feature.icon className={`h-5 w-5 ${feature.iconColor}`} />
+                <div className="relative">
+                  <div
+                    className={`mb-6 inline-flex rounded-2xl bg-gradient-to-br ${feature.accent} p-4 shadow-lg transition-all duration-700 group-hover:scale-110 group-hover:rotate-3 ${feature.iconBg}`}
+                  >
+                    <feature.icon className={`h-6 w-6 ${feature.iconColor} transition-all duration-700 group-hover:scale-110`} />
+                  </div>
+                  <h3 className="text-lg font-semibold text-[#fafafa] transition-all duration-500 group-hover:text-[#10b981] group-hover:translate-x-1">
+                    {feature.title}
+                  </h3>
+                  <p className="mt-3 text-sm leading-relaxed text-[#64748b] transition-all duration-500 group-hover:text-[#94a3b8]">
+                    {feature.description}
+                  </p>
                 </div>
-                <h3 className="text-lg font-semibold text-[#f4f4f5] transition-colors duration-300 group-hover:text-[#3b82f6]">
-                  {feature.title}
-                </h3>
-                <p className="mt-2.5 text-sm leading-relaxed text-[#71717a] transition-colors duration-300 group-hover:text-[#a1a1aa]">
-                  {feature.description}
-                </p>
               </GlassCard>
             ))}
           </div>
@@ -613,79 +921,86 @@ export default function HomePage() {
       {/* ═══════════════════════════════════
           Workflow Section
           ═══════════════════════════════════ */}
-      <section ref={workflowReveal.ref} className="relative py-24 lg:py-32">
-        {/* Background accent */}
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#0f0f14]/50 via-transparent to-[#0f0f14]/50" />
+      <section ref={workflowReveal.ref} className="relative py-24 lg:py-32" style={{ contentVisibility: 'auto' }}>
+        {/* Enhanced background accent */}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#0a0a0f]/80 via-transparent to-[#0a0a0f]/80" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(59,130,246,0.03),transparent_70%)]" />
 
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-3xl text-center">
             <div
               className={`
-                mb-4 inline-flex items-center gap-2 rounded-full border border-[#1e1e2e]/60
-                bg-[#0f0f14]/60 px-4 py-1.5 text-xs font-medium text-[#71717a] backdrop-blur-md
-                transition-all duration-700
-                ${workflowReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}
+                mb-4 inline-flex items-center gap-2 rounded-full border border-[#1a1a24]/90
+                bg-gradient-to-r from-[#0a0a0f]/95 to-[#0f0f14]/90 px-4 py-2 text-xs font-medium text-[#64748b]
+                shadow-[0_0_20px_-8px_rgba(59,130,246,0.2)]
+                transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+                ${workflowReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'}
               `}
+              style={{ willChange: 'transform, opacity' }}
             >
-              <Play className="h-3.5 w-3.5" />
+              <Play className="h-3.5 w-3.5 text-emerald-400" />
               How It Works
             </div>
             <h2
               className={`
-                text-3xl font-bold tracking-tight text-[#f4f4f5] sm:text-4xl lg:text-5xl
-                transition-all duration-1000 ease-out
-                ${workflowReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}
+                text-3xl font-bold tracking-tight text-[#fafafa] sm:text-4xl lg:text-5xl
+                transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+                ${workflowReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}
               `}
-              style={{ transitionDelay: '100ms' }}
+              style={{ transitionDelay: '100ms', willChange: 'transform, opacity' }}
             >
               From idea to{' '}
-              <span className="bg-gradient-to-r from-[#3b82f6] to-[#60a5fa] bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-[#10b981] to-[#06b6d4] bg-clip-text text-transparent">
                 production
               </span>
             </h2>
             <p
               className={`
-                mt-5 text-lg text-[#a1a1aa]
-                transition-all duration-1000 ease-out
-                ${workflowReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}
+                mt-5 text-lg text-[#94a3b8]
+                transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+                ${workflowReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}
               `}
-              style={{ transitionDelay: '200ms' }}
+              style={{ transitionDelay: '200ms', willChange: 'transform, opacity' }}
             >
               A streamlined workflow that takes you from concept to deployed plugin in minutes.
             </p>
           </div>
 
-          {/* Workflow Steps — Horizontal with connecting line */}
+          {/* Workflow Steps — Zigzag Flow with Animated Arrows */}
           <div className="mt-20">
-            <div className="relative">
-              {/* Connecting line */}
-              <div className="absolute left-0 right-0 top-8 hidden h-px bg-gradient-to-r from-transparent via-[#1e1e2e] to-transparent lg:block" />
+            <div className="mx-auto max-w-5xl px-4">
+              {workflowSteps.map((step, i) => {
+                const isEven = i % 2 === 0
+                const showArrow = i < workflowSteps.length - 1
 
-              <div className="grid gap-6 sm:gap-8 sm:grid-cols-2 lg:grid-cols-5">
-                {workflowSteps.map((step, i) => (
-                  <div
-                    key={step.label}
-                    className={cn(
-                      'relative text-center transition-all duration-700 ease-out',
-                      workflowReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0'
-                    )}
-                    style={{ transitionDelay: `${400 + i * 120}ms` }}
-                  >
-                    {/* Step number + icon */}
-                    <div className="relative mx-auto mb-3 sm:mb-5 flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center">
-                      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-[#1e1e2e] to-[#0f0f14] opacity-60" />
-                      <div className="absolute inset-0 rounded-2xl border border-[#1e1e2e]/80 backdrop-blur-sm" />
-                      <step.icon className={cn('relative z-10 h-5 w-5 sm:h-6 sm:w-6', step.color)} />
-                      {/* Step index badge */}
-                      <div className="absolute -right-1 -top-1 flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-[#0f0f14] border border-[#1e1e2e]/80 text-[9px] sm:text-[10px] font-bold text-[#71717a]">
-                        {i + 1}
-                      </div>
+                return (
+                  <div key={step.label} className="relative">
+                    {/* Step Card */}
+                    <div className={cn(
+                      'flex mb-8',
+                      isEven ? 'justify-start' : 'justify-end'
+                    )}>
+                      <WorkflowCard
+                        step={step}
+                        index={i}
+                      />
                     </div>
-                    <h3 className="text-sm sm:text-base font-semibold text-[#f4f4f5]">{step.label}</h3>
-                    <p className="mt-1 sm:mt-1.5 text-xs sm:text-sm text-[#71717a]">{step.desc}</p>
+
+                    {/* Animated Arrow */}
+                    {showArrow && (
+                      <div className={cn(
+                        'flex mb-8',
+                        isEven ? 'justify-center ml-32' : 'justify-center mr-32'
+                      )}>
+                        <AnimatedArrow
+                          direction={isEven ? 'down-right' : 'down-left'}
+                          delay={i * 200 + 400}
+                        />
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
+                )
+              })}
             </div>
           </div>
 
@@ -693,30 +1008,32 @@ export default function HomePage() {
           <div
             className={`
               mt-20
-              transition-all duration-1000 ease-out
-              ${workflowReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-16 opacity-0'}
+              transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+              ${workflowReveal.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0'}
             `}
-            style={{ transitionDelay: '1000ms' }}
+            style={{ transitionDelay: '1000ms', willChange: 'transform, opacity' }}
           >
-            <div className="relative rounded-3xl border border-[#1e1e2e]/60 bg-[#0f0f14]/40 backdrop-blur-xl p-6 sm:p-8 lg:p-12">
-              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#3b82f6]/20 to-transparent" />
-              <div className="grid gap-12 lg:grid-cols-2 items-center">
+            <div className="group relative rounded-3xl border border-[#1a1a24]/80 bg-gradient-to-br from-[#0a0a0f]/95 to-[#0f0f14]/90 p-6 sm:p-8 lg:p-12 shadow-[0_20px_80px_-20px_rgba(0,0,0,0.5)] transition-all duration-700 hover:border-[#2563eb]/40 hover:shadow-[0_20px_80px_-20px_rgba(59,130,246,0.2)]">
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#3b82f6]/30 to-transparent" />
+              <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-[#3b82f6]/[0.02] via-transparent to-[#8b5cf6]/[0.02]" />
+              <div className="relative grid gap-12 lg:grid-cols-2 items-center">
                 <div>
-                  <h3 className="text-2xl font-bold text-[#f4f4f5] sm:text-3xl">
+                  <h3 className="text-2xl font-bold text-[#fafafa] sm:text-3xl">
                     Built for developers who care about{' '}
-                    <span className="text-[#3b82f6]">quality</span>
+                    <span className="bg-gradient-to-r from-[#10b981] to-[#06b6d4] bg-clip-text text-transparent">quality</span>
                   </h3>
-                  <p className="mt-4 text-base leading-relaxed text-[#a1a1aa]">
+                  <p className="mt-4 text-base leading-relaxed text-[#94a3b8]">
                     AuroraCraft combines a powerful AI workspace with a professional code editor,
                     git integration, and intelligent project management. No setup required.
                   </p>
-                  <div className="mt-8 flex flex-wrap gap-4">
-                    {['Zero Config', 'Dark Mode', 'GitHub Sync', 'Code Review'].map((tag) => (
+                  <div className="mt-8 flex flex-wrap gap-3">
+                    {['Zero Config', 'Dark Mode', 'GitHub Sync', 'Code Review'].map((tag, i) => (
                       <span
                         key={tag}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#1e1e2e]/60 bg-[#161621]/60 px-3.5 py-1.5 text-xs font-medium text-[#a1a1aa]"
+                        className="inline-flex items-center gap-2 rounded-lg border border-[#1a1a24]/90 bg-[#0a0a0f]/80 px-4 py-2 text-xs font-medium text-[#94a3b8] transition-all duration-500 hover:border-[#10b981]/50 hover:bg-[#12121a]/90 hover:text-[#fafafa] hover:scale-105"
+                        style={{ transitionDelay: `${i * 50}ms` }}
                       >
-                        <div className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                        <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
                         {tag}
                       </span>
                     ))}
@@ -724,22 +1041,22 @@ export default function HomePage() {
                 </div>
                 <div className="relative">
                   {/* Decorative code block */}
-                  <div className="rounded-xl border border-[#1e1e2e]/80 bg-[#0a0a0f]/80 p-3 sm:p-4 lg:p-6 font-mono text-[11px] sm:text-xs lg:text-sm shadow-2xl overflow-x-auto">
-                    <div className="flex items-center gap-2 border-b border-[#1e1e2e]/60 pb-2 sm:pb-3 mb-2 sm:mb-4 min-w-max">
-                      <div className="h-2 w-2 rounded-full bg-[#ef4444]/60 shrink-0" />
-                      <div className="h-2 w-2 rounded-full bg-[#f59e0b]/60 shrink-0" />
-                      <div className="h-2 w-2 rounded-full bg-[#22c55e]/60 shrink-0" />
-                      <span className="ml-2 text-[10px] text-[#71717a] truncate">MainPlugin.java</span>
+                  <div className="group/code rounded-2xl border border-[#1a1a24]/90 bg-[#05050a]/95 p-3 sm:p-4 lg:p-6 font-mono text-[11px] sm:text-xs lg:text-sm shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)] overflow-x-auto transition-all duration-700 hover:border-[#2563eb]/40 hover:shadow-[0_20px_60px_-15px_rgba(59,130,246,0.2)]">
+                    <div className="flex items-center gap-2 border-b border-[#1a1a24]/80 pb-2 sm:pb-3 mb-2 sm:mb-4 min-w-max">
+                      <div className="h-2.5 w-2.5 rounded-full bg-[#ef4444]/80 shrink-0 shadow-[0_0_8px_rgba(239,68,68,0.4)]" />
+                      <div className="h-2.5 w-2.5 rounded-full bg-[#f59e0b]/80 shrink-0 shadow-[0_0_8px_rgba(245,158,11,0.4)]" />
+                      <div className="h-2.5 w-2.5 rounded-full bg-[#22c55e]/80 shrink-0 shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
+                      <span className="ml-2 text-[10px] text-[#64748b] truncate transition-colors duration-500 group-hover/code:text-[#94a3b8]">MainPlugin.java</span>
                     </div>
                     <div className="space-y-0.5 sm:space-y-1 text-[11px] sm:text-xs lg:text-[13px] leading-relaxed min-w-max">
-                      <div className="whitespace-nowrap"><span className="text-purple-400">package</span> <span className="text-[#a1a1aa]">com.example.plugin;</span></div>
+                      <div className="whitespace-nowrap"><span className="text-purple-400">package</span> <span className="text-[#94a3b8]">com.example.plugin;</span></div>
                       <div className="h-1.5 sm:h-2" />
-                      <div className="whitespace-nowrap"><span className="text-purple-400">import</span> <span className="text-[#a1a1aa]">org.bukkit.plugin.java.JavaPlugin;</span></div>
+                      <div className="whitespace-nowrap"><span className="text-purple-400">import</span> <span className="text-[#94a3b8]">org.bukkit.plugin.java.JavaPlugin;</span></div>
                       <div className="h-1.5 sm:h-2" />
                       <div className="whitespace-nowrap"><span className="text-blue-400">public class</span> <span className="text-yellow-300">MainPlugin</span> <span className="text-blue-400">extends</span> <span className="text-yellow-300">JavaPlugin</span> {'{'}</div>
                       <div className="whitespace-nowrap pl-4"><span className="text-blue-400">@Override</span></div>
                       <div className="whitespace-nowrap pl-4"><span className="text-blue-400">public void</span> <span className="text-yellow-300">onEnable</span>() {'{'}</div>
-                      <div className="whitespace-nowrap pl-8"><span className="text-[#71717a]">// AI-generated plugin initialized</span></div>
+                      <div className="whitespace-nowrap pl-8"><span className="text-[#64748b]">// AI-generated plugin initialized</span></div>
                       <div className="whitespace-nowrap pl-8"><span className="text-blue-400">this</span>.<span className="text-yellow-300">getLogger</span>().<span className="text-yellow-300">info</span>(<span className="text-green-400">&quot;Plugin enabled!&quot;</span>);</div>
                       <div className="whitespace-nowrap pl-4">{'}'}</div>
                       <div className="whitespace-nowrap">{'}'}</div>
@@ -755,55 +1072,58 @@ export default function HomePage() {
       {/* ═══════════════════════════════════
           CTA Section
           ═══════════════════════════════════ */}
-      <section ref={ctaReveal.ref} className="relative py-24 lg:py-32">
+      <section ref={ctaReveal.ref} className="relative py-24 lg:py-32" style={{ contentVisibility: 'auto' }}>
         <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
           <div
             className={`
-              relative overflow-hidden rounded-3xl border border-[#1e1e2e]/60
-              bg-gradient-to-br from-[#0f0f14]/80 to-[#161621]/60 backdrop-blur-xl p-12 text-center lg:p-16
-              transition-all duration-1000 ease-out
-              ${ctaReveal.isVisible ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-16 opacity-0 scale-[0.97]'}
+              group relative overflow-hidden rounded-3xl border border-[#1a1a24]/80
+              bg-gradient-to-br from-[#0a0a0f]/95 to-[#0f0f14]/90 p-12 text-center lg:p-16
+              shadow-[0_20px_80px_-20px_rgba(0,0,0,0.5)]
+              transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+              ${ctaReveal.isVisible ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-20 opacity-0 scale-[0.95]'}
             `}
+            style={{ willChange: 'transform, opacity' }}
           >
             {/* Animated gradient border */}
-            <div className="absolute inset-0 rounded-3xl border border-[#1e1e2e]/40" />
+            <div className="absolute inset-0 rounded-3xl border border-[#1a1a24]/60" />
             <div
-              className="absolute inset-[-1px] rounded-3xl opacity-40"
+              className="absolute inset-[-2px] rounded-3xl opacity-30"
               style={{
-                background: 'conic-gradient(from 0deg at 50% 50%, transparent 0deg, rgba(59,130,246,0.15) 60deg, transparent 120deg, rgba(139,92,246,0.1) 180deg, transparent 240deg, rgba(59,130,246,0.15) 300deg, transparent 360deg)',
-                animation: 'spin 8s linear infinite',
+                background: 'conic-gradient(from 0deg at 50% 50%, transparent 0deg, rgba(16,185,129,0.2) 60deg, transparent 120deg, rgba(6,182,212,0.15) 180deg, transparent 240deg, rgba(16,185,129,0.2) 300deg, transparent 360deg)',
+                animation: 'spin 10s linear infinite',
               }}
             />
-            <div className="absolute inset-[1px] rounded-3xl bg-[#09090b]/95" />
+            <div className="absolute inset-[1px] rounded-3xl bg-[#05050a]/98" />
 
             <div className="relative">
-              <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#3b82f6]/10 to-[#8b5cf6]/10 border border-[#1e1e2e]/60">
-                <Rocket className="h-6 w-6 text-[#3b82f6]" />
+              <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#10b981]/15 via-[#10b981]/10 to-[#06b6d4]/10 border border-[#1a1a24]/80 shadow-[0_0_40px_-10px_rgba(16,185,129,0.3)] transition-all duration-700 group-hover:scale-110 group-hover:shadow-[0_0_60px_-10px_rgba(16,185,129,0.5)]">
+                <Rocket className="h-7 w-7 text-[#10b981]" />
               </div>
-              <h2 className="text-3xl font-bold tracking-tight text-[#f4f4f5] sm:text-4xl">
+              <h2 className="text-3xl font-bold tracking-tight text-[#fafafa] sm:text-4xl">
                 Ready to build something{' '}
-                <span className="bg-gradient-to-r from-[#3b82f6] to-[#60a5fa] bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-[#10b981] via-[#06b6d4] to-[#10b981] bg-clip-text text-transparent animate-gradient bg-[length:200%_auto]">
                   epic?
                 </span>
               </h2>
-              <p className="mx-auto mt-4 max-w-lg text-lg text-[#a1a1aa]">
+              <p className="mx-auto mt-5 max-w-lg text-lg text-[#94a3b8]">
                 Join the next generation of Minecraft plugin developers. Create your free account and start shipping today.
               </p>
               <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
                 <Link
                   to="/register"
-                  className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-xl bg-[#3b82f6] px-8 py-4 text-sm font-semibold text-white transition-all duration-300 hover:bg-[#2563eb] hover:shadow-[0_0_40px_-8px_rgba(59,130,246,0.35)] active:scale-[0.98]"
+                  className="group/btn relative inline-flex items-center gap-2.5 overflow-hidden rounded-xl bg-gradient-to-r from-[#10b981] to-[#059669] px-8 py-4 text-sm font-semibold text-white shadow-[0_0_0_1px_rgba(16,185,129,0.3),0_8px_24px_-4px_rgba(16,185,129,0.3)] transition-all duration-500 hover:shadow-[0_0_0_1px_rgba(16,185,129,0.5),0_16px_48px_-8px_rgba(16,185,129,0.5),0_0_64px_-16px_rgba(16,185,129,0.4)] hover:scale-[1.02] active:scale-[0.98]"
                 >
                   <span className="relative z-10">Create Free Account</span>
-                  <ArrowRight className="relative z-10 h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-                  <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+                  <ArrowRight className="relative z-10 h-4 w-4 transition-transform duration-500 group-hover/btn:translate-x-1" />
+                  <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover/btn:translate-x-full" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-[#059669] to-[#047857] opacity-0 transition-opacity duration-500 group-hover/btn:opacity-100" />
                 </Link>
                 <Link
                   to="/community"
-                  className="group inline-flex items-center gap-2 rounded-xl border border-[#1e1e2e]/80 bg-[#0f0f14]/60 px-8 py-4 text-sm font-medium text-[#a1a1aa] backdrop-blur-md transition-all duration-300 hover:border-[#2a2a3d]/80 hover:bg-[#161621]/80 hover:text-[#f4f4f5]"
+                  className="group/btn inline-flex items-center gap-2 rounded-xl border border-[#1a1a24]/90 bg-[#0a0a0f]/80 px-8 py-4 text-sm font-medium text-[#94a3b8] transition-all duration-500 hover:border-[#10b981]/50 hover:bg-[#12121a]/90 hover:text-[#fafafa] hover:shadow-[0_0_24px_-8px_rgba(16,185,129,0.2)]"
                 >
                   Explore Community
-                  <ChevronRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
+                  <ChevronRight className="h-4 w-4 transition-transform duration-500 group-hover/btn:translate-x-1" />
                 </Link>
               </div>
             </div>
@@ -814,23 +1134,23 @@ export default function HomePage() {
       {/* ═══════════════════════════════════
           Footer
           ═══════════════════════════════════ */}
-      <footer className="border-t border-[#1e1e2e]/60 py-12">
+      <footer className="relative border-t border-[#1a1a24]/80 py-12 backdrop-blur-xl">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#3b82f6]/10">
-                <Blocks className="h-4 w-4 text-[#3b82f6]" />
+            <div className="flex items-center gap-3 group cursor-default">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-[#10b981]/15 to-[#10b981]/10 border border-[#1a1a24]/80 shadow-[0_0_20px_-8px_rgba(16,185,129,0.3)] transition-all duration-500 group-hover:scale-110 group-hover:shadow-[0_0_30px_-8px_rgba(16,185,129,0.5)]">
+                <Blocks className="h-4 w-4 text-[#10b981]" />
               </div>
-              <span className="text-sm font-semibold text-[#f4f4f5]">AuroraCraft</span>
+              <span className="text-sm font-semibold text-[#fafafa] transition-colors duration-500 group-hover:text-[#10b981]">AuroraCraft</span>
             </div>
-            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 sm:gap-x-8 text-sm text-[#71717a]">
-              <Link to="/docs" className="transition-colors duration-200 hover:text-[#a1a1aa]">Docs</Link>
-              <Link to="/community" className="transition-colors duration-200 hover:text-[#a1a1aa]">Community</Link>
-              <Link to="/pricing" className="transition-colors duration-200 hover:text-[#a1a1aa]">Pricing</Link>
-              <Link to="/terms" className="transition-colors duration-200 hover:text-[#a1a1aa]">Terms</Link>
-              <Link to="/privacy" className="transition-colors duration-200 hover:text-[#a1a1aa]">Privacy</Link>
+            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 sm:gap-x-8 text-sm text-[#64748b]">
+              <Link to="/docs" className="transition-all duration-300 hover:text-[#94a3b8] hover:scale-105">Docs</Link>
+              <Link to="/community" className="transition-all duration-300 hover:text-[#94a3b8] hover:scale-105">Community</Link>
+              <Link to="/pricing" className="transition-all duration-300 hover:text-[#94a3b8] hover:scale-105">Pricing</Link>
+              <Link to="/terms" className="transition-all duration-300 hover:text-[#94a3b8] hover:scale-105">Terms</Link>
+              <Link to="/privacy" className="transition-all duration-300 hover:text-[#94a3b8] hover:scale-105">Privacy</Link>
             </div>
-            <div className="text-xs text-[#52525b]">
+            <div className="text-xs text-[#475569]">
               AuroraCraft. Built for Minecraft developers.
             </div>
           </div>
@@ -842,6 +1162,20 @@ export default function HomePage() {
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+        @keyframes gradient {
+          0%, 100% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+        }
+        @keyframes dash {
+          from { stroke-dashoffset: 1000; }
+          to { stroke-dashoffset: 0; }
+        }
+        .animate-gradient {
+          animation: gradient 8s ease infinite;
+        }
+        .animate-dash {
+          animation: dash 1.5s ease-out forwards;
         }
       `}</style>
     </div>
