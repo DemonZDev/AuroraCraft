@@ -4,6 +4,7 @@ import { Plus, Search, MoreHorizontal, Trash2, Pencil, Archive, Settings } from 
 import { useProjects } from '@/hooks/use-projects'
 import { cn } from '@/lib/utils'
 import { SOFTWARE_LABELS } from '@/lib/software-options'
+import { CustomSelect } from '@/components/ui/custom-select'
 import type { Project } from '@/types'
 
 function formatRelativeDate(dateStr: string): string {
@@ -75,14 +76,16 @@ export default function DashboardPage() {
               className="w-full rounded-lg border border-border bg-surface py-2 pl-9 pr-3 text-sm text-text placeholder:text-text-dim focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
-          <select
+          <CustomSelect
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as SortKey)}
-            className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-          >
-            <option value="updatedAt">Last updated</option>
-            <option value="name">Name</option>
-          </select>
+            onChange={(v) => setSortBy(v as SortKey)}
+            options={[
+              { value: 'updatedAt', label: 'Last updated' },
+              { value: 'name', label: 'Name' },
+            ]}
+            fullWidth={false}
+            size="sm"
+          />
         </div>
       )}
 

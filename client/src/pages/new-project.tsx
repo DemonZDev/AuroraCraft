@@ -4,12 +4,18 @@ import { ArrowLeft, ArrowRight, Check, Square, CheckSquare, Globe, Lock, Zap } f
 import { cn } from '@/lib/utils'
 import { useProjects } from '@/hooks/use-projects'
 import { useUserTokens } from '@/hooks/use-user-tokens'
+import { CustomSelect } from '@/components/ui/custom-select'
 
 const steps = ['Project Info', 'Platform', 'Build Config', 'AI Tool', 'Source']
 
 import { SOFTWARE_CATEGORIES } from '@/lib/software-options'
 
-const javaVersions = ['21', '17', '11', '8']
+const javaVersions = [
+  { value: '21', label: 'Java 21', description: 'Latest LTS — Virtual threads, pattern matching, sequenced collections' },
+  { value: '17', label: 'Java 17', description: 'Previous LTS — Sealed classes, pattern matching for switch' },
+  { value: '11', label: 'Java 11', description: 'Older LTS — HTTP client, var keyword, new String methods' },
+  { value: '8', label: 'Java 8', description: 'Legacy — Lambda expressions, streams API, Optional' },
+]
 const compilers = [
   { value: 'gradle', label: 'Gradle', description: 'Modern build tool (recommended)' },
   { value: 'maven', label: 'Maven', description: 'Traditional build tool' },
@@ -81,6 +87,8 @@ function VisibilitySelector({
 export default function NewProjectPage() {
   const navigate = useNavigate()
   const { createProject, isCreating } = useProjects()
+  const { tokens } = useUserTokens()
+  const isPaid = tokens?.tier === 'paid'
   const [step, setStep] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
@@ -526,17 +534,14 @@ export default function NewProjectPage() {
                 ))}
               </div>
             </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-text">Java Version</label>
-              <select
+            <div className="relative">
+              <CustomSelect
+                label="Java Version"
                 value={form.javaVersion}
-                onChange={(e) => setForm({ ...form, javaVersion: e.target.value })}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                {javaVersions.map((v) => (
-                  <option key={v} value={v}>Java {v}</option>
-                ))}
-              </select>
+                onChange={(v) => setForm({ ...form, javaVersion: v })}
+                options={javaVersions}
+                placeholder="Select Java version"
+              />
             </div>
             <div>
               <label className="mb-3 block text-sm font-medium text-text">Build Tool(s)</label>
@@ -666,35 +671,56 @@ export default function NewProjectPage() {
             <label className="mb-3 block text-sm font-medium text-text">Project Source</label>
             <div className="space-y-2">
               {[
-                { value: 'blank' as const, label: 'Blank Project', description: 'Start from scratch with a clean template' },
-                { value: 'zip' as const, label: 'Upload ZIP', description: 'Import from a ZIP archive' },
-                { value: 'github' as const, label: 'GitHub Repository', description: 'Clone from a GitHub repository' },
-              ].map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => setForm({ ...form, source: opt.value })}
-                  className={cn(
-                    'flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors',
-                    form.source === opt.value
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-border-bright hover:bg-surface-hover'
-                  )}
-                >
-                  <div className={cn(
-                    'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border',
-                    form.source === opt.value
-                      ? 'border-primary bg-primary'
-                      : 'border-border'
-                  )}>
-                    {form.source === opt.value && <div className="h-2 w-2 rounded-full bg-white" />}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-text">{opt.label}</p>
-                    <p className="text-xs text-text-muted">{opt.description}</p>
-                  </div>
-                </button>
-              ))}
+                { value: 'blank' as const, label: 'Blank Project', description: 'Start from scratch with a clean template', paid: false },
+                { value: 'zip' as const, label: 'Upload ZIP', description: 'Import from a ZIP archive', paid: true },
+                { value: 'github' as const, label: 'GitHub Repository', description: 'Clone from a GitHub repository', paid: true },
+              ].map((opt) => {
+                const locked = opt.paid && !isPaid
+                return (
+                  <button
+                    key={opt.value}
+                    onClick={() => !locked && setForm({ ...form, source: opt.value })}
+                    disabled={locked}
+                    className={cn(
+                      'flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors',
+                      form.source === opt.value && !locked
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-border-bright hover:bg-surface-hover',
+                      locked && 'cursor-not-allowed opacity-60'
+                    )}
+                  >
+                    <div className={cn(
+                      'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border',
+                      form.source === opt.value && !locked
+                        ? 'border-primary bg-primary'
+                        : 'border-border'
+                    )}>
+                      {form.source === opt.value && !locked && <div className="h-2 w-2 rounded-full bg-white" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-text">{opt.label}</p>
+                        {locked && (
+                          <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary shrink-0">
+                            <Zap className="h-3 w-3" />
+                            Paid
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-text-muted">{opt.description}</p>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
+            {!isPaid && (
+              <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+                <p className="text-xs text-text-muted">
+                  <Zap className="inline h-3 w-3 text-primary mr-1" />
+                  <span className="font-medium text-text">Upgrade to Paid</span> to import from ZIP archives and GitHub repositories.
+                </p>
+              </div>
+            )}
             
             {form.source === 'zip' && (
               <div className="mt-4">

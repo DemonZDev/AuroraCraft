@@ -4,8 +4,28 @@ import { setupUserSharedCaches } from './shared-cache.js'
 
 const execFileAsync = promisify(execFile)
 
+/** Linux usernames must be lowercase and follow strict rules.
+ *  This helper guarantees a valid system username from any app username. */
+export function toSystemUsername(username: string): string {
+  return `auroracraft-${username.toLowerCase().replace(/[^a-z0-9_-]/g, '')}`
+}
+
+/** Determine if we are running as root (UID 0). When root, skip sudo. */
+function isRoot(): boolean {
+  return process.getuid?.() === 0
+}
+
+/** Run a command with sudo only when not already root. */
+async function sudo(cmd: string, args: string[]): Promise<void> {
+  if (isRoot()) {
+    await execFileAsync(cmd, args)
+  } else {
+    await execFileAsync('sudo', [cmd, ...args])
+  }
+}
+
 export async function systemUserExists(username: string): Promise<boolean> {
-  const systemUsername = `auroracraft-${username}`
+  const systemUsername = toSystemUsername(username)
   try {
     await execFileAsync('id', [systemUsername])
     return true
@@ -15,7 +35,7 @@ export async function systemUserExists(username: string): Promise<boolean> {
 }
 
 export async function createSystemUser(username: string, password: string): Promise<void> {
-  const systemUsername = `auroracraft-${username}`
+  const systemUsername = toSystemUsername(username)
 
   const exists = await systemUserExists(username)
   if (exists) {
@@ -25,8 +45,7 @@ export async function createSystemUser(username: string, password: string): Prom
 
   console.log(`[SystemUser] Creating system user: ${systemUsername}`)
 
-  await execFileAsync('sudo', [
-    'adduser',
+  await sudo('adduser', [
     '--disabled-password',
     '--gecos', '',
     systemUsername,
@@ -36,13 +55,13 @@ export async function createSystemUser(username: string, password: string): Prom
     await setSystemUserPassword(systemUsername, password)
   } catch (err) {
     // Rollback: remove the user if password setting failed
-    await execFileAsync('sudo', ['userdel', '-r', systemUsername]).catch(() => {})
+    await sudo('userdel', ['-r', systemUsername]).catch(() => {})
     throw err
   }
 
   // Set proper permissions on home directory (750 = owner rwx, group r-x, others ---)
   try {
-    await execFileAsync('sudo', ['chmod', '750', `/home/${systemUsername}`])
+    await sudo('chmod', ['750', `/home/${systemUsername}`])
   } catch (err) {
     console.warn(`[SystemUser] Failed to set permissions on /home/${systemUsername}:`, err)
   }
@@ -64,7 +83,9 @@ async function setSystemUserPassword(systemUsername: string, password: string): 
   }
 
   return new Promise<void>((resolve, reject) => {
-    const child = spawn('sudo', ['chpasswd'], { stdio: ['pipe', 'ignore', 'pipe'] })
+    const child = isRoot()
+      ? spawn('chpasswd', { stdio: ['pipe', 'ignore', 'pipe'] })
+      : spawn('sudo', ['chpasswd'], { stdio: ['pipe', 'ignore', 'pipe'] })
 
     let stderr = ''
     child.stderr.on('data', (chunk: Buffer) => {
@@ -89,7 +110,7 @@ async function setSystemUserPassword(systemUsername: string, password: string): 
 }
 
 export async function changeSystemUserPassword(username: string, newPassword: string): Promise<void> {
-  const systemUsername = `auroracraft-${username}`
+  const systemUsername = toSystemUsername(username)
   const exists = await systemUserExists(username)
   if (!exists) {
     throw new Error(`System user ${systemUsername} does not exist`)

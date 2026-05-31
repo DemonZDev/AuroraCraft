@@ -56,3 +56,21 @@ export const ALL_SOFTWARE_OPTIONS = SOFTWARE_CATEGORIES.flatMap((cat) =>
 export const SOFTWARE_LABELS: Record<string, string> = Object.fromEntries(
   ALL_SOFTWARE_OPTIONS.map((o) => [o.value, o.label])
 )
+
+/** Get the category ID for a given software value */
+export function getSoftwareCategory(softwareValue: string): { id: string; label: string } | null {
+  for (const cat of SOFTWARE_CATEGORIES) {
+    if (cat.options.some((opt) => opt.value === softwareValue)) {
+      return { id: cat.id, label: cat.label }
+    }
+  }
+  return null
+}
+
+/** Get all software values within the same category as the given software */
+export function getSameCategorySoftware(softwareValue: string): string[] {
+  const category = getSoftwareCategory(softwareValue)
+  if (!category) return []
+  const cat = SOFTWARE_CATEGORIES.find((c) => c.id === category.id)
+  return cat?.options.map((o) => o.value) ?? []
+}

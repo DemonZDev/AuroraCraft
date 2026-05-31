@@ -8,6 +8,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   SESSION_SECRET: z.string().min(16),
   COOKIE_DOMAIN: z.string().default('localhost'),
+  COOKIE_SECURE: z.enum(['true', 'false', 'auto']).default('auto'),
   CLIENT_URL: z.string().url().default('http://localhost:5173'),
   OPENCODE_PORT_MIN: z.coerce.number().default(9000),
   OPENCODE_PORT_MAX: z.coerce.number().default(9999),

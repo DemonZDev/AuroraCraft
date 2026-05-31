@@ -79,7 +79,7 @@ export async function adminRoutes(app: FastifyInstance) {
       return reply.status(404).send({ message: 'User not found', statusCode: 404 })
     }
 
-    const systemUser = `auroracraft-${user.username}`
+    const systemUser = `auroracraft-${user.username.toLowerCase()}`
     const configDir = `/home/${systemUser}/.config/kiro`
 
     let systemUserExists = false
@@ -124,7 +124,7 @@ export async function adminRoutes(app: FastifyInstance) {
       return reply.status(404).send({ message: 'User not found', statusCode: 404 })
     }
 
-    const systemUser = `auroracraft-${user.username}`
+    const systemUser = `auroracraft-${user.username.toLowerCase()}`
     const homeDir = `/home/${systemUser}`
     const configDir = `${homeDir}/.config/kiro`
 

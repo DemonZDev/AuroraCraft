@@ -51,6 +51,15 @@ async function resolveCoderabbitPath(userHome: string): Promise<string | null> {
 }
 
 export default async function coderabbitRoutes(app: FastifyInstance) {
+  const paidCheck = (request: any, reply: any) => {
+    const userTier = (request as any).user?.tier ?? 'free'
+    if (userTier === 'free') {
+      reply.status(403).send({ error: 'Code review requires a paid subscription. Upgrade to enable automated code review with CodeRabbit.', statusCode: 403 })
+      return false
+    }
+    return true
+  }
+
   // Admin: Initiate CodeRabbit login
   app.post('/api/admin/users/:id/coderabbit/initiate', { preHandler: [authMiddleware, adminGuard] }, async (request, reply) => {
     const { id } = request.params as { id: string }
@@ -60,7 +69,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
       reply.status(404).send({ error: 'User not found' }); return
     }
 
-    const userHome = `/home/auroracraft-${user.username}`
+    const userHome = `/home/auroracraft-${user.username.toLowerCase()}`
     const sessionName = `coderabbit-${id}`
 
     const errors: string[] = []
@@ -80,7 +89,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
 
       // Ensure user home directory exists
       await execAsync(`mkdir -p ${userHome}`)
-      await execAsync(`chown -R auroracraft-${user.username}:auroracraft-${user.username} ${userHome} 2>/dev/null || true`)
+      await execAsync(`chown -R auroracraft-${user.username.toLowerCase()}:auroracraft-${user.username.toLowerCase()} ${userHome} 2>/dev/null || true`)
 
       const coderabbitPath = await resolveCoderabbitPath(userHome)
       if (!coderabbitPath) {
@@ -238,7 +247,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
       try {
         const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1)
         if (user) {
-          await execAsync(`chown -R auroracraft-${user.username}:auroracraft-${user.username} ${processInfo.userHome}`)
+          await execAsync(`chown -R auroracraft-${user.username.toLowerCase()}:auroracraft-${user.username.toLowerCase()} ${processInfo.userHome}`)
         }
       } catch (chownErr) {
         app.log.warn({ chownErr }, 'Failed to fix ownership, but authentication succeeded')
@@ -262,7 +271,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
       reply.status(404).send({ error: 'User not found' }); return
     }
 
-    const userHome = `/home/auroracraft-${user.username}`
+    const userHome = `/home/auroracraft-${user.username.toLowerCase()}`
 
     try {
       const { exec } = await import('child_process')
@@ -295,6 +304,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
 
   // Check if CodeRabbit is enabled for project
   app.get('/api/projects/:id/coderabbit/status', { preHandler: [authMiddleware] }, async (request, reply) => {
+    if (!paidCheck(request, reply)) return
     const { id } = request.params as { id: string }
 
     const [project] = await db.select().from(projects).where(eq(projects.id, id)).limit(1)
@@ -313,8 +323,9 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
 
   // Start code review
   app.post('/api/projects/:id/coderabbit/review', { preHandler: [authMiddleware] }, async (request, reply) => {
+    if (!paidCheck(request, reply)) return
     const { id } = request.params as { id: string }
-    const { scope } = request.body as { scope: 'full' | 'uncommitted' | 'recent' }
+    const { scope = 'full' } = request.body as { scope?: string }
 
     const [project] = await db.select().from(projects).where(eq(projects.id, id)).limit(1)
     if (!project || project.userId !== request.user!.id) {
@@ -331,12 +342,12 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
       reply.status(403).send({ error: 'CodeRabbit not enabled for your account' }); return
     }
 
-    const projectDir = project.linkId ? `/home/auroracraft-${user.username}/${project.linkId}` : null
+    const projectDir = project.linkId ? `/home/auroracraft-${user.username.toLowerCase()}/${project.linkId}` : null
     if (!projectDir) {
       reply.status(404).send({ error: 'Project directory not found' }); return
     }
 
-    const userHome = `/home/auroracraft-${user.username}`
+    const userHome = `/home/auroracraft-${user.username.toLowerCase()}`
 
     try {
       const { exec } = await import('child_process')
@@ -370,7 +381,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
         reply.status(500).send({ error: 'CodeRabbit CLI not found' }); return
       }
       const typeFlag = 'uncommitted'
-      const systemUser = `auroracraft-${user.username}`
+      const systemUser = `auroracraft-${user.username.toLowerCase()}`
 
       // Detect current git branch to use as base
       let baseBranch = 'main'
@@ -509,6 +520,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
 
   // Get review history (excludes error-only reviews like rate_limited, stale, error)
   app.get('/api/projects/:id/coderabbit/reviews', { preHandler: [authMiddleware] }, async (request, reply) => {
+    if (!paidCheck(request, reply)) return
     const { id } = request.params as { id: string }
 
     const [project] = await db.select().from(projects).where(eq(projects.id, id)).limit(1)
@@ -533,6 +545,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
 
   // Update review status
   app.patch('/api/projects/:id/coderabbit/reviews/:reviewId', { preHandler: [authMiddleware] }, async (request, reply) => {
+    if (!paidCheck(request, reply)) return
     const { id, reviewId } = request.params as { id: string; reviewId: string }
     const { status } = request.body as { status: string }
 
@@ -551,6 +564,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
 
   // Mark specific issues as fixed within a review
   app.post('/api/projects/:id/coderabbit/reviews/:reviewId/fix-issues', { preHandler: [authMiddleware] }, async (request, reply) => {
+    if (!paidCheck(request, reply)) return
     const { id, reviewId } = request.params as { id: string; reviewId: string }
     const { fixedIndices } = request.body as { fixedIndices: number[] }
 
@@ -600,6 +614,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
 
   // Check active review status (for workspace lock)
   app.get('/api/projects/:id/review-status', { preHandler: [authMiddleware] }, async (request, reply) => {
+    if (!paidCheck(request, reply)) return
     const { id } = request.params as { id: string }
 
     const [project] = await db.select().from(projects).where(eq(projects.id, id)).limit(1)
@@ -669,6 +684,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
 
   // Delete a review (used by client to clean up error/rate_limited reviews after showing the error)
   app.delete('/api/projects/:id/coderabbit/reviews/:reviewId', { preHandler: [authMiddleware] }, async (request, reply) => {
+    if (!paidCheck(request, reply)) return
     const { id, reviewId } = request.params as { id: string; reviewId: string }
 
     const [project] = await db.select().from(projects).where(eq(projects.id, id)).limit(1)

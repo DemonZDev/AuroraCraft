@@ -14,6 +14,9 @@ AI-powered Minecraft plugin development platform. Describe what you want and an 
 - **Admin Panel** — User management, project oversight, and AI runtime configuration
 - **Multi-User** — Role-based access control (admin / user)
 - **CodeRabbit Integration** — AI-powered code review for uncommitted changes
+- **Dynamic Rules & Skills** — Per-project AI rules and skills auto-generated from platform-specific knowledge base (14 sections, 8 skills) covering Paper, Spigot, Folia, Velocity, BungeeCord, and 13 more platforms
+- **Platform-Aware Code Generation** — AI automatically uses correct APIs (Adventure Components vs ChatColor), scheduler types (BukkitScheduler vs RegionScheduler), and build systems (Maven vs Gradle) based on project configuration
+- **AI Error Prevention** — Built-in statistics on most common AI mistakes (78% sync DB queries, 64% unthrottled PlayerMoveEvent, etc.) embedded in every project's rules
 
 ## Supported Server Software
 
@@ -49,7 +52,7 @@ AuroraCraft supports **18 Minecraft server platforms** organized into 4 categori
 | **Waterfall** | Paper-maintained BungeeCord fork (discontinued) | BungeeCord |
 | **Velocity-CTD** | Velocity fork with queues, extra commands & fixes | Velocity |
 
-> **Note:** The AI agent tailors generated code, `plugin.yml` descriptors, and API imports based on the selected platform. Hybrid servers get both plugin and mod-aware scaffolding.
+> **Note:** The AI agent tailors generated code, `plugin.yml` descriptors, and API imports based on the selected platform. Each project gets a **dynamically generated AGENTS.md rules file** (14 sections) and **8 on-demand skills** loaded into OpenCode, covering platform-specific APIs, threading models, build systems, and coding conventions. Hybrid servers get both plugin and mod-aware scaffolding.
 
 ## Tech Stack
 
@@ -58,6 +61,7 @@ AuroraCraft supports **18 Minecraft server platforms** organized into 4 categori
 | Frontend  | React 19, Vite 7, TailwindCSS 4, React Router, TanStack Query, Zustand, Monaco Editor |
 | Backend   | Fastify 5, Drizzle ORM, PostgreSQL, WebSocket               |
 | AI Bridge | OpenCode (open-source AI coding agent) + MCP servers          |
+| AI Rules  | Dynamic AGENTS.md + SKILL.md per-project, 10 platform fragments, 8 skills |
 | Review    | CodeRabbit CLI                                              |
 | Process   | PM2 (process manager with auto-restart)                      |
 | Language  | TypeScript (ES2024, strict mode)                             |
@@ -371,6 +375,29 @@ chmod -R 777 /var/lib/maven/shared
 ```
 
 > **Why 777?** Each user runs as their own UID. A group-based approach would require a shared `auroracraft` group and `sg` on every `runuser` call, which is fragile. `777` on shared caches is the simplest correct solution.
+
+### Step 15.5 — Initialize Knowledge Base (Required for Platform-Specific AI Rules)
+
+The knowledge base provides per-project AI rules and skills. It must be present in the source tree and is auto-copied on each project creation:
+
+```bash
+# The knowledge base ships with the source code at:
+ls /root/AuroraCraft/opencode-knowledge/
+# Rules:  rules/TEMPLATE_BASE.md + 10 platform fragments
+# Skills: skills/*/SKILL.md (8 on-demand skill files)
+```
+
+**No manual initialization required** — the files are part of the repository. When a user sends their first AI message on a project, the backend automatically:
+1. Reads `TEMPLATE_BASE.md`
+2. Loads the correct fragments based on project type (e.g., `paper-api.md` + `maven-build.md` + `java-rules.md`)
+3. Replaces placeholders (`{SOFTWARE}`, `{COMPILER}`, `{LANGUAGE}`, etc.)
+4. Writes the final `AGENTS.md` + copies all 8 skills to the project's isolated HOME directory
+5. OpenCode auto-discovers and loads them on startup
+
+**Verify knowledge base integrity:**
+```bash
+find /root/AuroraCraft/opencode-knowledge -name "*.md" | wc -l  # Should show 22 files
+```
 
 ### Step 16 — Verify OpenCode Accessibility
 
@@ -757,6 +784,90 @@ Firecrawl MCP provides web search, scraping, and crawling capabilities to the AI
 6. If the key is removed, the backend calls `POST /mcp/firecrawl/disconnect` to clean up
 
 **Note:** Firecrawl MCP is **not** configured in `opencode.json` — it is registered dynamically via the OpenCode HTTP API after the instance starts. This prevents config validation errors (`Unrecognized key: mcpServers`).
+
+### Dynamic Rules & Skills System
+
+Every AuroraCraft project gets a custom `AGENTS.md` rule file and 8 skill files auto-generated based on the selected platform, compiler, and language.
+
+#### How It Works
+
+```
+User sends first AI message on a project
+    ↓
+Backend reads project config (software, compiler, language, Java version)
+    ↓
+Loads TEMPLATE_BASE.md + relevant fragments:
+    ├── paper-api.md (Paper/Purpur/Folia/Depran forks)
+    ├── spigot-api.md (Spigot)
+    ├── velocity-api.md (Velocity)
+    ├── bungeecord-api.md (BungeeCord)
+    ├── maven-build.md or gradle-build.md
+    └── java-rules.md or kotlin-rules.md
+    ↓
+Replaces {SOFTWARE}, {COMPILER}, {LANGUAGE}, {API_RULES}, {BUILD_RULES}, {FOLIA_RULES}, etc.
+    ↓
+Writes to per-project isolated HOME:
+    /var/lib/auroracraft/configs/{user}/{linkId}/.config/opencode/
+    ├── AGENTS.md    (14 sections: API, Thread Safety, Build, Language, AI Error Stats, Architecture, etc.)
+    └── skills/      (8 on-demand SKILL.md files)
+        ├── database-setup/
+        ├── event-handling/
+        ├── command-framework/
+        ├── config-management/
+        ├── async-operations/
+        ├── gui-inventory/
+        ├── scheduler-tasks/
+        └── paper-components/
+    ↓
+OpenCode auto-discovers and loads on startup via HOME directory
+```
+
+#### Knowledge Base Structure
+
+```
+opencode-knowledge/
+├── rules/
+│   ├── TEMPLATE_BASE.md         ← 14-section template with {PLACEHOLDERS}
+│   └── fragments/
+│       ├── paper-api.md         ← Paper/Paper-fork API rules
+│       ├── folia-api.md         ← Folia regionized threading rules
+│       ├── spigot-api.md        ← Spigot legacy ChatColor rules
+│       ├── purpur-api.md        ← Purpur extension rules
+│       ├── velocity-api.md      ← Velocity proxy API rules
+│       ├── bungeecord-api.md    ← BungeeCord proxy API rules
+│       ├── maven-build.md       ← Maven build system rules
+│       ├── gradle-build.md      ← Gradle build system rules
+│       ├── java-rules.md        ← Java 21 patterns (records, switch, text blocks)
+│       └── kotlin-rules.md      ← Kotlin patterns (data classes, extensions, coroutines)
+├── skills/                      (8 OpenCode-compatible SKILL.md files)
+├── PLATFORM_RESEARCH.md         ← 18-platform comparison reference
+└── IMPLEMENTATION_PLAN.md       ← Implementation roadmap
+```
+
+#### Per-Project Isolation
+
+| Project A (Paper+Maven+Java) | Project B (Spigot+Gradle+Kotlin) |
+|---|---|
+| AGENTS.md: `paper \| maven \| java` | AGENTS.md: `spigot \| gradle \| kotlin` |
+| Uses Paper API, Adventure Components | Uses Spigot API, legacy ChatColor |
+| Maven `provided` scope, Shade plugin | Gradle `compileOnly`, Shadow plugin |
+| Stored at `.../project-a/.config/opencode/` | Stored at `.../project-b/.config/opencode/` |
+
+Rules regenerate on every message, so changing project settings (e.g., Paper→Folia) updates rules on the next AI message.
+
+#### AI Error Prevention Statistics
+
+The rules template includes a section with quantified AI mistake frequencies (sourced from analysis of real AI-generated plugins):
+
+| Issue | Frequency |
+|---|---|
+| Synchronous DB queries blocking main thread | 78% |
+| Unthrottled PlayerMoveEvent handlers | 64% |
+| Excessive object allocation in hot paths | 52% |
+| Missing caching mechanisms | 41% |
+| Memory leaks from uncancelled tasks | 33% |
+
+These statistics help the AI self-audit — it knows its own common mistakes and double-checks them.
 
 ### Token Pricing System
 

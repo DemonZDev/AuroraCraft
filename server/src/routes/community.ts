@@ -14,7 +14,7 @@ import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js'
 import { readFileTree, generateLinkId } from './projects.js'
 
 function getProjectDir(ownerUsername: string, linkId: string): string {
-  return `/home/auroracraft-${ownerUsername}/${linkId}`
+  return `/home/auroracraft-${ownerUsername.toLowerCase()}/${linkId}`
 }
 
 async function getPublicProject(id: string) {

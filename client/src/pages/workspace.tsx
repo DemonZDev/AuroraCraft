@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react'
 import { SOFTWARE_LABELS } from '@/lib/software-options'
+import { CustomSelect } from '@/components/ui/custom-select'
 import { Link, useParams } from 'react-router'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -326,17 +327,19 @@ function GitConnectionModal({ isOpen, onClose, projectId, githubConnected, githu
               <div>
                 <label className="block text-xs font-medium text-text-muted mb-1.5">Repository</label>
                 <div className="flex gap-2">
-                  <select
-                    value={selectedRepo}
-                    onChange={(e) => setSelectedRepo(e.target.value)}
-                    disabled={loadingRepos}
-                    className="flex-1 rounded-xl border border-border/60 bg-background/50 px-3 py-2.5 text-sm text-text focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/10"
-                  >
-                    <option value="">{loadingRepos ? 'Loading...' : 'Select a repository'}</option>
-                    {repos.map(r => (
-                      <option key={r.cloneUrl} value={r.cloneUrl}>{r.fullName}</option>
-                    ))}
-                  </select>
+                  <div className="relative flex-1">
+                    <CustomSelect
+                      value={selectedRepo}
+                      onChange={(v) => setSelectedRepo(v)}
+                      options={[
+                        ...(loadingRepos
+                          ? [{ value: '', label: 'Loading...' }]
+                          : [{ value: '', label: 'Select a repository' }]),
+                        ...repos.map((r) => ({ value: r.cloneUrl, label: r.fullName })),
+                      ]}
+                      disabled={loadingRepos}
+                    />
+                  </div>
                   <button
                     onClick={() => { setShowCreateRepo(!showCreateRepo); setShowCreateBranch(false); setError('') }}
                     className="rounded-xl border border-border/60 bg-background/50 px-3 py-2.5 text-sm text-text-muted hover:bg-surface-hover hover:text-text transition-all"
@@ -380,20 +383,18 @@ function GitConnectionModal({ isOpen, onClose, projectId, githubConnected, githu
                 <div>
                   <label className="block text-xs font-medium text-text-muted mb-1.5">Branch</label>
                   <div className="flex gap-2">
-                    <select
-                      value={selectedBranch}
-                      onChange={(e) => setSelectedBranch(e.target.value)}
-                      disabled={loadingBranches}
-                      className="flex-1 rounded-xl border border-border/60 bg-background/50 px-3 py-2.5 text-sm text-text focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/10"
-                    >
-                      {loadingBranches ? (
-                        <option>Loading branches...</option>
-                      ) : (
-                        branches.map(b => (
-                          <option key={b} value={b}>{b}</option>
-                        ))
-                      )}
-                    </select>
+                    <div className="relative flex-1">
+                      <CustomSelect
+                        value={selectedBranch}
+                        onChange={(v) => setSelectedBranch(v)}
+                        options={
+                          loadingBranches
+                            ? [{ value: '', label: 'Loading branches...' }]
+                            : branches.map((b) => ({ value: b, label: b }))
+                        }
+                        disabled={loadingBranches}
+                      />
+                    </div>
                     <button
                       onClick={() => { setShowCreateBranch(!showCreateBranch); setShowCreateRepo(false); setError('') }}
                       className="rounded-xl border border-border/60 bg-background/50 px-3 py-2.5 text-sm text-text-muted hover:bg-surface-hover hover:text-text transition-all"
@@ -2114,6 +2115,8 @@ export default function WorkspacePage() {
   const { projectId } = useParams<{ projectId: string }>()
   const { project, isLoading, updateProject } = useProject(projectId ?? '')
   const { files, isLoading: filesLoading, refetch: refetchFiles } = useProjectFiles(projectId ?? '')
+  const { tokens } = useUserTokens()
+  const isPaid = tokens?.tier === 'paid'
   const isMobile = useIsMobile()
   const [mobileTab, setMobileTab] = useState<'chat' | 'files' | 'code'>('chat')
   const [layoutMode, setLayoutMode] = useState<string>('chat-first')
@@ -2648,73 +2651,79 @@ const handleAutoFix = () => {
           <span className="truncate text-sm font-medium text-text">{project.name}</span>
           <span className="shrink-0 rounded bg-accent px-1.5 py-0.5 text-[10px] text-text-dim">{SOFTWARE_LABELS[project.software] ?? project.software}</span>
           <div className="ml-auto flex items-center gap-1.5">
-            {gitStatus?.connected ? (
+            {isPaid && (
               <>
-                <button
-                  onClick={handleOpenPushModal}
-                  disabled={isWorkspaceLocked}
-                  className="rounded-md p-1.5 text-text-dim hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="Push to GitHub"
-                >
-                  <Upload className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  onClick={() => setResetModalOpen(true)}
-                  disabled={isWorkspaceLocked}
-                  className="rounded-md p-1.5 text-orange-500 hover:text-orange-600 disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="Reset from Git"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  onClick={() => setGitConnectModalOpen(true)}
-                  disabled={isWorkspaceLocked}
-                  className="flex items-center gap-1 rounded-md p-1.5 text-green-500 hover:text-green-600 disabled:opacity-40 disabled:cursor-not-allowed"
-                  title={`Connected: ${gitStatus.repoUrl?.replace('https://github.com/', '') || 'repo'}`}
-                >
-                  <GitBranch className="h-3.5 w-3.5" />
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={() => setGitConnectModalOpen(true)}
-                disabled={isWorkspaceLocked}
-                className="rounded-md p-1.5 text-text-dim hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Connect Git Repository"
-              >
-                <GitBranch className="h-3.5 w-3.5" />
-              </button>
-            )}
-            {coderabbitEnabled && gitStatus?.connected && (
-              <>
-                <button
-                  onClick={() => setReviewModalOpen(true)}
-                  disabled={isWorkspaceLocked}
-                  className="rounded-md p-1.5 text-blue-500 hover:text-blue-600 disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="Review Code"
-                >
-                  <Shield className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  onClick={() => {
-                    if (isWorkspaceLocked) return
-                    fetchReviewHistory()
-                    setReviewHistoryOpen(true)
-                  }}
-                  disabled={isWorkspaceLocked}
-                  className="rounded-md p-1.5 text-text-dim hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="Review History"
-                >
-                  <ListTodo className="h-3.5 w-3.5" />
-                </button>
+                {gitStatus?.connected ? (
+                  <>
+                    <button
+                      onClick={handleOpenPushModal}
+                      disabled={isWorkspaceLocked}
+                      className="rounded-md p-1.5 text-text-dim hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                      title="Push to GitHub"
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setResetModalOpen(true)}
+                      disabled={isWorkspaceLocked}
+                      className="rounded-md p-1.5 text-orange-500 hover:text-orange-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                      title="Reset from Git"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setGitConnectModalOpen(true)}
+                      disabled={isWorkspaceLocked}
+                      className="flex items-center gap-1 rounded-md p-1.5 text-green-500 hover:text-green-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                      title={`Connected: ${gitStatus.repoUrl?.replace('https://github.com/', '') || 'repo'}`}
+                    >
+                      <GitBranch className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setGitConnectModalOpen(true)}
+                    disabled={isWorkspaceLocked}
+                    className="rounded-md p-1.5 text-text-dim hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="Connect Git Repository"
+                  >
+                    <GitBranch className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                {coderabbitEnabled && gitStatus?.connected && (
+                  <>
+                    <button
+                      onClick={() => setReviewModalOpen(true)}
+                      disabled={isWorkspaceLocked}
+                      className="rounded-md p-1.5 text-blue-500 hover:text-blue-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                      title="Review Code"
+                    >
+                      <Shield className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (isWorkspaceLocked) return
+                        fetchReviewHistory()
+                        setReviewHistoryOpen(true)
+                      }}
+                      disabled={isWorkspaceLocked}
+                      className="rounded-md p-1.5 text-text-dim hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                      title="Review History"
+                    >
+                      <ListTodo className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                )}
               </>
             )}
             <button onClick={toggleLayout} disabled={isWorkspaceLocked} className="rounded-md p-1.5 text-text-dim hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed" title={isChatFirst ? 'Switch to Code First' : 'Switch to Chat First'}>
               <ArrowLeftRight className="h-3.5 w-3.5" />
             </button>
-            <a href={`/api/projects/${projectId}/download/zip`} download className="rounded-md p-1.5 text-text-dim hover:text-text-muted" title="Download project">
-              <Download className="h-3.5 w-3.5" />
-            </a>
+            {isPaid && (
+              <a href={`/api/projects/${projectId}/download/zip`} download className="rounded-md p-1.5 text-text-dim hover:text-text-muted" title="Download project">
+                <Download className="h-3.5 w-3.5" />
+              </a>
+            )}
             <div className="relative" ref={jarMenuRef}>
               <button 
                 onClick={() => !isWorkspaceLocked && setJarMenuOpen(!jarMenuOpen)} 
@@ -2826,15 +2835,13 @@ const handleAutoFix = () => {
                   <div className="space-y-4">
                     <div>
                       <label className="mb-1.5 block text-sm font-medium text-text">Branch</label>
-                      <select
-                        value={selectedBranch}
-                        onChange={(e) => setSelectedBranch(e.target.value)}
-                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                      >
-                        {branches.map(branch => (
-                          <option key={branch} value={branch}>{branch}</option>
-                        ))}
-                      </select>
+                      <div className="relative">
+                        <CustomSelect
+                          value={selectedBranch}
+                          onChange={(v) => setSelectedBranch(v)}
+                          options={branches.map((b) => ({ value: b, label: b }))}
+                        />
+                      </div>
                     </div>
 
                     <div>
@@ -3382,73 +3389,77 @@ const handleAutoFix = () => {
           <span className="rounded bg-accent px-2 py-0.5 text-xs text-text-dim">{project.language}</span>
         </div>
         <div className="flex items-center gap-2">
-          {gitStatus?.connected ? (
+          {isPaid && (
             <>
-              <button
-                onClick={handleOpenPushModal}
-                disabled={isWorkspaceLocked}
-                className="rounded-md border border-border p-1.5 text-text-dim hover:bg-surface-hover hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Push to GitHub"
-              >
-                <Upload className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setResetModalOpen(true)}
-                disabled={isWorkspaceLocked}
-                className="rounded-md border border-orange-500 p-1.5 text-orange-500 hover:bg-orange-50 disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Reset from Git"
-              >
-                <RotateCcw className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setGitConnectModalOpen(true)}
-                disabled={isWorkspaceLocked}
-                className="flex items-center gap-1.5 rounded-md border border-green-500 p-1.5 text-green-500 hover:bg-green-50 disabled:opacity-40 disabled:cursor-not-allowed"
-                title={`Connected: ${gitStatus.repoUrl?.replace('https://github.com/', '') || 'repo'}`}
-              >
-                <GitBranch className="h-4 w-4" />
-                <span className="text-[10px] font-medium">{gitStatus.repoBranch}</span>
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={() => setGitConnectModalOpen(true)}
-              disabled={isWorkspaceLocked}
-              className="rounded-md border border-border p-1.5 text-text-dim hover:bg-surface-hover hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Connect Git Repository"
-            >
-              <GitBranch className="h-4 w-4" />
-            </button>
-          )}
-          {coderabbitEnabled && gitStatus?.connected && (
-            <>
-              <button
-                onClick={() => setReviewModalOpen(true)}
-                disabled={isWorkspaceLocked}
-                className="rounded-md border border-blue-500 p-1.5 text-blue-500 hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Review Code"
-              >
-                <Shield className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => {
-                  if (isWorkspaceLocked) return
-                  fetchReviewHistory()
-                  setReviewHistoryOpen(true)
-                }}
-                disabled={isWorkspaceLocked}
-                className="rounded-md border border-border p-1.5 text-text-dim hover:bg-surface-hover disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Review History"
-              >
-                <ListTodo className="h-4 w-4" />
-              </button>
+              {gitStatus?.connected ? (
+                <>
+                  <button
+                    onClick={handleOpenPushModal}
+                    disabled={isWorkspaceLocked}
+                    className="rounded-md border border-border p-1.5 text-text-dim hover:bg-surface-hover hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="Push to GitHub"
+                  >
+                    <Upload className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => setResetModalOpen(true)}
+                    disabled={isWorkspaceLocked}
+                    className="rounded-md border border-orange-500 p-1.5 text-orange-500 hover:bg-orange-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="Reset from Git"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => setGitConnectModalOpen(true)}
+                    disabled={isWorkspaceLocked}
+                    className="flex items-center gap-1.5 rounded-md border border-green-500 p-1.5 text-green-500 hover:bg-green-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    title={`Connected: ${gitStatus.repoUrl?.replace('https://github.com/', '') || 'repo'}`}
+                  >
+                    <GitBranch className="h-4 w-4" />
+                    <span className="text-[10px] font-medium">{gitStatus.repoBranch}</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setGitConnectModalOpen(true)}
+                  disabled={isWorkspaceLocked}
+                  className="rounded-md border border-border p-1.5 text-text-dim hover:bg-surface-hover hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Connect Git Repository"
+                >
+                  <GitBranch className="h-4 w-4" />
+                </button>
+              )}
+              {coderabbitEnabled && gitStatus?.connected && (
+                <>
+                  <button
+                    onClick={() => setReviewModalOpen(true)}
+                    disabled={isWorkspaceLocked}
+                    className="rounded-md border border-blue-500 p-1.5 text-blue-500 hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="Review Code"
+                  >
+                    <Shield className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (isWorkspaceLocked) return
+                      fetchReviewHistory()
+                      setReviewHistoryOpen(true)
+                    }}
+                    disabled={isWorkspaceLocked}
+                    className="rounded-md border border-border p-1.5 text-text-dim hover:bg-surface-hover disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="Review History"
+                  >
+                    <ListTodo className="h-4 w-4" />
+                  </button>
+                </>
+              )}
             </>
           )}
           <button
             onClick={toggleLayout}
             disabled={isWorkspaceLocked}
             className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-text-muted transition-colors hover:bg-surface-hover hover:text-text disabled:opacity-40 disabled:cursor-not-allowed"
-            title={isChatFirst ? 'Switch to Code First' : 'Switch to Chat First'}
+            title={isChatFirst ? 'Switch to Code First' : 'Switch to Code First'}
           >
             <ArrowLeftRight className="h-3.5 w-3.5" />
             {isChatFirst ? 'Chat First' : 'Code First'}
@@ -3460,14 +3471,16 @@ const handleAutoFix = () => {
             <Play className="h-3 w-3" />
             Compile
           </button>
-          <a
-            href={`/api/projects/${projectId}/download/zip`}
-            download
-            className="rounded-md border border-border p-1.5 text-text-dim transition-colors hover:bg-surface-hover hover:text-text-muted"
-            title="Download project as ZIP"
-          >
-            <Download className="h-4 w-4" />
-          </a>
+          {isPaid && (
+            <a
+              href={`/api/projects/${projectId}/download/zip`}
+              download
+              className="rounded-md border border-border p-1.5 text-text-dim transition-colors hover:bg-surface-hover hover:text-text-muted"
+              title="Download project as ZIP"
+            >
+              <Download className="h-4 w-4" />
+            </a>
+          )}
           <Link
             to={`/project/${projectId}/settings`}
             className="rounded-md border border-border p-1.5 text-text-dim transition-colors hover:bg-surface-hover hover:text-text-muted"
@@ -3586,15 +3599,13 @@ const handleAutoFix = () => {
                 <div className="space-y-4">
                   <div>
                     <label className="mb-1.5 block text-sm font-medium text-text">Branch</label>
-                    <select
-                      value={selectedBranch}
-                      onChange={(e) => setSelectedBranch(e.target.value)}
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                    >
-                      {branches.map(branch => (
-                        <option key={branch} value={branch}>{branch}</option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <CustomSelect
+                        value={selectedBranch}
+                        onChange={(v) => setSelectedBranch(v)}
+                        options={branches.map((b) => ({ value: b, label: b }))}
+                      />
+                    </div>
                   </div>
 
                   <div>

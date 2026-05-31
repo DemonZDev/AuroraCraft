@@ -25,6 +25,7 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useProject, useProjectStats } from '@/hooks/use-projects'
 import { useUserTokens } from '@/hooks/use-user-tokens'
+import { CustomSelect } from '@/components/ui/custom-select'
 import type { UpdateProjectInput } from '@/types'
 
 type TabId = 'overview' | 'stats' | 'compiler' | 'settings'
@@ -36,9 +37,14 @@ const tabs: { id: TabId; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'settings', label: 'Settings', icon: Settings },
 ]
 
-import { SOFTWARE_CATEGORIES } from '@/lib/software-options'
+import { SOFTWARE_CATEGORIES, getSoftwareCategory } from '@/lib/software-options'
 
-const javaVersions = ['21', '17', '11', '8']
+const javaVersions = [
+  { value: '21', label: 'Java 21', description: 'Latest LTS — Virtual threads, pattern matching, sequenced collections' },
+  { value: '17', label: 'Java 17', description: 'Previous LTS — Sealed classes, pattern matching for switch' },
+  { value: '11', label: 'Java 11', description: 'Older LTS — HTTP client, var keyword, new String methods' },
+  { value: '8', label: 'Java 8', description: 'Legacy — Lambda expressions, streams API, Optional' },
+]
 
 interface OverviewForm {
   name: string
@@ -410,21 +416,30 @@ function OverviewTab({
         </div>
 
         {/* Software */}
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-text">Server Software</label>
-          <select
+        <div className="relative">
+          <CustomSelect
+            label="Server Software"
             value={form.software}
-            onChange={(e) => updateField('software', e.target.value)}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-          >
-            {SOFTWARE_CATEGORIES.map((cat) => (
-              <optgroup key={cat.id} label={cat.label}>
-                {cat.options.map((sw) => (
-                  <option key={sw.value} value={sw.value}>{sw.label}</option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
+            onChange={(v) => updateField('software', v)}
+            options={SOFTWARE_CATEGORIES.filter((cat) =>
+              cat.options.some((opt) => opt.value === project.software)
+            ).map((cat) => ({
+              label: cat.label,
+              options: cat.options.map((sw) => ({
+                value: sw.value,
+                label: sw.label,
+                description: sw.description,
+              })),
+            }))}
+            placeholder="Select server software"
+          />
+          <p className="mt-1 text-xs text-text-dim">
+            You can only switch between servers in the same category. Created as a{' '}
+            <span className="text-text-muted font-medium">
+              {getSoftwareCategory(project.software)?.label ?? 'Game Server'}
+            </span>
+            .
+          </p>
         </div>
       </div>
     </div>
@@ -537,14 +552,12 @@ function CompilerTab({
   }, [project])
 
   const hasChanges =
-    form.language !== project.language ||
     form.javaVersion !== project.javaVersion ||
     compilersToValue(form.compilers) !== project.compiler
 
   const handleSave = async () => {
     try {
       await updateProject({
-        language: form.language,
         javaVersion: form.javaVersion,
         compiler: compilersToValue(form.compilers),
       })
@@ -584,39 +597,36 @@ function CompilerTab({
       </div>
 
       <div className="mt-8 space-y-6">
-        {/* Language */}
+        {/* Language — locked at project creation */}
         <div>
           <label className="mb-1.5 block text-sm font-medium text-text">Language</label>
           <div className="flex gap-2">
             {(['java', 'kotlin'] as const).map((lang) => (
-              <button
+              <div
                 key={lang}
-                onClick={() => setForm({ ...form, language: lang })}
                 className={cn(
-                  'flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
+                  'flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors select-none',
                   form.language === lang
                     ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border text-text-muted hover:border-border-bright hover:bg-surface-hover'
+                    : 'border-border text-text-muted opacity-50'
                 )}
               >
                 {lang.charAt(0).toUpperCase() + lang.slice(1)}
-              </button>
+              </div>
             ))}
           </div>
+          <p className="mt-1 text-xs text-text-dim">Language is locked when the project is created and cannot be changed later.</p>
         </div>
 
         {/* Java Version */}
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-text">Java Version</label>
-          <select
+        <div className="relative">
+          <CustomSelect
+            label="Java Version"
             value={form.javaVersion}
-            onChange={(e) => setForm({ ...form, javaVersion: e.target.value })}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-          >
-            {javaVersions.map((v) => (
-              <option key={v} value={v}>Java {v}</option>
-            ))}
-          </select>
+            onChange={(v) => setForm({ ...form, javaVersion: v })}
+            options={javaVersions}
+            placeholder="Select Java version"
+          />
         </div>
 
         {/* Build Tool(s) */}

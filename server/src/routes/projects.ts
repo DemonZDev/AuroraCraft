@@ -14,6 +14,24 @@ import { agentMessages } from '../db/schema/agent-messages.js'
 import { agentLogs } from '../db/schema/agent-logs.js'
 import { authMiddleware } from '../middleware/auth.js'
 import { opencodeBridge } from '../bridges/index.js'
+import { toSystemUsername } from '../utils/system-user.js'
+
+/** Software category groups — restricts cross-category changes in project settings */
+const SOFTWARE_CATEGORIES: Record<string, string[]> = {
+  'game-servers': [
+    'paper', 'purpur', 'pufferfish', 'folia', 'spigot',
+    'leaf', 'leaves', 'divinemc', 'pluto', 'aspaper',
+  ],
+  'hybrid-servers': ['mohist', 'arclight', 'magma', 'youer'],
+  'proxies': ['velocity', 'bungeecord', 'waterfall', 'velocity-ctd'],
+}
+
+function getSoftwareCategory(software: string): string | null {
+  for (const [category, list] of Object.entries(SOFTWARE_CATEGORIES)) {
+    if (list.includes(software)) return category
+  }
+  return null
+}
 
 const createProjectSchema = z.object({
   name: z.string().min(2).max(128),
@@ -126,7 +144,7 @@ export async function projectRoutes(app: FastifyInstance) {
       return reply.code(404).send({ error: 'Project not found' })
     }
 
-    const projectDir = project.linkId ? `/home/auroracraft-${request.user!.username}/${project.linkId}` : null
+    const projectDir = project.linkId ? `/home/auroracraft-${request.user!.username.toLowerCase()}/${project.linkId}` : null
     if (!projectDir) {
       return { maven: null, gradle: null }
     }
@@ -157,7 +175,7 @@ export async function projectRoutes(app: FastifyInstance) {
       return reply.code(404).send({ error: 'Project not found' })
     }
 
-    const projectDir = project.linkId ? `/home/auroracraft-${request.user!.username}/${project.linkId}` : null
+    const projectDir = project.linkId ? `/home/auroracraft-${request.user!.username.toLowerCase()}/${project.linkId}` : null
     if (!projectDir) {
       return reply.code(404).send({ error: 'Project directory not found' })
     }
@@ -201,7 +219,7 @@ export async function projectRoutes(app: FastifyInstance) {
     const sessionIds = sessionRows.map((s) => s.id)
 
     // Count files in project directory
-    const projectDir = project.linkId ? `/home/auroracraft-${request.user!.username}/${project.linkId}` : null
+    const projectDir = project.linkId ? `/home/auroracraft-${request.user!.username.toLowerCase()}/${project.linkId}` : null
     let fileCount = 0
     if (projectDir) {
       try {
@@ -279,7 +297,7 @@ export async function projectRoutes(app: FastifyInstance) {
       .returning()
 
     // Create project directory
-    const projectDir = `/home/auroracraft-${username}/${linkId}`
+    const projectDir = `/home/auroracraft-${username.toLowerCase()}/${linkId}`
     try {
       await mkdir(projectDir, { recursive: true })
       
@@ -294,10 +312,10 @@ export async function projectRoutes(app: FastifyInstance) {
       await execAsync(`cd "${projectDir}" && touch .gitkeep && git add .gitkeep && git commit -m "Initial commit"`)
       
       // Fix ownership
-      await execAsync(`chown -R auroracraft-${username}:auroracraft-${username} "${projectDir}"`)
+      await execAsync(`chown -R auroracraft-${username.toLowerCase()}:auroracraft-${username.toLowerCase()} "${projectDir}"`)
       
       // Add to safe.directory for the user
-      await execAsync(`su - auroracraft-${username} -c "git config --global --add safe.directory '${projectDir}'"`)
+      await execAsync(`su - auroracraft-${username.toLowerCase()} -c "git config --global --add safe.directory '${projectDir}'"`)
       
       app.log.info({ projectDir }, 'Initialized git repository for blank project')
     } catch (err) {
@@ -334,11 +352,14 @@ export async function projectRoutes(app: FastifyInstance) {
       }
 
       const userTier = request.user!.tier ?? 'free'
-      const visibility = userTier === 'free' ? 'public' : parsed.data.visibility
+      if (userTier === 'free') {
+        return reply.status(403).send({ error: 'ZIP upload requires a paid subscription. Upgrade to enable importing from ZIP archives.', statusCode: 403 })
+      }
+      const visibility = parsed.data.visibility
 
       const linkId = generateLinkId(parsed.data.name)
       const username = request.user!.username
-      const projectDir = `/home/auroracraft-${username}/${linkId}`
+      const projectDir = `/home/auroracraft-${username.toLowerCase()}/${linkId}`
 
       await mkdir(projectDir, { recursive: true })
 
@@ -380,11 +401,14 @@ export async function projectRoutes(app: FastifyInstance) {
     }
 
     const userTier = request.user!.tier ?? 'free'
-    const visibility = userTier === 'free' ? 'public' : parsed.data.visibility
+    if (userTier === 'free') {
+      return reply.status(403).send({ error: 'GitHub repository cloning requires a paid subscription. Upgrade to enable importing from GitHub.', statusCode: 403 })
+    }
+    const visibility = parsed.data.visibility
 
     const linkId = generateLinkId(parsed.data.name)
     const username = request.user!.username
-    const projectDir = `/home/auroracraft-${username}/${linkId}`
+    const projectDir = `/home/auroracraft-${username.toLowerCase()}/${linkId}`
 
     try {
       await mkdir(projectDir, { recursive: true })
@@ -468,7 +492,7 @@ export async function projectRoutes(app: FastifyInstance) {
     }
 
     const [existing] = await db
-      .select({ id: projects.id })
+      .select({ id: projects.id, software: projects.software, language: projects.language })
       .from(projects)
       .where(and(eq(projects.id, id), eq(projects.userId, request.user!.id)))
       .limit(1)
@@ -480,6 +504,26 @@ export async function projectRoutes(app: FastifyInstance) {
     const userTier = request.user!.tier ?? 'free'
     if (userTier === 'free' && parsed.data.visibility === 'private') {
       return reply.status(403).send({ message: 'Free users can only create public projects. Upgrade to a paid plan for private projects.', statusCode: 403 })
+    }
+
+    // Enforce software category restriction: can only switch within the same category
+    if (parsed.data.software && parsed.data.software !== existing.software) {
+      const currentCategory = getSoftwareCategory(existing.software)
+      const newCategory = getSoftwareCategory(parsed.data.software)
+      if (currentCategory && newCategory && currentCategory !== newCategory) {
+        return reply.status(400).send({
+          message: `Cannot switch from ${existing.software} to ${parsed.data.software}. You can only change between servers in the same category (${currentCategory.replace('-', ' ')}).`,
+          statusCode: 400,
+        })
+      }
+    }
+
+    // Language is locked at project creation — cannot be changed later
+    if (parsed.data.language && parsed.data.language !== existing.language) {
+      return reply.status(400).send({
+        message: `Cannot change programming language from ${existing.language} to ${parsed.data.language}. Language is locked when the project is created.`,
+        statusCode: 400,
+      })
     }
 
     const [updated] = await db
@@ -512,7 +556,7 @@ export async function projectRoutes(app: FastifyInstance) {
       .where(eq(users.id, existing.userId))
       .limit(1)
 
-    const systemUsername = `auroracraft-${projectOwner?.username ?? request.user!.username}`
+    const systemUsername = `auroracraft-${(projectOwner?.username ?? request.user!.username).toLowerCase()}`
     const projectDir = existing.linkId
       ? `/home/${systemUsername}/${existing.linkId}`
       : null
@@ -542,7 +586,7 @@ export async function projectRoutes(app: FastifyInstance) {
 
     // Clean up isolated config directory (rules, skills, caches, provider configs)
     if (existing.linkId && projectOwner?.username) {
-      const isolatedConfigDir = `/var/lib/auroracraft/configs/auroracraft-${projectOwner.username}/${existing.linkId}`
+      const isolatedConfigDir = `/var/lib/auroracraft/configs/auroracraft-${projectOwner.username.toLowerCase()}/${existing.linkId}`
       import('child_process').then(({ exec }) => {
         exec(`sudo rm -rf "${isolatedConfigDir}"`, (err) => {
           if (err) {
@@ -578,7 +622,7 @@ export async function projectRoutes(app: FastifyInstance) {
     }
 
     const username = request.user!.username
-    const projectDir = `/home/auroracraft-${username}/${project.linkId}`
+    const projectDir = `/home/auroracraft-${username.toLowerCase()}/${project.linkId}`
     const files = await readFileTree(projectDir, projectDir, 10)
 
     return { files }
@@ -608,7 +652,7 @@ export async function projectRoutes(app: FastifyInstance) {
     }
 
     const username = request.user!.username
-    const projectDir = `/home/auroracraft-${username}/${project.linkId}`
+    const projectDir = `/home/auroracraft-${username.toLowerCase()}/${project.linkId}`
     const fullPath = path.resolve(projectDir, filePath)
 
     // Security: ensure the resolved path is within the project directory
@@ -651,7 +695,7 @@ export async function projectRoutes(app: FastifyInstance) {
     }
 
     const username = request.user!.username
-    const projectDir = `/home/auroracraft-${username}/${project.linkId}`
+    const projectDir = `/home/auroracraft-${username.toLowerCase()}/${project.linkId}`
     const fullPath = path.resolve(projectDir, parsed.data.path)
 
     if (!fullPath.startsWith(projectDir + '/')) {
@@ -692,7 +736,7 @@ export async function projectRoutes(app: FastifyInstance) {
     }
 
     const username = request.user!.username
-    const projectDir = `/home/auroracraft-${username}/${project.linkId}`
+    const projectDir = `/home/auroracraft-${username.toLowerCase()}/${project.linkId}`
     const fullPath = path.resolve(projectDir, parsed.data.path)
 
     if (!fullPath.startsWith(projectDir + '/')) {
@@ -744,7 +788,7 @@ export async function projectRoutes(app: FastifyInstance) {
     }
 
     const username = request.user!.username
-    const projectDir = `/home/auroracraft-${username}/${project.linkId}`
+    const projectDir = `/home/auroracraft-${username.toLowerCase()}/${project.linkId}`
     const fullPath = path.resolve(projectDir, parsed.data.path)
 
     if (!fullPath.startsWith(projectDir + '/') || fullPath === projectDir) {
@@ -784,7 +828,7 @@ export async function projectRoutes(app: FastifyInstance) {
     }
 
     const username = request.user!.username
-    const projectDir = `/home/auroracraft-${username}/${project.linkId}`
+    const projectDir = `/home/auroracraft-${username.toLowerCase()}/${project.linkId}`
     const oldFullPath = path.resolve(projectDir, parsed.data.oldPath)
     const newFullPath = path.resolve(projectDir, parsed.data.newPath)
 
@@ -814,6 +858,11 @@ export async function projectRoutes(app: FastifyInstance) {
   app.get('/api/projects/:id/download/zip', { preHandler: [authMiddleware] }, async (request, reply) => {
     const { id } = request.params as { id: string }
 
+    const userTier = request.user!.tier ?? 'free'
+    if (userTier === 'free') {
+      return reply.status(403).send({ message: 'Source code download requires a paid subscription. Upgrade to download project source code. JAR downloads remain free.', statusCode: 403 })
+    }
+
     const [project] = await db
       .select()
       .from(projects)
@@ -829,7 +878,7 @@ export async function projectRoutes(app: FastifyInstance) {
     }
 
     const username = request.user!.username
-    const projectDir = `/home/auroracraft-${username}/${project.linkId}`
+    const projectDir = `/home/auroracraft-${username.toLowerCase()}/${project.linkId}`
 
     try {
       await stat(projectDir)
@@ -878,7 +927,7 @@ export async function projectRoutes(app: FastifyInstance) {
     }
 
     const username = request.user!.username
-    const projectDir = `/home/auroracraft-${username}/${project.linkId}`
+    const projectDir = `/home/auroracraft-${username.toLowerCase()}/${project.linkId}`
     const fullPath = path.resolve(projectDir, filePath)
 
     if (!fullPath.startsWith(projectDir + '/')) {

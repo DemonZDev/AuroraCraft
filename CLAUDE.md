@@ -191,6 +191,8 @@ OpenCode plugins, Gradle dependencies, and Maven artifacts are shared across all
 
 **Permissions:** Shared directories use `777` permissions because each user runs as their own UID. A group-based approach would require `sg` on every `runuser` call, which is fragile.
 
+**Setup:** Symlinks are automatically created during user registration by `server/src/utils/shared-cache.ts`. The shared directories must be initialized before the first user registration (see README Step 15).
+
 ## Key Patterns
 
 ### Database Schema
@@ -252,14 +254,78 @@ Never write `mcpServers` into `opencode.json` — OpenCode's schema rejects it. 
 ### Zen Model ID Format
 Zen models always use the `opencode/` prefix (e.g., `opencode/deepseek-v4-flash-free`). Never use `opencode/opencode/` or `zen/` prefixes.
 
+### LiteLLM Integration
+AuroraCraft uses LiteLLM as a proxy for premium external providers (Fireworks, Blueminds, Modal) to enable unified model routing, per-project budget enforcement, and custom pricing.
+
+**How it works:**
+1. When a user sends a message with a premium model, the backend generates a LiteLLM config (`litellm.yaml`) with model mappings and API keys
+2. LiteLLM is spawned as a separate process on a dynamic port (similar to OpenCode)
+3. OpenCode is configured to route through the LiteLLM proxy instead of hitting the provider directly
+4. LiteLLM enforces budget limits (converted from tokens → USD) and provides unified cost tracking
+
+**Key files:**
+- `server/src/bridges/litellm-process-manager.ts` — Process spawning, port allocation, lifecycle
+- `server/src/utils/litellm-config.ts` — Config generation, master key persistence
+- `server/src/routes/agents.ts` — Starts LiteLLM proxy before OpenCode for premium models
+
+**Installation:** LiteLLM is installed in a shared Python venv at `/var/lib/litellm/shared/venv/bin/litellm` (globally accessible).
+
+### Dynamic Rules & Skills System
+Every AuroraCraft project gets a custom `AGENTS.md` rule file and 8 skill files auto-generated based on the selected platform, compiler, and language.
+
+**How it works:**
+1. User sends first AI message on a project
+2. Backend reads project config (software, compiler, language, Java version)
+3. Loads `TEMPLATE_BASE.md` + relevant fragments from `opencode-knowledge/rules/fragments/`
+4. Replaces placeholders (`{SOFTWARE}`, `{COMPILER}`, `{LANGUAGE}`, `{API_RULES}`, `{BUILD_RULES}`, etc.)
+5. Writes to per-project isolated HOME: `/var/lib/auroracraft/configs/{user}/{linkId}/.config/opencode/AGENTS.md` and `skills/`
+6. OpenCode auto-discovers and loads on startup via HOME directory
+
+**Knowledge Base Structure:**
+```
+opencode-knowledge/
+├── rules/
+│   ├── TEMPLATE_BASE.md         ← 14-section template with {PLACEHOLDERS}
+│   └── fragments/
+│       ├── paper-api.md         ← Paper/Paper-fork API rules
+│       ├── folia-api.md         ← Folia regionized threading rules
+│       ├── spigot-api.md        ← Spigot legacy ChatColor rules
+│       ├── purpur-api.md        ← Purpur extension rules
+│       ├── velocity-api.md      ← Velocity proxy API rules
+│       ├── bungeecord-api.md    ← BungeeCord proxy API rules
+│       ├── maven-build.md       ← Maven build system rules
+│       ├── gradle-build.md      ← Gradle build system rules
+│       ├── java-rules.md        ← Java 21 patterns
+│       └── kotlin-rules.md      ← Kotlin patterns
+└── skills/                      ← 8 OpenCode-compatible SKILL.md files
+    ├── database-setup/
+    ├── event-handling/
+    ├── command-framework/
+    ├── config-management/
+    ├── async-operations/
+    ├── gui-inventory/
+    ├── scheduler-tasks/
+    └── paper-components/
+```
+
+**Key file:** `server/src/utils/opencode-knowledge.ts` — Generates and writes per-project rules and skills
+
+**AI Error Prevention:** The rules template includes quantified AI mistake frequencies (e.g., 78% synchronous DB queries, 64% unthrottled PlayerMoveEvent) to help the AI self-audit.
+
 ## Deployment Notes
 
 - **Server must run as root** or have passwordless sudo for `adduser`, `userdel`, `chmod`, `chown`, `runuser` (required for per-user isolation)
 - **PostgreSQL must start before PM2** — `auroracraft.sh start` handles this automatically
-- **Shared caches must be initialized** before first user registration (see README Step 15)
+- **Shared caches must be initialized** before first user registration (see README Step 15):
+  - `/var/lib/opencode/shared` (777 permissions)
+  - `/var/lib/gradle/shared` (777 permissions)
+  - `/var/lib/maven/shared` (777 permissions)
+- **Isolated config base directory** must exist: `mkdir -p /var/lib/auroracraft/configs && chmod 711 /var/lib/auroracraft/configs`
 - **OpenCode cleanup requires sqlite3** — used to delete conversation history when projects are deleted
-- **Java, Maven, Gradle must be installed** for plugin compilation
-- **CodeRabbit CLI is optional** but required for code review feature
+- **Java, Maven, Gradle must be installed** for plugin compilation (supports Java 8/11/17/21/25)
+- **CodeRabbit CLI is optional** but required for code review feature (installed at `/usr/local/bin/coderabbit`)
+- **LiteLLM is optional** but required for premium model routing (installed at `/var/lib/litellm/shared/venv/bin/litellm`)
+- **Knowledge base must be present** at `/root/AuroraCraft/opencode-knowledge/` (ships with source code, no manual setup needed)
 
 ## Testing Changes
 
@@ -282,6 +348,18 @@ When modifying database schema:
 3. Review the generated SQL in `server/drizzle/`
 4. `pnpm db:migrate` — applies migration
 5. Restart server
+
+## Supported Platforms
+
+AuroraCraft supports **18 Minecraft server platforms** across 4 categories:
+
+**Game Servers:** Paper, Purpur, Pufferfish, Folia, Spigot, Leaf, Leaves, DivineMC, Pluto, ASPaper
+
+**Hybrid Servers (Mods + Plugins):** Mohist, Arclight, Magma, Youer
+
+**Proxy Servers:** Velocity, BungeeCord, Waterfall, Velocity-CTD
+
+Each platform gets tailored API rules, threading models, and build configurations via the dynamic rules system.
 
 ## graphify Integration
 

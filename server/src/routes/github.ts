@@ -7,8 +7,18 @@ import { authMiddleware } from '../middleware/auth.js'
 import { env } from '../env.js'
 
 export async function githubRoutes(app: FastifyInstance) {
+  const paidCheck = (request: any, reply: any) => {
+    const userTier = (request as any).user?.tier ?? 'free'
+    if (userTier === 'free') {
+      reply.status(403).send({ error: 'GitHub integration requires a paid subscription. Upgrade to enable repository sync, code review, and advanced features.', statusCode: 403 })
+      return false
+    }
+    return true
+  }
+
   // Initiate GitHub OAuth flow
   app.get('/api/auth/github/connect', { preHandler: [authMiddleware] }, async (request, reply) => {
+    if (!paidCheck(request, reply)) return
     if (!env.GITHUB_CLIENT_ID) {
       return reply.status(500).send({ error: 'GitHub OAuth not configured' })
     }
@@ -98,6 +108,7 @@ export async function githubRoutes(app: FastifyInstance) {
 
   // Check GitHub connection status
   app.get('/api/auth/github/status', { preHandler: [authMiddleware] }, async (request, reply) => {
+    if (!paidCheck(request, reply)) return
     const [user] = await db
       .select({ githubUsername: users.githubUsername, githubConnectedAt: users.githubConnectedAt })
       .from(users)
@@ -113,6 +124,7 @@ export async function githubRoutes(app: FastifyInstance) {
 
   // Disconnect GitHub account
   app.post('/api/auth/github/disconnect', { preHandler: [authMiddleware] }, async (request, reply) => {
+    if (!paidCheck(request, reply)) return
     await db
       .update(users)
       .set({
@@ -127,6 +139,7 @@ export async function githubRoutes(app: FastifyInstance) {
 
   // Get git branches for a project
   app.get('/api/projects/:id/git/branches', { preHandler: [authMiddleware] }, async (request, reply) => {
+    if (!paidCheck(request, reply)) return
     const { id } = request.params as { id: string }
     const [project] = await db.select().from(projects).where(eq(projects.id, id)).limit(1)
     
@@ -134,7 +147,7 @@ export async function githubRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' })
     }
 
-    const systemUser = `auroracraft-${request.user!.username}`
+    const systemUser = `auroracraft-${request.user!.username.toLowerCase()}`
     const projectDir = project.linkId ? `/home/${systemUser}/${project.linkId}` : null
     if (!projectDir) {
       return reply.status(404).send({ error: 'Project directory not found' })
@@ -189,6 +202,7 @@ export async function githubRoutes(app: FastifyInstance) {
 
   // Set GitHub repository URL
   app.post('/api/projects/:id/git/remote', { preHandler: [authMiddleware] }, async (request, reply) => {
+    if (!paidCheck(request, reply)) return
     const { id } = request.params as { id: string }
     const { repoUrl } = request.body as { repoUrl: string }
 
@@ -198,7 +212,7 @@ export async function githubRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' })
     }
 
-    const systemUser = `auroracraft-${request.user!.username}`
+    const systemUser = `auroracraft-${request.user!.username.toLowerCase()}`
     const projectDir = project.linkId ? `/home/${systemUser}/${project.linkId}` : null
     if (!projectDir) {
       return reply.status(404).send({ error: 'Project directory not found' })
@@ -226,6 +240,7 @@ export async function githubRoutes(app: FastifyInstance) {
 
   // Push code to GitHub
   app.post('/api/projects/:id/git/push', { preHandler: [authMiddleware] }, async (request, reply) => {
+    if (!paidCheck(request, reply)) return
     const { id } = request.params as { id: string }
     const { branch, message, force } = request.body as { branch: string; message: string; force?: boolean }
 
@@ -245,7 +260,7 @@ export async function githubRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'GitHub account not connected' })
     }
 
-    const systemUser = `auroracraft-${request.user!.username}`
+    const systemUser = `auroracraft-${request.user!.username.toLowerCase()}`
     const projectDir = project.linkId ? `/home/${systemUser}/${project.linkId}` : null
     if (!projectDir) {
       return reply.status(404).send({ error: 'Project directory not found' })
@@ -289,6 +304,7 @@ export async function githubRoutes(app: FastifyInstance) {
 
   // Reset project from Git
   app.post('/api/projects/:id/git/reset', { preHandler: [authMiddleware] }, async (request, reply) => {
+    if (!paidCheck(request, reply)) return
     const { id } = request.params as { id: string }
     const { branch, commit } = request.body as { branch?: string; commit?: string }
 
@@ -298,7 +314,7 @@ export async function githubRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' })
     }
 
-    const systemUser = `auroracraft-${request.user!.username}`
+    const systemUser = `auroracraft-${request.user!.username.toLowerCase()}`
     const projectDir = project.linkId ? `/home/${systemUser}/${project.linkId}` : null
     if (!projectDir) {
       return reply.status(404).send({ error: 'Project directory not found' })
@@ -355,6 +371,7 @@ export async function githubRoutes(app: FastifyInstance) {
 
   // Get project git connection status
   app.get('/api/projects/:id/git/status', { preHandler: [authMiddleware] }, async (request, reply) => {
+    if (!paidCheck(request, reply)) return
     const { id } = request.params as { id: string }
     const [project] = await db.select().from(projects).where(eq(projects.id, id)).limit(1)
     
@@ -368,7 +385,7 @@ export async function githubRoutes(app: FastifyInstance) {
       .where(eq(users.id, request.user!.id))
       .limit(1)
 
-    const systemUser = `auroracraft-${request.user!.username}`
+    const systemUser = `auroracraft-${request.user!.username.toLowerCase()}`
     const githubAuth = !!user.githubAccessToken
 
     // Check filesystem remote as fallback
@@ -402,6 +419,7 @@ export async function githubRoutes(app: FastifyInstance) {
 
   // List user's GitHub repositories
   app.get('/api/github/repos', { preHandler: [authMiddleware] }, async (request, reply) => {
+    if (!paidCheck(request, reply)) return
     const [user] = await db
       .select({ githubAccessToken: users.githubAccessToken })
       .from(users)
@@ -443,6 +461,7 @@ export async function githubRoutes(app: FastifyInstance) {
 
   // Get branches for a specific repository
   app.get('/api/github/repos/branches', { preHandler: [authMiddleware] }, async (request, reply) => {
+    if (!paidCheck(request, reply)) return
     const { repo } = request.query as { repo?: string }
 
     if (!repo) {
@@ -483,6 +502,7 @@ export async function githubRoutes(app: FastifyInstance) {
 
   // Create a new GitHub repository
   app.post('/api/github/repos', { preHandler: [authMiddleware] }, async (request, reply) => {
+    if (!paidCheck(request, reply)) return
     const { name, description, isPrivate = true } = request.body as { name: string; description?: string; isPrivate?: boolean }
 
     const [user] = await db
@@ -530,6 +550,7 @@ export async function githubRoutes(app: FastifyInstance) {
 
   // Connect project to a GitHub repository and branch
   app.post('/api/projects/:id/git/connect', { preHandler: [authMiddleware] }, async (request, reply) => {
+    if (!paidCheck(request, reply)) return
     const { id } = request.params as { id: string }
     const { repoUrl, branch } = request.body as { repoUrl: string; branch: string }
 
@@ -539,7 +560,7 @@ export async function githubRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' })
     }
 
-    const systemUser = `auroracraft-${request.user!.username}`
+    const systemUser = `auroracraft-${request.user!.username.toLowerCase()}`
     const projectDir = project.linkId ? `/home/${systemUser}/${project.linkId}` : null
     if (!projectDir) {
       return reply.status(404).send({ error: 'Project directory not found' })
@@ -622,6 +643,7 @@ export async function githubRoutes(app: FastifyInstance) {
 
   // Disconnect project from git repository
   app.post('/api/projects/:id/git/disconnect', { preHandler: [authMiddleware] }, async (request, reply) => {
+    if (!paidCheck(request, reply)) return
     const { id } = request.params as { id: string }
 
     const [project] = await db.select().from(projects).where(eq(projects.id, id)).limit(1)
@@ -630,7 +652,7 @@ export async function githubRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' })
     }
 
-    const projectDir = project.linkId ? `/home/auroracraft-${request.user!.username}/${project.linkId}` : null
+    const projectDir = project.linkId ? `/home/auroracraft-${request.user!.username.toLowerCase()}/${project.linkId}` : null
 
     // Remove remote from filesystem
     if (projectDir) {
@@ -652,6 +674,7 @@ export async function githubRoutes(app: FastifyInstance) {
 
   // Create a new branch in the project
   app.post('/api/projects/:id/git/branch', { preHandler: [authMiddleware] }, async (request, reply) => {
+    if (!paidCheck(request, reply)) return
     const { id } = request.params as { id: string }
     const { branchName } = request.body as { branchName: string }
 
@@ -661,7 +684,7 @@ export async function githubRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' })
     }
 
-    const systemUser = `auroracraft-${request.user!.username}`
+    const systemUser = `auroracraft-${request.user!.username.toLowerCase()}`
     const projectDir = project.linkId ? `/home/${systemUser}/${project.linkId}` : null
     if (!projectDir) {
       return reply.status(404).send({ error: 'Project directory not found' })

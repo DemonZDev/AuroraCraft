@@ -25,7 +25,7 @@ export class KiroProcessManager {
     console.log(`[KiroProcess] execute() called with directory: ${directory}`)
     const sessionId = crypto.randomUUID()
     const escapedPrompt = escapeForSingleQuotes(prompt)
-    const systemUser = `auroracraft-${username}`
+    const systemUser = `auroracraft-${username.toLowerCase()}`
     const homeDir = `/home/${systemUser}`
 
     // Create directory if it doesn't exist - MUST happen before file watcher starts

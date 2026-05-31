@@ -7,12 +7,12 @@ import { db } from '../db/index.js'
 import { users } from '../db/schema/users.js'
 import { sessions } from '../db/schema/sessions.js'
 import { hashPassword, verifyPassword } from '../utils/password.js'
-import { createSystemUser } from '../utils/system-user.js'
+import { createSystemUser, toSystemUsername } from '../utils/system-user.js'
 import { authMiddleware } from '../middleware/auth.js'
 import { env } from '../env.js'
 
 const registerSchema = z.object({
-  username: z.string().min(3).max(32).regex(/^[a-zA-Z0-9_-]+$/),
+  username: z.string().min(3).max(32).regex(/^[a-z0-9_-]+$/, 'Username must be lowercase and contain only letters, numbers, underscores, and hyphens'),
   email: z.string().email().max(255),
   password: z.string().min(8).max(128),
 })
@@ -29,10 +29,16 @@ function createSessionToken(): string {
 }
 
 function setCookieOptions() {
+  let secure: boolean
+  if (env.COOKIE_SECURE === 'auto') {
+    secure = env.NODE_ENV === 'production' && env.COOKIE_DOMAIN !== 'localhost'
+  } else {
+    secure = env.COOKIE_SECURE === 'true'
+  }
   return {
     path: '/' as const,
     httpOnly: true,
-    secure: env.NODE_ENV === 'production' && env.COOKIE_DOMAIN !== 'localhost',
+    secure,
     sameSite: 'lax' as const,
     maxAge: SESSION_DURATION_MS / 1000,
   }
@@ -91,7 +97,7 @@ export async function authRoutes(app: FastifyInstance) {
       await createSystemUser(username, password)
     } catch (err) {
       app.log.warn({ err, username }, 'Failed to create system user — falling back to mkdir')
-      const homeDir = `/home/auroracraft-${username}`
+      const homeDir = `/home/${toSystemUsername(username)}`
       mkdir(homeDir, { recursive: true }).catch((mkdirErr) => {
         app.log.warn({ err: mkdirErr, homeDir }, 'Failed to create user home directory')
       })
@@ -145,7 +151,7 @@ export async function authRoutes(app: FastifyInstance) {
     })
 
     // Ensure user home directory exists (defensive, non-blocking)
-    const homeDir = `/home/auroracraft-${user.username}`
+    const homeDir = `/home/${toSystemUsername(user.username)}`
     mkdir(homeDir, { recursive: true }).catch((err) => {
       app.log.warn({ err, homeDir }, 'Failed to ensure user home directory')
     })

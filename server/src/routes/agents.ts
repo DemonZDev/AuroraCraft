@@ -44,7 +44,7 @@ async function verifyProjectOwnership(userId: string, projectId: string) {
 
 function getProjectDirectory(username: string, linkId: string | null): string {
   if (!linkId) return '.'
-  return `/home/auroracraft-${username}/${linkId}`
+  return `/home/auroracraft-${username.toLowerCase()}/${linkId}`
 }
 
 export async function agentRoutes(app: FastifyInstance) {
@@ -551,7 +551,7 @@ export async function agentRoutes(app: FastifyInstance) {
         compiler: project.compiler,
         javaVersion: project.javaVersion,
         projectDirectory: projectDir,
-        userHomeDir: `/home/auroracraft-${username}`,
+        userHomeDir: `/home/auroracraft-${username.toLowerCase()}`,
         firecrawlApiKey: userTier === 'paid' ? userKeys.firecrawl : undefined,
         userId: request.user!.id,
         estimatedCost,

@@ -243,7 +243,7 @@ export class OpenCodeProcessManager {
     // Extract username from directory path: /home/auroracraft-{username}/{project}
     const match = directory.match(/\/home\/auroracraft-([^/]+)/)
     const username = match ? match[1] : null
-    const systemUser = username ? `auroracraft-${username}` : null
+    const systemUser = username ? `auroracraft-${username.toLowerCase()}` : null
 
     // Isolated per-project config directory (outside the workspace tree).
     // OpenCode will use this as HOME so each project gets its own config + db.

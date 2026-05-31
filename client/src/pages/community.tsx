@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { Search, Globe, Filter, User, Heart, Eye } from 'lucide-react'
 import { useCommunityProjects } from '@/hooks/use-community'
 import { SOFTWARE_LABELS } from '@/lib/software-options'
+import { CustomSelect } from '@/components/ui/custom-select'
 import type { CommunityProject } from '@/types'
 
 import { SOFTWARE_CATEGORIES } from '@/lib/software-options'
@@ -150,33 +151,35 @@ export default function CommunityPage() {
         </div>
         <div className="flex items-center gap-2">
           <Filter className="h-4 w-4 text-text-dim hidden sm:block" />
-          <select
-            value={software}
-            onChange={(e) => setSoftware(e.target.value)}
-            className="rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-          >
-            {softwareOptions.map((opt) => (
-              <option key={opt.value} value={opt.value} disabled={opt.disabled}>{opt.label}</option>
-            ))}
-          </select>
-          <select
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-            className="rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-          >
-            {languageOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value as typeof sort)}
-            className="rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-          >
-            {sortOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
+          <div className="relative">
+            <CustomSelect
+              value={software}
+              onChange={(v) => setSoftware(v)}
+              options={softwareOptions.map((opt) => ({ value: opt.value, label: opt.label, disabled: opt.disabled }))}
+              placeholder="All Software"
+              fullWidth={false}
+              size="sm"
+            />
+          </div>
+          <div className="relative">
+            <CustomSelect
+              value={language}
+              onChange={(v) => setLanguage(v)}
+              options={languageOptions.map((opt) => ({ value: opt.value, label: opt.label }))}
+              placeholder="All Languages"
+              fullWidth={false}
+              size="sm"
+            />
+          </div>
+          <div className="relative">
+            <CustomSelect
+              value={sort}
+              onChange={(v) => setSort(v as typeof sort)}
+              options={sortOptions.map((opt) => ({ value: opt.value, label: opt.label }))}
+              fullWidth={false}
+              size="sm"
+            />
+          </div>
         </div>
       </div>
 

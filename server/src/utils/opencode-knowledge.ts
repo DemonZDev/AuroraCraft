@@ -266,7 +266,7 @@ export async function generateOpenCodeKnowledge(
 
     // Write to .config/opencode/ under the isolated HOME directory
     // OpenCode auto-discovers AGENTS.md and skills/ from ~/.config/opencode/
-    const isolatedHome = join(CONFIG_BASE, `auroracraft-${username}`, project.linkId!);
+    const isolatedHome = join(CONFIG_BASE, `auroracraft-${username.toLowerCase()}`, project.linkId!);
     const opencodeConfigDir = join(isolatedHome, '.config', 'opencode');
     const rulesPath = join(opencodeConfigDir, 'AGENTS.md');
     const skillsDir = join(opencodeConfigDir, 'skills');
@@ -307,7 +307,7 @@ export async function generateOpenCodeKnowledge(
 }
 
 export async function cleanupOpenCodeKnowledge(username: string, linkId: string): Promise<void> {
-  const configDir = join(CONFIG_BASE, `auroracraft-${username}`, linkId, '.config', 'opencode');
+  const configDir = join(CONFIG_BASE, `auroracraft-${username.toLowerCase()}`, linkId, '.config', 'opencode');
 
   try {
     const { rm } = await import('fs/promises');
