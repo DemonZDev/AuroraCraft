@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, pgEnum, timestamp } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, varchar, text, pgEnum, timestamp, boolean } from 'drizzle-orm/pg-core'
 import { users } from './users'
 
 export const projectStatusEnum = pgEnum('project_status', ['active', 'archived'])
@@ -6,6 +6,7 @@ export const languageEnum = pgEnum('project_language', ['java', 'kotlin'])
 export const compilerEnum = pgEnum('project_compiler', ['maven', 'gradle', 'both'])
 export const visibilityEnum = pgEnum('project_visibility', ['public', 'private'])
 export const bridgeEnum = pgEnum('project_bridge', ['opencode', 'kiro'])
+export const graphifyStatusEnum = pgEnum('graphify_status', ['none', 'building', 'ready', 'failed'])
 
 export const projects = pgTable('projects', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -26,6 +27,9 @@ export const projects = pgTable('projects', {
   forkedFrom: uuid('forked_from').references((): any => projects.id, { onDelete: 'set null' }),
   repoUrl: text('repo_url'),
   repoBranch: varchar('repo_branch', { length: 255 }),
+  graphifyEnabled: boolean('graphify_enabled').default(false).notNull(),
+  graphifyStatus: graphifyStatusEnum('graphify_status').default('none').notNull(),
+  graphifyBuiltAt: timestamp('graphify_built_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })

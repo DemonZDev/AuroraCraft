@@ -8,6 +8,7 @@ AI-powered Minecraft plugin development platform. Describe what you want and an 
 - **Multi-Model Support** — Choose from 9 AI models across free and paid tiers (DeepSeek V4 Flash Free, Nemotron 3 Super Free, GLM-5.1, MiniMax M2.7, Kimi K2.6, Qwen3.6, and more)
 - **Token-Based Pricing** — Precise per-message cost calculation with per-provider pricing differentiation, cached-input discounts, and automatic reconciliation (refunds when actual < estimated, capped overage when actual > estimated)
 - **Web Search via Firecrawl MCP** — Paid users get real-time web search, scraping, and crawling via Firecrawl's Model Context Protocol (MCP) server
+- **Graphify Token Savings** — Paid users can build a per-project code knowledge graph (`graph.json` + `graph.html`) with **zero AI/token cost** (AST-only). The AI agent then queries the graph (`graphify query/path/explain`) instead of re-reading files, and an interactive graph viewer renders inside the workspace editor
 - **Project Management** — Create, configure, and manage multiple plugin projects
 - **Real-Time Streaming** — Live streaming of AI responses with thinking blocks, file operations, and progress tracking
 - **Monaco Code Editor** — Built-in code editor with syntax highlighting and file tree navigation
@@ -86,8 +87,10 @@ Run all commands as `root` unless noted.
 ### Step 1 — System Packages
 
 ```bash
-apt update && apt install -y curl ca-certificates build-essential git unzip sqlite3 postgresql postgresql-contrib
+apt update && apt install -y curl ca-certificates build-essential git unzip sqlite3 postgresql postgresql-contrib python3 python3-venv python3-pip
 ```
+
+> `python3-venv` and `python3-pip` are required for the optional **Graphify** feature (Step 15.6). They are not installed by default on a minimal Ubuntu image, and `python3 -m venv` fails without `python3-venv`. Install them now to avoid a mid-deploy error.
 
 ### Step 2 — Node.js 24
 
@@ -282,7 +285,17 @@ DATABASE_URL="postgresql://auroracraft:auroracraft@localhost:5432/auroracraft" n
 
 Expected output: `Migrations complete`
 
+> **Migration set includes Graphify (0017).** Migration `0017_uneven_giant_man.sql` adds three columns to `projects` (`graphify_enabled`, `graphify_status`, `graphify_built_at`) for the "Save tokens using Graphify" feature. It is written to be **idempotent** (`CREATE TYPE … EXCEPTION WHEN duplicate_object` + `ADD COLUMN IF NOT EXISTS`), so it is safe to re-run and safe on databases where the columns already exist.
+>
 > **Note:** If you see errors about missing tables or columns, the Drizzle journal may be out of sync with the actual `.sql` files. Check `drizzle/meta/_journal.json` against the files in `drizzle/` and apply any missing files manually via `psql -f`.
+>
+> **Knowledge — drizzle migration tracking drift.** The migrator decides what to run from `MAX(created_at)` in `drizzle.__drizzle_migrations`. If earlier migrations were applied manually via `psql` (bypassing the migrator), that tracking table can lag behind the real schema, and a later `npx tsx src/db/migrate.ts` may try to re-run already-applied migrations and fail with "already exists". If that happens: apply the new migration directly with `psql -1 -f drizzle/<file>.sql`, then record it so the migrator skips it:
+> ```bash
+> # after applying drizzle/0017_*.sql by hand:
+> sudo -u postgres psql -d auroracraft -c "INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) SELECT COALESCE(MAX(id),0)+1, '<sha256-of-file>', <journal_when_ms> FROM drizzle.__drizzle_migrations;"
+> sudo -u postgres psql -d auroracraft -c "SELECT setval(pg_get_serial_sequence('drizzle.__drizzle_migrations','id'), (SELECT MAX(id) FROM drizzle.__drizzle_migrations));"
+> ```
+> On a **fresh** database this never happens — all migrations (including 0017) apply cleanly in order.
 >
 > If the `0014_fix_token_transactions_fk.sql` migration is missing from your database, apply it manually:
 >
@@ -398,6 +411,38 @@ ls /root/AuroraCraft/opencode-knowledge/
 ```bash
 find /root/AuroraCraft/opencode-knowledge -name "*.md" | wc -l  # Should show 22 files
 ```
+
+### Step 15.6 — Initialize Graphify (Optional — "Save tokens using Graphify" feature)
+
+Graphify is a Python CLI that builds a per-project code knowledge graph (no AI/token cost) which the AI agent queries to save tokens. It is **paid-only** and must be installed to a shared location accessible to all `auroracraft-*` users (like OpenCode/LiteLLM).
+
+```bash
+# Shared venv + global symlink (pinned to a validated version)
+mkdir -p /var/lib/graphify/shared
+python3 -m venv /var/lib/graphify/shared/venv
+/var/lib/graphify/shared/venv/bin/pip install --upgrade pip
+/var/lib/graphify/shared/venv/bin/pip install 'graphifyy==0.8.22'   # PyPI pkg is 'graphifyy'; CLI is 'graphify'
+ln -sf /var/lib/graphify/shared/venv/bin/graphify /usr/local/bin/graphify
+chmod -R 755 /var/lib/graphify/shared
+
+# Verify (must work as a non-root auroracraft-* user)
+/usr/local/bin/graphify --version          # graphify 0.8.22
+runuser -l auroracraft-<someuser> -c '/usr/local/bin/graphify --version'
+
+# End-to-end smoke test: a no-AI build must produce graph.json + graph.html at 0 token cost
+runuser -l auroracraft-admin -c '
+  mkdir -p ~/_gtest/src && printf "public class A { void f(){ new B().g(); } }\n" > ~/_gtest/src/A.java
+  cd ~/_gtest && rm -rf graphify-out && unset GEMINI_API_KEY GOOGLE_API_KEY && /usr/local/bin/graphify update . --force
+  ls graphify-out/graph.json graphify-out/graph.html && test ! -f graphify-out/cost.json && echo "GRAPHIFY OK (0 tokens)"
+  rm -rf ~/_gtest'
+```
+
+**Notes:**
+- **Requires `python3-venv`** (Step 1). If `python3 -m venv` errors, install it: `apt install -y python3-venv`.
+- No per-user symlinks are needed — the graph is written into each project's workspace (`graphify-out/`), and the shared venv is read-only/global at `/usr/local/bin/graphify`.
+- **Never set `GEMINI_API_KEY` / `GOOGLE_API_KEY`** in the server environment — those are the only keys Graphify reads, and their presence would switch on the paid LLM semantic pass. Builds must stay AST-only (0 tokens). Code-only plugin projects skip the LLM pass automatically.
+- If `/usr/local/bin/graphify` is absent, the feature simply degrades: enabling Graphify sets status `failed`; everything else works.
+- The graphify-navigation skill is written per-project to `~/.config/opencode/skills/graphify-navigation/` and is **never** merged into the platform `AGENTS.md` or the 8 Minecraft skills.
 
 ### Step 16 — Verify OpenCode Accessibility
 
@@ -565,10 +610,19 @@ echo "14. AI agent sandbox:"
 test -x /usr/local/bin/aurora-sandbox && echo "OK" || echo "MISSING"
 
 echo ""
+echo "15. Graphify (optional — Save tokens feature):"
+if [ -x /usr/local/bin/graphify ]; then
+  /usr/local/bin/graphify --version
+  sudo -u postgres psql -d auroracraft -tc "SELECT 'graphify columns OK' FROM information_schema.columns WHERE table_name='projects' AND column_name='graphify_status';"
+else
+  echo "graphify not installed — feature disabled (non-fatal). See Step 15.6."
+fi
+
+echo ""
 echo "All checks complete."
 ```
 
-Expected: All green, 14 checks passed, all versions showing.
+Expected: All green, 15 checks passed, all versions showing. (Check 15 is optional — Graphify is a paid-tier feature; a "not installed" result is non-fatal.)
 
 ---
 
@@ -912,6 +966,24 @@ Tokens = ceil(Cost($) × 1000)
 - **Premium models** require a positive token balance. When a user attempts to send a message to a premium model with insufficient tokens, the server returns HTTP 402 with the estimated cost
 - The token check happens after the provider API key validation, so missing API keys return 503 before the token check is reached
 
+### Graphify Token Savings (Paid-Only)
+
+Graphify converts a project's source code into a local knowledge graph the AI agent queries instead of re-reading files, saving input tokens. **Builds cost 0 AuroraCraft tokens** because plugin projects are code-only, so Graphify's structural (AST) extraction runs and its paid LLM semantic pass is skipped entirely.
+
+**Lifecycle:**
+1. A paid user clicks **"Save tokens using Graphify"** in the workspace (Scenario 1: after an AI build; Scenario 2: immediately after uploading a ZIP / cloning a repo — no first AI message required).
+2. The backend runs, as the project's Linux user, `cd <workspace> && rm -rf graphify-out && graphify update . --force` — a **full rebuild** (not incremental), producing `graphify-out/graph.json` + `graph.html`.
+3. A per-project **`graphify-navigation`** OpenCode skill is written so the agent runs `graphify query/path/explain/affected` (all local, 0 tokens).
+4. When the OpenCode **session ends** (idle timeout), the graph is **deleted and fully rebuilt** so it always reflects the latest code.
+5. **"View Graph"** renders the interactive graph as a web view inside the editor panel (opening `graphify-out/graph.html` from the file tree still shows raw HTML).
+6. **"Remove Graphify"** deletes the artifacts + skill and turns the feature off.
+
+**Tier transitions:** demoting a user paid→free removes Graphify artifacts + skill from all their projects but **preserves intent**, so promoting them back paid→free auto-rebuilds (lazily, on next workspace open). Free users never see the Graphify buttons.
+
+**Isolation & no-merge:** the graph lives in the user-owned workspace; the `graphify-navigation` skill lives in the project's isolated `~/.config/opencode/skills/` **alongside** (never merged into) the platform `AGENTS.md` and 8 Minecraft skills. Command access is gated by **skill presence** — when Graphify is off, the skill is absent and the agent does not use it.
+
+**Key files:** `server/src/utils/graphify-service.ts` (the only place that shells out to `graphify`), `server/src/routes/graphify.ts` (enable/remove/status/viewer endpoints), `client/src/components/graphify-controls.tsx` + `client/src/hooks/use-graphify.ts`, `opencode-knowledge/skills/graphify-navigation/SKILL.md`.
+
 ### AI Agent Sandbox
 
 All AI-generated commands run through a sandboxed wrapper (`/usr/local/bin/aurora-sandbox`) that enforces security boundaries:
@@ -941,8 +1013,9 @@ The workspace remembers your chosen AI model and speed per project across page r
 | OpenCode manifest | `/var/lib/opencode/shared/package.json` | `~/.config/opencode/shared/package.json` |
 | Gradle dependencies | `/var/lib/gradle/shared` | `~/.gradle/caches` |
 | Maven artifacts | `/var/lib/maven/shared` | `~/.m2/repository` |
+| Graphify CLI (Python venv) | `/var/lib/graphify/shared/venv` | global `/usr/local/bin/graphify` (no per-user symlink) |
 
-When a new user registers, the server automatically creates these symlinks. Plugin downloads are shared across all users.
+When a new user registers, the server automatically creates these symlinks. Plugin downloads are shared across all users. The Graphify CLI is shared as a single global binary (like OpenCode/LiteLLM) — its per-project graphs are written into each project's own workspace, not shared.
 
 ---
 
@@ -1338,6 +1411,40 @@ This should not happen with the current system prompt. If it does:
    grep "AGENT_SYSTEM_PROMPT" /root/AuroraCraft/server/src/bridges/opencode.ts
    ```
 
+### Graphify: "View Graph" is blank / shows nothing
+
+The bundled `graph.html` loads the `vis-network` library from `https://unpkg.com`. If the graph area is blank:
+
+1. Confirm the server has internet access to `unpkg.com` (the viewer is client-side, but the browser must reach the CDN).
+2. Confirm the viewer route sends a CSP that allows the CDN — it must include `https://unpkg.com` in `script-src`:
+   ```bash
+   curl -s -I -b cookies.txt "http://localhost:3000/api/projects/<id>/graphify/graph.html" | grep -i content-security-policy
+   ```
+3. Hard-refresh the browser (Ctrl+Shift+R) to pick up the latest client bundle.
+
+### Graphify: enabling shows status "failed"
+
+```bash
+pm2 logs auroracraft-server --lines 50 | grep -i graphify
+```
+
+Common causes:
+- **Empty project** — `graphify update .` prints "No code files found" and exits non-fatally if the project has no `.java`/`.kt` files yet. Add code (or run an AI build) first, then click **Retry graph**. This does not retry-loop.
+- **`graphify` not installed / not global** — see Step 15.6; verify `runuser -l auroracraft-<user> -c '/usr/local/bin/graphify --version'`.
+- **`python3-venv` missing at install time** — the shared venv was created incompletely. Re-run Step 15.6 after `apt install -y python3-venv`.
+
+### Graphify: "graphify: command not found" for the AI agent
+
+The binary must be globally accessible to every `auroracraft-*` user:
+
+```bash
+ls -la /usr/local/bin/graphify                 # must symlink to /var/lib/graphify/shared/venv/bin/graphify
+chmod -R 755 /var/lib/graphify/shared          # all users need read+execute
+runuser -l auroracraft-admin -c '/usr/local/bin/graphify --version'
+```
+
+The agent only ever runs the read-only subcommands (`query`, `path`, `explain`, `affected`), and only when a project's `graphify-out/graph.json` exists (the `graphify-navigation` skill is present only while Graphify is enabled).
+
 ---
 
 ## Project Structure
@@ -1361,8 +1468,9 @@ AuroraCraft/
 │   │   ├── db/               # Database connection, schema, migrations, seed
 │   │   ├── middleware/       # Authentication middleware
 │   │   ├── plugins/          # Fastify plugins (CORS, cookies, WebSocket)
-│   │   ├── routes/           # API routes (auth, projects, agents, admin)
+│   │   ├── routes/           # API routes (auth, projects, agents, admin, graphify)
 │   │   ├── utils/            # Provider config, token service, MCP helpers
+│   │   │   ├── graphify-service.ts    # Graphify build/remove/skill + lifecycle reconcilers
 │   │   │   ├── opencode-mcp.ts        # OpenCode MCP HTTP API helpers (add/remove/list)
 │   │   │   ├── provider-config.ts     # Per-project isolated config generation
 │   │   │   └── token-service.ts       # Token balance & cost estimation
@@ -1385,6 +1493,8 @@ AuroraCraft/
         ├── opencode/         # Shared node_modules for OpenCode plugins
         ├── gradle/           # Shared Gradle cache
         └── maven/            # Shared Maven repository
+
+/var/lib/graphify/shared/venv # Shared Graphify CLI (Python venv) → /usr/local/bin/graphify
 ```
 
 ---

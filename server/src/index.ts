@@ -17,6 +17,7 @@ import { adminRoutes } from './routes/admin.js'
 import { communityRoutes } from './routes/community.js'
 import { githubRoutes } from './routes/github.js'
 import coderabbitRoutes from './routes/coderabbit.js'
+import { graphifyRoutes } from './routes/graphify.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -46,6 +47,7 @@ await app.register(adminRoutes)
 await app.register(communityRoutes)
 await app.register(githubRoutes)
 await app.register(coderabbitRoutes)
+await app.register(graphifyRoutes)
 
 // Serve built client in production
 const clientDist = path.resolve(__dirname, '../../client/dist')

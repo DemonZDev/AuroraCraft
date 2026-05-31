@@ -503,6 +503,12 @@ export class OpenCodeProcessManager {
     this.releasePort(instance.port)
     this.instances.delete(directory)
     console.log(`[ProcessManager] Cleaned up instance for ${directory} (port ${instance.port} released)`)
+
+    // Graphify: rebuild the project graph after the session ends (no AI, no tokens).
+    // Fire-and-forget; the service re-checks live state and is a no-op for non-Graphify projects.
+    void import('../utils/graphify-service.js')
+      .then((m) => m.onSessionEnd(directory))
+      .catch(() => {})
   }
 
   private async waitForReady(url: string, timeoutMs: number): Promise<boolean> {

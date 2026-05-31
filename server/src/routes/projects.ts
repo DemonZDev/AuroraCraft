@@ -133,6 +133,11 @@ export async function projectRoutes(app: FastifyInstance) {
       return reply.status(404).send({ message: 'Project not found', statusCode: 404 })
     }
 
+    // Graphify: lazy reconcile (re-promotion / missing graph). Fire-and-forget; never blocks the response.
+    void import('../utils/graphify-service.js')
+      .then((m) => m.reconcileOnWorkspaceOpen(project, request.user!))
+      .catch(() => {})
+
     return project
   })
 

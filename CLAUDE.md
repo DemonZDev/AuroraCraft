@@ -180,6 +180,43 @@ All AI-generated commands run through a sandboxed wrapper (`/usr/local/bin/auror
 
 **Java version isolation:** Projects can specify a target Java version (8, 11, 17, 21, or 25). The sandbox sets `JAVA_HOME` to the appropriate JDK before running commands.
 
+**⚠️ Current wiring (important):** OpenCode is spawned directly with `OPENCODE_DANGEROUSLY_SKIP_PERMISSIONS=true`. The `sandboxPath` constant is declared in `opencode-process-manager.ts` but is **not currently passed to the spawn command** (verified — the wrapper is defined but not on the command path). Treat `aurora-sandbox` as the *intended* policy, not an active runtime guard. Do **not** edit it to gate a feature's commands expecting enforcement — feature-level gating (e.g. Graphify) is done by **skill presence** instead. Hardening this (wiring the wrapper, or an isolated `tool.execute.before` plugin) is a separate effort.
+
+### Graphify Token Savings (Product Feature — Paid-Only)
+
+> Not to be confused with the **dev-tooling** graphify at the end of this file (which Claude Code uses to navigate *this* repo). This section is the **end-user product feature**: paid AuroraCraft users build a knowledge graph of *their own* plugin project so the AI agent reads fewer files and spends fewer tokens.
+
+Paid users click **"Save tokens using Graphify"** in the workspace to build a per-project code knowledge graph (`graph.json` + `graph.html`). **Builds cost 0 AuroraCraft tokens** — plugin projects are code-only, so Graphify runs AST-only structural extraction and skips its paid LLM semantic pass entirely.
+
+**How it works:**
+1. Build command, run as the project's Linux user: `cd <workspace> && rm -rf graphify-out && graphify update . --force` — a **full rebuild** (delete + re-extract, not incremental). `update` is the no-LLM path; **never** use `graphify extract` (pulls in an LLM backend).
+2. On success a per-project **`graphify-navigation`** OpenCode skill is written so the agent runs `graphify query/path/explain/affected` (all local, 0 tokens, no network).
+3. **Rebuild trigger:** only when the OpenCode session ends (idle timeout) — wired into `cleanupInstance()` in the process manager, which fire-and-forgets `onSessionEnd(directory)`.
+4. **Re-enable on workspace open:** `GET /api/projects/:id` calls `reconcileOnWorkspaceOpen()`; if the user is paid + enabled + status `none`, it atomically claims (`none`→`building`) and rebuilds (lazy re-promotion).
+5. **Viewer:** `GET /api/projects/:id/graphify/graph.html` streams the graph; the frontend renders it as a web view **inside the editor panel** (sentinel `selectedFile = '__graphify_graph_view__'`), not a modal. Opening `graphify-out/graph.html` from the file tree still shows raw HTML.
+
+**State on `projects` (migration `0017`):**
+- `graphifyEnabled` (boolean, *intent*) — set by "Save tokens"; **preserved across tier demotion**; cleared only by explicit "Remove Graphify".
+- `graphifyStatus` (enum `none|building|ready|failed`) + `graphifyBuiltAt` (timestamp).
+
+**Tier transitions** (`PATCH /api/admin/users/:id/tier`):
+- paid→free: `cleanupUserGraphify()` deletes artifacts + skill from all the user's projects but **keeps `graphifyEnabled`**.
+- free→paid: `markUserForRebuild()` resets enabled projects to status `none` so they rebuild lazily on next workspace open.
+
+**Isolation & no-merge:** the graph lives in the user-owned workspace (`<workspace>/graphify-out/`); the `graphify-navigation` skill lives in the isolated HOME at `.config/opencode/skills/graphify-navigation/` **alongside** (never merged into) the Minecraft `AGENTS.md` and 8 skills. Removal deletes **only** that one skill dir, never the parent.
+
+**Command gating = skill presence.** The agent uses graphify only while the skill is present (enabled); the read-only subcommands also self-gate (they need `graphify-out/graph.json`, absent when disabled). `aurora-sandbox` is **not** relied on (see the wiring note above).
+
+**Key files:**
+- `server/src/utils/graphify-service.ts` — the **only** place that shells out to `graphify`: build/remove, skill write/remove, per-project lock, and the four reconcilers (`onSessionEnd`, `reconcileOnWorkspaceOpen`, `cleanupUserGraphify`, `markUserForRebuild`)
+- `server/src/routes/graphify.ts` — `GET`/`POST`/`DELETE /api/projects/:id/graphify` + `GET …/graph.html`
+- `client/src/components/graphify-controls.tsx`, `client/src/hooks/use-graphify.ts` — paid-gated buttons + viewer
+- `opencode-knowledge/skills/graphify-navigation/SKILL.md` — the isolated skill (NOT added to `skillsToCopy` in `opencode-knowledge.ts`)
+
+**Shared install:** `graphify` is a Python CLI in a shared venv at `/var/lib/graphify/shared/venv`, symlinked to `/usr/local/bin/graphify` (globally accessible to all `auroracraft-{user}` users, like OpenCode/LiteLLM; requires `python3-venv`).
+
+**Critical:** never set `GEMINI_API_KEY` / `GOOGLE_API_KEY` in the server environment — they are the only keys graphify reads, and their presence would turn a free AST build into a paid LLM build. The build command unsets them defensively.
+
 ### Shared Caches
 OpenCode plugins, Gradle dependencies, and Maven artifacts are shared across all users to prevent storage duplication. Every `auroracraft-{username}` user has symlinks pointing to shared directories:
 
@@ -188,8 +225,9 @@ OpenCode plugins, Gradle dependencies, and Maven artifacts are shared across all
 | OpenCode plugins | `/var/lib/opencode/shared/node_modules` | `~/.config/opencode/shared/node_modules` |
 | Gradle dependencies | `/var/lib/gradle/shared` | `~/.gradle/caches` |
 | Maven artifacts | `/var/lib/maven/shared` | `~/.m2/repository` |
+| Graphify CLI (Python venv) | `/var/lib/graphify/shared/venv` | global `/usr/local/bin/graphify` (no per-user symlink) |
 
-**Permissions:** Shared directories use `777` permissions because each user runs as their own UID. A group-based approach would require `sg` on every `runuser` call, which is fragile.
+**Permissions:** Shared directories use `777` permissions because each user runs as their own UID. A group-based approach would require `sg` on every `runuser` call, which is fragile. (The Graphify venv is `755` — read-only/execute for all users — since nothing writes into it; per-project graphs are written into each user's own workspace.)
 
 **Setup:** Symlinks are automatically created during user registration by `server/src/utils/shared-cache.ts`. The shared directories must be initialized before the first user registration (see README Step 15).
 
@@ -197,7 +235,7 @@ OpenCode plugins, Gradle dependencies, and Maven artifacts are shared across all
 
 ### Database Schema
 - **Users:** `server/src/db/schema/users.ts` — User accounts, roles (admin/user), token balances
-- **Projects:** `server/src/db/schema/projects.ts` — Project metadata, software type, language, compiler, bridge, visibility
+- **Projects:** `server/src/db/schema/projects.ts` — Project metadata, software type, language, compiler, bridge, visibility, Graphify state (`graphifyEnabled`, `graphifyStatus`, `graphifyBuiltAt`)
 - **Agent Sessions:** `server/src/db/schema/agent-sessions.ts` — OpenCode session tracking, model, provider, speed
 - **Agent Messages:** `server/src/db/schema/agent-messages.ts` — Chat history, role (user/assistant), parts (text/thinking/tool)
 - **Provider API Keys:** `server/src/db/schema/provider-api-keys.ts` — Per-user API keys for Fireworks, Blueminds, Modal, Firecrawl, Zen
@@ -209,6 +247,7 @@ OpenCode plugins, Gradle dependencies, and Maven artifacts are shared across all
 - **Projects:** `client/src/hooks/use-projects.ts` — TanStack Query hooks for project CRUD
 - **Agent:** `client/src/hooks/use-agent.ts` — SSE streaming, message sending, session management
 - **Admin:** `client/src/hooks/use-admin.ts` — Admin panel data fetching (users, projects, stats)
+- **Graphify:** `client/src/hooks/use-graphify.ts` — Enable/remove/status with build polling (paid-only); buttons + viewer in `client/src/components/graphify-controls.tsx`
 
 ### API Routes
 - **Auth:** `server/src/routes/auth.ts` — Login, register, logout, GitHub OAuth
@@ -217,6 +256,7 @@ OpenCode plugins, Gradle dependencies, and Maven artifacts are shared across all
 - **Admin:** `server/src/routes/admin.ts` — User management, token grants/deductions, API key management, stats
 - **CodeRabbit:** `server/src/routes/coderabbit.ts` — AI code review for uncommitted changes
 - **GitHub:** `server/src/routes/github.ts` — OAuth callback, repo import
+- **Graphify:** `server/src/routes/graphify.ts` — Enable/remove/status + `graph.html` viewer (paid-only)
 
 ### Thinking Tag Parsing
 Some models (DeepSeek via Fireworks/Blueminds) emit reasoning as plain text rather than native reasoning parts. The bridge parses three formats automatically:
@@ -312,6 +352,18 @@ opencode-knowledge/
 
 **AI Error Prevention:** The rules template includes quantified AI mistake frequencies (e.g., 78% synchronous DB queries, 64% unthrottled PlayerMoveEvent) to help the AI self-audit.
 
+### Graphify Builds Must Stay AST-Only (0 tokens)
+The Graphify build command is `graphify update . --force` (the no-LLM path) and **unsets** `GEMINI_API_KEY`/`GOOGLE_API_KEY` first. Never set those keys in the server environment and never switch to `graphify extract` — either would trigger a paid LLM semantic pass. Code-only plugin projects skip the LLM pass automatically. Empty projects (no `.java`/`.kt`) make `graphify update` exit non-zero ("No code files found") → status `failed`; this is expected and does not retry-loop.
+
+### Graphify Viewer Needs the unpkg CDN (CSP)
+`graph.html` loads the `vis-network` library from `https://unpkg.com`. The `GET /api/projects/:id/graphify/graph.html` route **must** send a CSP that allows `https://unpkg.com` in `script-src`/`style-src`/`font-src`, or the graph renders blank. The viewer is embedded via a `sandbox="allow-scripts"` iframe (graph data is inline, no fetch needed).
+
+### aurora-sandbox Is Not Currently Wired
+See Architecture → AI Agent Sandbox. The wrapper is declared but not passed to the OpenCode spawn, so editing it does **not** change runtime behavior. Don't rely on it for command gating.
+
+### Drizzle Migration Tracking Drift
+`drizzle.__drizzle_migrations` tracks applied migrations by `created_at`; the migrator decides what to run from `MAX(created_at)`. On this deployment some migrations were applied manually via `psql`, so the tracking lagged behind the real schema and `pnpm db:migrate` could try to re-run them and fail with "already exists". New migrations (e.g. `0017`) are written **idempotent** (`DO $$ … duplicate_object` + `ADD COLUMN IF NOT EXISTS`); when tracking is drifted, apply via `psql -1 -f` and insert a tracking row manually. Fresh databases are unaffected. (See README Step 12.)
+
 ## Deployment Notes
 
 - **Server must run as root** or have passwordless sudo for `adduser`, `userdel`, `chmod`, `chown`, `runuser` (required for per-user isolation)
@@ -325,6 +377,7 @@ opencode-knowledge/
 - **Java, Maven, Gradle must be installed** for plugin compilation (supports Java 8/11/17/21/25)
 - **CodeRabbit CLI is optional** but required for code review feature (installed at `/usr/local/bin/coderabbit`)
 - **LiteLLM is optional** but required for premium model routing (installed at `/var/lib/litellm/shared/venv/bin/litellm`)
+- **Graphify is optional** but required for the "Save tokens using Graphify" feature (shared Python venv at `/var/lib/graphify/shared/venv`, symlinked to `/usr/local/bin/graphify`; needs `python3-venv`). See README Step 15.6. If absent, enabling Graphify just sets status `failed` — everything else works.
 - **Knowledge base must be present** at `/root/AuroraCraft/opencode-knowledge/` (ships with source code, no manual setup needed)
 
 ## Testing Changes
@@ -362,6 +415,8 @@ AuroraCraft supports **18 Minecraft server platforms** across 4 categories:
 Each platform gets tailored API rules, threading models, and build configurations via the dynamic rules system.
 
 ## graphify Integration
+
+> **Scope:** this section is the **dev-tooling** graphify that Claude Code uses to navigate *this* repository's own code while you work on it. It is unrelated to the end-user **product feature** "Save tokens using Graphify" (documented under Architecture → Graphify Token Savings), which builds graphs for AuroraCraft users' plugin projects.
 
 This project has a knowledge graph at `graphify-out/` with god nodes, community structure, and cross-file relationships.
 

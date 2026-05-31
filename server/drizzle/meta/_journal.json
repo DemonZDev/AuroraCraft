@@ -120,6 +120,13 @@
       "when": 1780086600000,
       "tag": "0016_community_features",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1780246635662,
+      "tag": "0017_uneven_giant_man",
+      "breakpoints": true
     }
   ]
 }

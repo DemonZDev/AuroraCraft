@@ -27,6 +27,9 @@ export interface Project {
   compiler: 'maven' | 'gradle' | 'both'
   bridge: 'opencode' | 'kiro'
   visibility: 'public' | 'private'
+  graphifyEnabled: boolean
+  graphifyStatus: 'none' | 'building' | 'ready' | 'failed'
+  graphifyBuiltAt: string | null
   createdAt: string
   updatedAt: string
 }

@@ -51,6 +51,7 @@ import {
   X,
   Info,
   Coins,
+  Network,
   LogOut,
 } from 'lucide-react'
 import Editor from '@monaco-editor/react'
@@ -76,6 +77,11 @@ import type {
   StreamingItem,
 } from '@/types'
 import { GlassyPromptModal, GlassyConfirmModal, useToasts } from '@/components/ui/glassy'
+import { GraphifyControls } from '@/components/graphify-controls'
+
+/** Sentinel `selectedFile` value that makes EditorPanel render the Graphify web view
+ *  (rendered graph) instead of Monaco. Cannot collide with a real relative file path. */
+const GRAPH_VIEW_PATH = '__graphify_graph_view__'
 
 function getErrorMessage(err: unknown): string {
   const axErr = err as AxiosError<{ message?: string }>
@@ -1931,8 +1937,9 @@ function getLanguageFromPath(filePath: string): string {
   return map[ext] ?? 'plaintext'
 }
 
-function EditorPanel({ projectId, selectedFile, fileOps, disabled }: { projectId: string; selectedFile: string | null; fileOps: ReturnType<typeof useFileOperations>; disabled?: boolean }) {
-  const { content, isLoading, error } = useFileContent(projectId, selectedFile)
+function EditorPanel({ projectId, selectedFile, fileOps, disabled, onExitGraphView }: { projectId: string; selectedFile: string | null; fileOps: ReturnType<typeof useFileOperations>; disabled?: boolean; onExitGraphView?: () => void }) {
+  const isGraphView = selectedFile === GRAPH_VIEW_PATH
+  const { content, isLoading, error } = useFileContent(projectId, isGraphView ? null : selectedFile)
   const [editedContent, setEditedContent] = useState<string | null>(null)
   const [saveError, setSaveError] = useState('')
 
@@ -1964,6 +1971,45 @@ function EditorPanel({ projectId, selectedFile, fileOps, disabled }: { projectId
       .then(() => { setEditedContent(null); setSaveError('') })
       .catch((err) => { setSaveError(getErrorMessage(err)) })
   }, [selectedFile, hasUnsavedChanges, fileOps, editedContent, content])
+
+  // Graphify web view: render the interactive graph (not raw HTML) inside the editor panel.
+  if (isGraphView) {
+    return (
+      <div className={cn('flex h-full flex-col', disabled && 'pointer-events-none opacity-50')}>
+        <div className="flex h-9 items-center justify-between border-b border-border bg-surface px-4">
+          <div className="flex min-w-0 items-center gap-2 text-xs text-text-muted">
+            <Network className="h-3.5 w-3.5 shrink-0 text-primary" />
+            <span className="truncate">Project Knowledge Graph</span>
+          </div>
+          <div className="flex shrink-0 items-center gap-3">
+            <a
+              href={`/api/projects/${projectId}/graphify/graph.html`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-[11px] text-text-dim hover:text-text-muted"
+            >
+              Open in new tab
+            </a>
+            {onExitGraphView && (
+              <button
+                onClick={onExitGraphView}
+                className="rounded p-0.5 text-text-dim hover:text-text-muted"
+                title="Close graph view"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+        <iframe
+          src={`/api/projects/${projectId}/graphify/graph.html`}
+          title="Project Knowledge Graph"
+          className="w-full flex-1 border-0 bg-white"
+          sandbox="allow-scripts"
+        />
+      </div>
+    )
+  }
 
   return (
     <div className={cn("flex h-full flex-col", disabled && "pointer-events-none opacity-50")}>
@@ -2361,6 +2407,12 @@ const handleAutoFix = () => {
     if (isMobile) setMobileTab('code')
   }, [isMobile])
 
+  // Open the Graphify web view inside the editor panel (not raw HTML).
+  const handleViewGraph = useCallback(() => {
+    setSelectedFile(GRAPH_VIEW_PATH)
+    if (isMobile) setMobileTab('code')
+  }, [isMobile])
+
   useEffect(() => {
     if (!projectId) return
     fetch(`/api/projects/${projectId}/jars`, { credentials: 'include' })
@@ -2719,6 +2771,7 @@ const handleAutoFix = () => {
             <button onClick={toggleLayout} disabled={isWorkspaceLocked} className="rounded-md p-1.5 text-text-dim hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed" title={isChatFirst ? 'Switch to Code First' : 'Switch to Chat First'}>
               <ArrowLeftRight className="h-3.5 w-3.5" />
             </button>
+            <GraphifyControls projectId={projectId ?? ''} isPaid={isPaid} compact onViewGraph={handleViewGraph} disabled={isWorkspaceLocked} />
             {isPaid && (
               <a href={`/api/projects/${projectId}/download/zip`} download className="rounded-md p-1.5 text-text-dim hover:text-text-muted" title="Download project">
                 <Download className="h-3.5 w-3.5" />
@@ -2784,7 +2837,7 @@ const handleAutoFix = () => {
             <FileTreePanel files={files} filesLoading={filesLoading} refetchFiles={refetchFiles} onFileSelect={handleFileSelect} selectedFile={selectedFile} fileOps={fileOps} disabled={isWorkspaceLocked} />
           </div>
           <div className={cn('h-full', mobileTab !== 'code' && 'hidden')}>
-            <EditorPanel projectId={project.id} selectedFile={selectedFile} fileOps={fileOps} disabled={isWorkspaceLocked} />
+            <EditorPanel projectId={project.id} selectedFile={selectedFile} fileOps={fileOps} disabled={isWorkspaceLocked} onExitGraphView={() => setSelectedFile(null)} />
           </div>
         </div>
 
@@ -3471,6 +3524,7 @@ const handleAutoFix = () => {
             <Play className="h-3 w-3" />
             Compile
           </button>
+          <GraphifyControls projectId={projectId ?? ''} isPaid={isPaid} onViewGraph={handleViewGraph} disabled={isWorkspaceLocked} />
           {isPaid && (
             <a
               href={`/api/projects/${projectId}/download/zip`}
@@ -3521,7 +3575,7 @@ const handleAutoFix = () => {
             </aside>
 
             <main className="flex-1 overflow-hidden">
-              <EditorPanel projectId={project.id} selectedFile={selectedFile} fileOps={fileOps} disabled={isWorkspaceLocked} />
+              <EditorPanel projectId={project.id} selectedFile={selectedFile} fileOps={fileOps} disabled={isWorkspaceLocked} onExitGraphView={() => setSelectedFile(null)} />
             </main>
           </>
         ) : (
@@ -3531,7 +3585,7 @@ const handleAutoFix = () => {
             </aside>
 
             <main className="flex-1 overflow-hidden">
-              <EditorPanel projectId={project.id} selectedFile={selectedFile} fileOps={fileOps} disabled={isWorkspaceLocked} />
+              <EditorPanel projectId={project.id} selectedFile={selectedFile} fileOps={fileOps} disabled={isWorkspaceLocked} onExitGraphView={() => setSelectedFile(null)} />
             </main>
 
             <aside className="flex w-[400px] shrink-0 flex-col border-l border-border bg-surface">

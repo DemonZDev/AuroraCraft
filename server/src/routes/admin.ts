@@ -213,6 +213,21 @@ export async function adminRoutes(app: FastifyInstance) {
     }
 
     await db.update(users).set({ tier, updatedAt: new Date() }).where(eq(users.id, id))
+
+    // Graphify reconciliation on tier change (additive; never blocks the tier update):
+    //  - demotion (paid→free): remove artifacts + skill from all the user's projects, keep intent
+    //  - promotion (free→paid): reset enabled projects to rebuild lazily on next workspace open
+    try {
+      const svc = await import('../utils/graphify-service.js')
+      if (tier === 'free' && user.tier === 'paid') {
+        await svc.cleanupUserGraphify(id)
+      } else if (tier === 'paid' && user.tier === 'free') {
+        await svc.markUserForRebuild(id)
+      }
+    } catch (err) {
+      app.log.warn({ err, userId: id }, 'Graphify tier reconciliation failed')
+    }
+
     return { success: true }
   })
 
