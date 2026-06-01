@@ -30,6 +30,12 @@ export const projects = pgTable('projects', {
   graphifyEnabled: boolean('graphify_enabled').default(false).notNull(),
   graphifyStatus: graphifyStatusEnum('graphify_status').default('none').notNull(),
   graphifyBuiltAt: timestamp('graphify_built_at', { withTimezone: true }),
+  // AI Assistant (paid-only, per-project). Mirrors the graphify intent pattern.
+  assistantEnabled: boolean('assistant_enabled').default(false).notNull(),
+  assistantModel: varchar('assistant_model', { length: 64 }).default('step-3.7-flash').notNull(),
+  // Snapshot of assistantEnabled taken at paid→free demotion so promotion restores exactly
+  // which projects had it on. NULL = no pending restore.
+  assistantEnabledSnapshot: boolean('assistant_enabled_snapshot'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })

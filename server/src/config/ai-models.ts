@@ -1,4 +1,4 @@
-export type ProviderId = 'fireworks' | 'bluesminds' | 'modal' | 'opencode'
+export type ProviderId = 'fireworks' | 'bluesminds' | 'modal' | 'opencode' | 'nvidia-nim'
 export type Speed = 'fast' | 'slow' | 'rate_limited'
 export type UserTier = 'free' | 'paid'
 
@@ -47,6 +47,12 @@ export const PROVIDER_CONFIG: Record<ProviderId, { name: string; baseUrl: string
     name: 'OpenCode',
     baseUrl: '',
     npmPackage: '',
+  },
+  'nvidia-nim': {
+    name: 'NVIDIA NIM',
+    baseUrl: 'https://integrate.api.nvidia.com/v1',
+    // Unused by the Assistant (it calls fetch directly), kept for shape consistency.
+    npmPackage: '@ai-sdk/openai-compatible',
   },
 }
 

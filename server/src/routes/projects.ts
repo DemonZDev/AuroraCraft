@@ -12,6 +12,8 @@ import { users } from '../db/schema/users.js'
 import { agentSessions } from '../db/schema/agent-sessions.js'
 import { agentMessages } from '../db/schema/agent-messages.js'
 import { agentLogs } from '../db/schema/agent-logs.js'
+import { assistantJobs } from '../db/schema/assistant-jobs.js'
+import { assistantMemory } from '../db/schema/assistant-memory.js'
 import { authMiddleware } from '../middleware/auth.js'
 import { opencodeBridge } from '../bridges/index.js'
 import { toSystemUsername } from '../utils/system-user.js'
@@ -44,6 +46,7 @@ const createProjectSchema = z.object({
   compiler: z.enum(['maven', 'gradle', 'both']).default('gradle'),
   bridge: z.enum(['opencode', 'kiro']).default('opencode'),
   visibility: z.enum(['public', 'private']).default('private'),
+  assistantEnabled: z.boolean().optional(),
 })
 
 const updateProjectSchema = z.object({
@@ -298,6 +301,8 @@ export async function projectRoutes(app: FastifyInstance) {
         linkId,
         ...parsed.data,
         visibility,
+        // Assistant: paid users get it on by default (honoring the new-project toggle); free users off.
+        assistantEnabled: userTier === 'paid' ? ((parsed.data as any).assistantEnabled ?? true) : false,
       })
       .returning()
 
@@ -386,6 +391,7 @@ export async function projectRoutes(app: FastifyInstance) {
           linkId,
           ...parsed.data,
           visibility,
+          assistantEnabled: userTier === 'paid' ? ((parsed.data as any).assistantEnabled ?? true) : false,
         })
         .returning()
 
@@ -460,6 +466,7 @@ export async function projectRoutes(app: FastifyInstance) {
           repoBranch: repoBranchToSave,
           ...parsed.data,
           visibility,
+          assistantEnabled: userTier === 'paid' ? ((parsed.data as any).assistantEnabled ?? true) : false,
         })
         .returning()
 
@@ -570,6 +577,15 @@ export async function projectRoutes(app: FastifyInstance) {
       await opencodeBridge.cleanupProject(systemUsername, projectDir).catch((err) => {
         app.log.warn({ err, projectDir }, 'Failed to clean up OpenCode data')
       })
+    }
+
+    // AI Assistant: purge all jobs + rolling memory for this project. Defense-in-depth —
+    // the FK ON DELETE CASCADE also covers these. (The Assistant writes nothing to disk.)
+    try {
+      await db.delete(assistantJobs).where(eq(assistantJobs.projectId, id))
+      await db.delete(assistantMemory).where(eq(assistantMemory.projectId, id))
+    } catch (err) {
+      app.log.warn({ err, id }, 'Failed to purge assistant data (cascade will still handle it)')
     }
 
     await db.delete(projects).where(eq(projects.id, id))

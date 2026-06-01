@@ -17,6 +17,7 @@ const PROVIDERS = [
   { id: 'bluesminds', label: 'Bluesminds' },
   { id: 'modal', label: 'Modal' },
   { id: 'firecrawl', label: 'Firecrawl MCP (Search)' },
+  { id: 'nvidia-nim', label: 'NVIDIA NIM (Assistant)' },
 ]
 
 export default function AdminProviderKeysPage() {

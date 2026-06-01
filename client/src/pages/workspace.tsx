@@ -78,6 +78,11 @@ import type {
 } from '@/types'
 import { GlassyPromptModal, GlassyConfirmModal, useToasts } from '@/components/ui/glassy'
 import { GraphifyControls } from '@/components/graphify-controls'
+import { AssistantStatusBadge } from '@/components/assistant-status-badge'
+import { AssistantControls } from '@/components/assistant-controls'
+import { AssistantEnhanceModal } from '@/components/assistant-enhance-modal'
+import { AssistantRecommendationModal } from '@/components/assistant-recommendation-modal'
+import { useAssistant, useErrorFixAutoSend, type AssistantAction } from '@/hooks/use-assistant'
 
 /** Sentinel `selectedFile` value that makes EditorPanel render the Graphify web view
  *  (rendered graph) instead of Monaco. Cannot collide with a real relative file path. */
@@ -1515,6 +1520,13 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
   stopAiRef?: React.MutableRefObject<(() => void) | null>
 }) {
   const { session, messages, isLoading, sendMessage, isSending, sendError, invalidateAndRefetch, cancelSession, isCancelling } = useAgentSession(projectId, sessionId)
+  // AI Assistant — Feature 1 (prompt enhancer). Intercepts send when available.
+  const assistant = useAssistant(projectId)
+  const enhanceJob = assistant.job?.kind === 'enhance' ? assistant.job : null
+  const enhanceJobActive = !!enhanceJob && ['queued', 'running', 'awaiting_user'].includes(enhanceJob.status)
+  const [enhanceOpen, setEnhanceOpen] = useState(false)
+  const [enhanceText, setEnhanceText] = useState('')
+  const enhanceDismissedRef = useRef<string | null>(null)
   const [awaitingStream, setAwaitingStream] = useState(false)
   // Wait for session snapshot so we don't open SSE against a terminal session while `session` is still undefined.
   const streamActive =
@@ -1633,7 +1645,7 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
     onAiRunningChange?.(isRunning || awaitingStream)
   }, [isRunning, awaitingStream, onAiRunningChange])
 
-  const handleSend = useCallback(async (message: string) => {
+  const doSend = useCallback(async (message: string) => {
     if (!message || isSending || session?.status === 'running') return
     setAwaitingStream(true)
     resetStream()
@@ -1647,6 +1659,24 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
       setAwaitingStream(false)
     }
   }, [isSending, sendMessage, selectedModel, selectedSpeed, session?.status, resetStream])
+
+  // When the Assistant is available, intercept send → open the enhancer modal instead.
+  const handleSend = useCallback((message: string) => {
+    if (assistant.available) {
+      setEnhanceText(message)
+      enhanceDismissedRef.current = null
+      setEnhanceOpen(true)
+      return
+    }
+    void doSend(message)
+  }, [assistant.available, doSend])
+
+  // Re-open the enhancer after refresh while a job is still in-flight / awaiting the user.
+  useEffect(() => {
+    if (enhanceJobActive && enhanceJob && enhanceDismissedRef.current !== enhanceJob.id) {
+      setEnhanceOpen(true)
+    }
+  }, [enhanceJobActive, enhanceJob?.id])
 
   const handleCancel = useCallback(() => {
     cancelSession().catch(() => {})
@@ -1792,6 +1822,16 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
           modelDisabled={isSending || session?.status === 'running' || workspaceDisabled}
         />
       </div>
+      <AssistantEnhanceModal
+        projectId={projectId}
+        open={enhanceOpen}
+        originalPrompt={enhanceText || enhanceJob?.input?.prompt || ''}
+        onSendFinal={(p) => { void doSend(p) }}
+        onClose={() => {
+          if (enhanceJob) enhanceDismissedRef.current = enhanceJob.id
+          setEnhanceOpen(false)
+        }}
+      />
     </>
   )
 }
@@ -2239,6 +2279,25 @@ export default function WorkspacePage() {
   const [autoFixPayload, setAutoFixPayload] = useState<{ prompt: string; model: string } | null>(null)
   const [fixConfirmOpen, setFixConfirmOpen] = useState(false)
 
+  // ── AI Assistant (Features 2 & 3) ────────────────────────────────────────────
+  const assistant = useAssistant(projectId ?? '')
+  // Feature 2: poll an error_fix job to done, then auto-send its generated prompt (never shown).
+  const errorFixAutoSend = useErrorFixAutoSend(projectId ?? '', assistant.job, (prompt) =>
+    setAutoFixPayload({ prompt, model: selectedModel }),
+  )
+  // Feature 3: post-session recommendation modal (auto-opens on awaiting_user; dismiss-guarded).
+  const postSessionJob = assistant.job?.kind === 'post_session' ? assistant.job : null
+  const [recOpen, setRecOpen] = useState(false)
+  const recDismissedRef = useRef<string | null>(null)
+  const [recBusy, setRecBusy] = useState(false)
+  // A code_review/git_push recommendation accepted before Git is ready waits here until setup completes.
+  const [pendingGitAction, setPendingGitAction] = useState<AssistantAction | null>(null)
+  useEffect(() => {
+    if (postSessionJob && postSessionJob.status === 'awaiting_user' && recDismissedRef.current !== postSessionJob.id) {
+      setRecOpen(true)
+    }
+  }, [postSessionJob?.id, postSessionJob?.status])
+
   const [aiRunning, setAiRunning] = useState(false)
   const stopAiRef = useRef<(() => void) | null>(null)
 
@@ -2294,9 +2353,10 @@ const handleAutoFix = () => {
       return
     }
 
-    const prompt = `Fix the following code review issues:\n\n${issues.map((issue: any, i: number) => 
-      `${i + 1}. [${issue.severity}] ${issue.fileName}\n${issue.codegenInstructions}\n`
-    ).join('\n')}`
+    const naivePrompt = () =>
+      `Fix the following code review issues:\n\n${issues
+        .map((issue: any, i: number) => `${i + 1}. [${issue.severity}] ${issue.fileName}\n${issue.codegenInstructions}\n`)
+        .join('\n')}`
 
     const fixesByReview: Record<string, number[]> = {}
     for (const { reviewId, issueIdx } of selectedIssues) {
@@ -2327,7 +2387,18 @@ const handleAutoFix = () => {
 
     if (isMobile) setMobileTab('chat')
 
-    setAutoFixPayload({ prompt, model: selectedModel })
+    // Feature 2 — Error Prompt Maker: when the Assistant is available it builds a detailed,
+    // optimized fix prompt (≤50k chars) and auto-sends it to the Agent (the prompt is never shown).
+    if (assistant.available) {
+      try {
+        const { jobId } = await assistant.errorFix({ issues })
+        errorFixAutoSend.track(jobId)
+        return
+      } catch {
+        // Another assistant job is active (or it errored) — fall back to the naive prompt.
+      }
+    }
+    setAutoFixPayload({ prompt: naivePrompt(), model: selectedModel })
   }
 
   const fetchReviewHistory = async () => {
@@ -2622,6 +2693,94 @@ const handleAutoFix = () => {
     }
   }
 
+  // Feature 3 — Git gating: code_review/git_push require a connected GitHub account + repo.
+  const githubAuthed = githubConnected || !!gitStatus?.githubAuth
+  const repoConnected = !!gitStatus?.connected
+  const gitReady = githubAuthed && repoConnected
+
+  // Execute an accepted recommendation via the existing real flows.
+  const runRecommendationAction = (action: AssistantAction) => {
+    if (action.type === 'send_prompt' && action.prompt) {
+      setAutoFixPayload({ prompt: action.prompt, model: selectedModel })
+    } else if (action.type === 'code_review') {
+      void handleReview()
+    } else if (action.type === 'graphify') {
+      void api.post(`/projects/${projectId}/graphify`).catch(() => {})
+      addToast('Building Graphify graph…', 'info')
+    } else if (action.type === 'git_push') {
+      setPushModalOpen(true)
+    }
+  }
+
+  const closeRecommendation = () => {
+    if (postSessionJob) recDismissedRef.current = postSessionJob.id
+    setRecOpen(false)
+  }
+
+  const handleRecommendationAction = async (action: AssistantAction) => {
+    if (!postSessionJob) return
+    const needsGit = action.type === 'code_review' || action.type === 'git_push'
+    if (needsGit && !gitReady) {
+      // Force Git setup first; the recommendation stays locked until it's ready or cancelled.
+      setPendingGitAction(action)
+      setGitConnectModalOpen(true)
+      return
+    }
+    setRecBusy(true)
+    try {
+      await assistant.acceptAction({ jobId: postSessionJob.id, actionId: action.id })
+    } catch {
+      /* ignore */
+    }
+    setRecBusy(false)
+    runRecommendationAction(action)
+    closeRecommendation()
+  }
+
+  const dismissRecommendation = () => {
+    setPendingGitAction(null)
+    setGitConnectModalOpen(false)
+    if (postSessionJob) assistant.cancel(postSessionJob.id).catch(() => {})
+    closeRecommendation()
+  }
+
+  // Once Git is fully ready, auto-run the pending Git-gated action.
+  useEffect(() => {
+    if (!pendingGitAction || !gitReady || !postSessionJob) return
+    const action = pendingGitAction
+    void (async () => {
+      setGitConnectModalOpen(false)
+      try {
+        await assistant.acceptAction({ jobId: postSessionJob.id, actionId: action.id })
+      } catch {
+        /* ignore */
+      }
+      runRecommendationAction(action)
+      setPendingGitAction(null)
+      closeRecommendation()
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingGitAction, gitReady, postSessionJob?.id])
+
+  const gitStepLabel = !githubAuthed
+    ? 'Connect your GitHub account to continue.'
+    : 'Select or create a repository & branch for this project to continue.'
+
+  // While Git setup is showing, hide the rec modal (the GitConnectionModal is the active overlay);
+  // closing that modal without finishing brings the (still-blocking) "Git setup required" panel back.
+  const assistantRecModal =
+    recOpen && postSessionJob && postSessionJob.status === 'awaiting_user' && !gitConnectModalOpen ? (
+      <AssistantRecommendationModal
+        job={postSessionJob}
+        gitRequired={!!pendingGitAction}
+        gitStepLabel={gitStepLabel}
+        busy={recBusy}
+        onRunAction={handleRecommendationAction}
+        onSetupGit={() => setGitConnectModalOpen(true)}
+        onDismiss={dismissRecommendation}
+      />
+    ) : null
+
   const handlePush = async () => {
     if (!commitMessage.trim()) return
     setPushing(true)
@@ -2679,6 +2838,7 @@ const handleAutoFix = () => {
     return (
       <>
         <ToastContainer />
+        {assistantRecModal}
         {isWorkspaceLocked && (
           <div className="shrink-0 flex items-center justify-center gap-2 bg-primary/90 py-2 px-4 text-sm font-medium text-primary-foreground backdrop-blur animate-pulse z-50">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -2779,6 +2939,13 @@ const handleAutoFix = () => {
               <ArrowLeftRight className="h-3.5 w-3.5" />
             </button>
             <GraphifyControls projectId={projectId ?? ''} isPaid={isPaid} compact onViewGraph={handleViewGraph} disabled={isWorkspaceLocked} />
+            <AssistantStatusBadge
+              projectId={projectId ?? ''}
+              onOpen={() => {
+                if (postSessionJob) recDismissedRef.current = null
+                setRecOpen(true)
+              }}
+            />
             {isPaid && (
               <a href={`/api/projects/${projectId}/download/zip`} download className="rounded-md p-1.5 text-text-dim hover:text-text-muted" title="Download project">
                 <Download className="h-3.5 w-3.5" />
@@ -3416,6 +3583,7 @@ const handleAutoFix = () => {
   return (
     <div className="flex h-screen flex-col bg-background">
       <ToastContainer />
+      {assistantRecModal}
       {isWorkspaceLocked && (
         <div className="shrink-0 flex items-center justify-center gap-2 bg-primary/90 py-2 px-4 text-sm font-medium text-primary-foreground backdrop-blur animate-pulse z-50">
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -3532,6 +3700,7 @@ const handleAutoFix = () => {
             Compile
           </button>
           <GraphifyControls projectId={projectId ?? ''} isPaid={isPaid} onViewGraph={handleViewGraph} disabled={isWorkspaceLocked} />
+          <div className="mt-3"><AssistantControls projectId={projectId ?? ''} isPaid={isPaid} /></div>
           {isPaid && (
             <a
               href={`/api/projects/${projectId}/download/zip`}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router'
-import { ArrowLeft, ArrowRight, Check, Square, CheckSquare, Globe, Lock, Zap } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Square, CheckSquare, Globe, Lock, Zap, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjects } from '@/hooks/use-projects'
 import { useUserTokens } from '@/hooks/use-user-tokens'
@@ -111,6 +111,7 @@ export default function NewProjectPage() {
     branch: '',
     commit: '',
     visibility: 'public' as 'public' | 'private',
+    assistantEnabled: true,
   })
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -246,6 +247,7 @@ export default function NewProjectPage() {
             commit: form.commit.trim() || undefined,
             isPrivate: isPrivateRepo,
             visibility: form.visibility,
+            assistantEnabled: form.assistantEnabled,
           }),
         })
         
@@ -295,6 +297,7 @@ export default function NewProjectPage() {
           compiler: compilerValue,
           bridge: form.bridge,
           visibility: form.visibility,
+          assistantEnabled: form.assistantEnabled,
         })
         navigate(`/workspace/${project.id}`)
       }
@@ -418,6 +421,32 @@ export default function NewProjectPage() {
 
             {/* Visibility */}
             <VisibilitySelector form={form} setForm={setForm} />
+
+            {/* AI Assistant (paid-only) */}
+            <button
+              type="button"
+              onClick={() => isPaid && setForm((prev: any) => ({ ...prev, assistantEnabled: !prev.assistantEnabled }))}
+              disabled={!isPaid}
+              className={cn(
+                'flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors',
+                form.assistantEnabled && isPaid ? 'border-primary bg-primary/5' : 'border-border',
+                !isPaid && 'cursor-not-allowed opacity-60',
+              )}
+            >
+              <Sparkles className="h-4 w-4 shrink-0 text-text-dim" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-text">AI Assistant</p>
+                <p className="text-xs text-text-muted">Enhances prompts, turns review issues into fixes, and recommends next steps.</p>
+              </div>
+              {!isPaid ? (
+                <span className="ml-auto inline-flex items-center gap-1 rounded bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary shrink-0">
+                  <Zap className="h-3 w-3" />
+                  Paid
+                </span>
+              ) : form.assistantEnabled ? (
+                <Check className="ml-auto h-4 w-4 shrink-0 text-primary" />
+              ) : null}
+            </button>
           </div>
         )}
 

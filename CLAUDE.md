@@ -217,6 +217,52 @@ Paid users click **"Save tokens using Graphify"** in the workspace to build a pe
 
 **Critical:** never set `GEMINI_API_KEY` / `GOOGLE_API_KEY` in the server environment — they are the only keys graphify reads, and their presence would turn a free AST build into a paid LLM build. The build command unsets them defensively.
 
+### AI Assistant (Product Feature — Paid-Only)
+
+> Distinct from the **AI Agent** (OpenCode CLI, which writes code). The **AI Assistant** is a fully-managed, **read-only** advisor: it calls **NVIDIA NIM** directly (no CLI spawn) and never mutates files. It enhances prompts, turns code-review issues into fix prompts, and analyses finished Agent sessions to recommend the next step.
+
+**Managed engine (no CLI).** Unlike the Agent, the Assistant runs in-process: `server/src/agents/assistant-engine.ts` calls NIM's OpenAI-compatible `/v1/chat/completions` (`server/src/bridges/nim-client.ts`, **streaming** via `undici`) in an **agentic multi-call loop** with **read-only tools** (`list_project_files`, `read_file`, `read_code_reviews`, `read_agent_messages` — `server/src/agents/assistant-tools.ts`). It can read the workspace + DB but never writes.
+
+**Why streaming (critical).** NIM's hosted gateway returns **HTTP 504 for any non-streaming completion that exceeds ~300s**, and Node's `fetch`/undici has a matching 300s `headersTimeout`. Several NIM models generate for >5 min. So `nim-client.ts` uses `stream:true` (gateway responds immediately, tokens flow continuously → no 5-min cap) over an `undici.Agent` with `headersTimeout:0`/`bodyTimeout:0` (the 30-min job AbortSignal is the only cap), and streamed deltas (content + `tool_calls` by index) are reassembled into the normal response shape. It retries transient 429/502/503 (not 504). **Caveat that streaming can't fix:** if a model takes >300s to emit its *first* token, the gateway still 504s before any byte — a NVIDIA-side capacity issue, surfaced to the user as the friendly "high traffic" message.
+
+**Three features:**
+1. **Prompt Enhancer** — on send (when available), a blocking modal offers enhancement in 4 styles (Optimized / Structured / Explanatory / Feature-Adding). The ready prompt is shown for Confirm / Describe-changes (revise) / Cancel.
+2. **Error Prompt Maker** — "Auto Fix" on selected code-review issues generates a detailed ≤50k-char fix prompt and **auto-sends it to the Agent** (never shown).
+3. **Post-Session Analyser** — after each Agent session ends (`cleanupInstance` → `assistantOnSessionEnd`), it determines completed / stopped-midway / issues and shows a blocking recommendation modal with **one-click actions** (send prompt, Graphify, code review, git push).
+
+**Job state machine = refresh-proof persistence.** Every unit of work is a row in **`assistant_jobs`** (`kind` ∈ enhance|error_fix|post_session; `status` ∈ queued|running|awaiting_user|done|failed|cancelled|stopped). The frontend rebuilds all UI from the active job, so work and the blocking "ready"/"recommendation" modals survive refresh until the user acts. **Force-Stop** aborts any running job. Live progress streams over SSE via `sessionEventBus` key `assistant:<jobId>`.
+
+**Rolling memory.** `assistant_memory` (one row per project) holds a compact, continuously-updated summary injected as context ("blazing fast"); refreshed at the end of post-session analysis.
+
+**Billing (charges tokens, like the Agent).** Each job pre-charges an estimate and reconciles actual NIM usage via `token-service.ts` (`deductTokens`/`reconcileTokens`, 2× cap). Models live in `server/src/config/assistant-models.ts` (Kimi K2.6, MiniMax M2.7, **Step 3.7 Flash [default]**, DeepSeek V4 Pro/Flash, GLM-5.1) — slugs **confirmed live against NIM `/v1/models` (2026-06-01)**; pricing is the AuroraCraft charge (tunable). Several are reasoning models (separate `reasoning_content`), so the engine uses a high `max_tokens` (8192) so they finish reasoning before emitting `content`. **Model is changeable only in project settings.**
+
+**Git-gated recommendations (Feature 3).** The `code_review` and `git_push` recommendation actions require a connected GitHub account **and** a connected repo+branch. If either is missing, accepting the action forces the GitHub-connect popup, then the repo/branch picker (`GitConnectionModal`); the recommendation modal stays blocking (workspace locked) until Git is ready — then the action **auto-runs** — or the user cancels the recommendation. Wired in `WorkspacePage` (`pendingGitAction` + `gitReady` + an auto-run effect).
+
+**Deletion / disk safety.** `assistant_jobs` + `assistant_memory` both FK `project_id` with `ON DELETE CASCADE`; the project DELETE route also explicitly purges them (defense-in-depth). `startJob` prunes to the 30 most-recent terminal jobs per project to bound growth. The Assistant writes **nothing to disk** (read-only), so there are no on-disk artifacts to clean.
+
+**Access control (mirrors Graphify).** Paid-tier only + per-project `assistantEnabled` toggle + NIM key present (`available = paid && enabled && hasKey`). At project creation: paid default **on**, free **off**. Provider `nvidia-nim` is paid-only (`admin.ts` `paidOnlyProviders`), so admins can only add a NIM key to paid users and must remove it before demotion. **Demotion/promotion:** `onUserDemoted` snapshots which projects had it on (`assistant_enabled_snapshot`) then disables all; `onUserPromoted` restores exactly those — projects off before demotion stay off.
+
+**State on `projects` (migration `0018_assistant`):** `assistantEnabled` (boolean intent), `assistantModel` (varchar, default `step-3.7-flash`), `assistantEnabledSnapshot` (boolean, demotion snapshot).
+
+**NIM is slow:** a job has a hard **30-minute** timeout → status `failed`. That message — and any upstream slowness signal (504/503/502/408/timeout/"fetch failed") — maps to the exact user-facing string `"We are experiencing high traffic so Assistant didn't answer."` (so slow/overloaded models degrade gracefully).
+
+**Model test results (2026-06-01, live NIM + agentic-loop streaming):** Step 3.7 Flash, DeepSeek V4 Flash, DeepSeek V4 Pro, MiniMax M2.7, GLM-5.1 — all **PASS** (tool-calling + content). **Kimi K2.6** currently returns gateway **504** even for a trivial prompt (its hosted endpoint is overloaded — >300s to first token); the engine shows the friendly message. Re-check Kimi later; the code path is correct once NVIDIA's Kimi endpoint is responsive.
+
+**Key files:**
+- `server/src/agents/assistant-engine.ts`, `assistant-tools.ts`, `assistant-types.ts` — engine, read-only tools, shared types
+- `server/src/bridges/nim-client.ts` — NIM OpenAI-compatible client
+- `server/src/utils/assistant-service.ts` — job lifecycle/state-machine, billing, tier reconcilers, `assistantOnSessionEnd`
+- `server/src/utils/assistant-memory.ts` — rolling per-project summary
+- `server/src/config/assistant-models.ts` — NIM model catalog + pricing (**TODO: confirm real NIM slugs/prices**)
+- `server/src/routes/assistant.ts` — 12 endpoints + SSE under `/api/projects/:id/assistant`
+- `client/src/hooks/use-assistant.ts` — config/job hooks, mutations, SSE, `useErrorFixAutoSend`
+- `client/src/components/assistant-{controls,status-badge,enhance-modal,recommendation-modal}.tsx`
+
+**Slugs verified.** NIM model slugs in `assistant-models.ts` were confirmed against the live `GET https://integrate.api.nvidia.com/v1/models` catalog and exercised end-to-end (tool-calling + reasoning-model `content`). Pricing values remain a tunable business decision. The full build/verification log is in `Assistant-Implementation.md`.
+
+### AI Assistant: First-Message Enhancer Gap (Known Limitation)
+The prompt-enhancer send-interception is wired in `ChatSession` (`workspace.tsx`), so the very first message of a **brand-new session** (sent from `ChatEmptyState`) is NOT enhanced — only subsequent messages are. Covering the first message requires the same interception in `ChatEmptyState` (or lifting the enhance flow up to `ChatPanel`). Tracked as a follow-up.
+
 ### Shared Caches
 OpenCode plugins, Gradle dependencies, and Maven artifacts are shared across all users to prevent storage duplication. Every `auroracraft-{username}` user has symlinks pointing to shared directories:
 

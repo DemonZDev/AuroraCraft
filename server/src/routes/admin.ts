@@ -200,7 +200,7 @@ export async function adminRoutes(app: FastifyInstance) {
         .select({ provider: providerApiKeys.provider })
         .from(providerApiKeys)
         .where(eq(providerApiKeys.userId, id))
-      const paidOnlyProviders = ['fireworks', 'bluesminds', 'firecrawl']
+      const paidOnlyProviders = ['fireworks', 'bluesminds', 'firecrawl', 'nvidia-nim']
       const blockingKeys = keys.filter(k => paidOnlyProviders.includes(k.provider))
       if (blockingKeys.length > 0) {
         const providers = blockingKeys.map(k => k.provider).join(', ')
@@ -219,13 +219,16 @@ export async function adminRoutes(app: FastifyInstance) {
     //  - promotion (free→paid): reset enabled projects to rebuild lazily on next workspace open
     try {
       const svc = await import('../utils/graphify-service.js')
+      const asvc = await import('../utils/assistant-service.js')
       if (tier === 'free' && user.tier === 'paid') {
         await svc.cleanupUserGraphify(id)
+        await asvc.onUserDemoted(id) // snapshot + disable assistant on all of the user's projects
       } else if (tier === 'paid' && user.tier === 'free') {
         await svc.markUserForRebuild(id)
+        await asvc.onUserPromoted(id) // restore exactly the projects that had assistant on before demotion
       }
     } catch (err) {
-      app.log.warn({ err, userId: id }, 'Graphify tier reconciliation failed')
+      app.log.warn({ err, userId: id }, 'Tier reconciliation (graphify/assistant) failed')
     }
 
     return { success: true }
@@ -292,7 +295,7 @@ export async function adminRoutes(app: FastifyInstance) {
     }
 
     // Paid-only providers require user to be on paid tier
-    const paidOnlyProviders = ['fireworks', 'bluesminds', 'firecrawl']
+    const paidOnlyProviders = ['fireworks', 'bluesminds', 'firecrawl', 'nvidia-nim']
     if (paidOnlyProviders.includes(provider)) {
       const [user] = await db.select({ tier: users.tier }).from(users).where(eq(users.id, id)).limit(1)
       if (!user || user.tier !== 'paid') {

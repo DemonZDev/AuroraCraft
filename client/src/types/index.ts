@@ -30,6 +30,8 @@ export interface Project {
   graphifyEnabled: boolean
   graphifyStatus: 'none' | 'building' | 'ready' | 'failed'
   graphifyBuiltAt: string | null
+  assistantEnabled: boolean
+  assistantModel: string
   createdAt: string
   updatedAt: string
 }
@@ -45,6 +47,7 @@ export interface CreateProjectInput {
   compiler?: 'maven' | 'gradle' | 'both'
   bridge?: 'opencode' | 'kiro'
   visibility?: 'public' | 'private'
+  assistantEnabled?: boolean
 }
 
 export interface UpdateProjectInput {

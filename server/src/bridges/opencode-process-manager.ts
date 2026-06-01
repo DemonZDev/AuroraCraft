@@ -509,6 +509,12 @@ export class OpenCodeProcessManager {
     void import('../utils/graphify-service.js')
       .then((m) => m.onSessionEnd(directory))
       .catch(() => {})
+
+    // AI Assistant: analyse the just-ended session (paid + enabled + NIM key). Fire-and-forget;
+    // the service re-checks live state and is a no-op for non-Assistant projects.
+    void import('../utils/assistant-service.js')
+      .then((m) => m.assistantOnSessionEnd(directory))
+      .catch(() => {})
   }
 
   private async waitForReady(url: string, timeoutMs: number): Promise<boolean> {
