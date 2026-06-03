@@ -1,6 +1,6 @@
 ---
 name: database-setup
-description: Set up HikariCP database connection with async queries for Minecraft plugins
+description: Set up HikariCP database connection with async queries, connection monitoring, and production safety patterns
 license: MIT
 compatibility: opencode
 metadata:
@@ -12,76 +12,77 @@ metadata:
 
 ## What I Do
 
-I help you set up a production-ready database connection for Minecraft plugins using HikariCP connection pooling with proper async query patterns.
+I help you set up a production-ready database connection for Minecraft plugins using HikariCP connection pooling with proper async query patterns, connection monitoring, deadlock prevention, and crash-safe write-ahead patterns.
 
 ## When to Use Me
 
-Use this skill when:
-- Setting up MySQL/MariaDB/PostgreSQL connection
+- Setting up MySQL/MariaDB/PostgreSQL/SQLite connection
 - Implementing player data persistence
-- Creating economy systems
-- Building any plugin that needs database storage
+- Creating economy systems with ACID guarantees
+- Building cross-server data sync (BungeeCord/Velocity networks)
+- Any plugin that needs database storage
 
 ## What I Generate
 
-1. **DatabaseManager class** with HikariCP connection pool
-2. **Async query helper methods** (SELECT, INSERT, UPDATE, DELETE)
-3. **Proper resource management** (connection closing, shutdown)
-4. **Error handling** with logging
-5. **Example repository class** for data access
+1. **DatabaseManager** with production HikariCP configuration
+2. **PoolMonitor** for connection leak detection and health checks
+3. **Async query methods** (SELECT, INSERT, batch, upsert)
+4. **Repository class** with proper async/sync bridging
+5. **Schema versioning** from day one
+6. **Deadlock-safe transaction** patterns
 
 ## Implementation Pattern
 
-### 1. DatabaseManager Class
+### 1. DatabaseManager with Production HikariCP
 
 ```java
 package {package}.managers;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import org.bukkit.Bukkit;
+import com.zaxxer.hikari.HikariPoolMXBean;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
-import java.util.function.Function;
+import java.sql.*;
+import java.util.concurrent.*;
 
 public class DatabaseManager {
     private final JavaPlugin plugin;
     private HikariDataSource dataSource;
-    
-    public DatabaseManager(JavaPlugin plugin) {
+
+    public DatabaseManager(JavaPlugin plugin, DatabaseType type) {
         this.plugin = plugin;
-        setupConnectionPool();
-        createTables();
+        if (type == DatabaseType.SQLITE) {
+            connectSQLite();
+        } else {
+            connectMySQL();
+        }
+        initializeSchema();
     }
-    
-    private void setupConnectionPool() {
+
+    private void connectMySQL() {
         HikariConfig config = new HikariConfig();
-        
-        // Load from config.yml
+
         String host = plugin.getConfig().getString("database.host", "localhost");
         int port = plugin.getConfig().getInt("database.port", 3306);
-        String database = plugin.getConfig().getString("database.database", "minecraft");
-        String username = plugin.getConfig().getString("database.username", "root");
+        String database = plugin.getConfig().getString("database.name", "minecraft");
+        String user = plugin.getConfig().getString("database.user", "root");
         String password = plugin.getConfig().getString("database.password", "");
-        
-        config.setJdbcUrl("jdbc:mysql://" + host + ":" + port + "/" + database);
-        config.setUsername(username);
+
+        config.setJdbcUrl("jdbc:mysql://" + host + ":" + port + "/" + database
+            + "?useSSL=false&characterEncoding=utf8mb4");
+        config.setUsername(user);
         config.setPassword(password);
-        
-        // Connection pool settings
-        config.setMaximumPoolSize(10);
+
+        // Pool sizing — 2-5 connections for typical plugins
+        config.setMaximumPoolSize(5);
         config.setMinimumIdle(2);
-        config.setConnectionTimeout(30000);
-        config.setIdleTimeout(600000);
-        config.setMaxLifetime(1800000);
-        
-        // Performance settings
+        config.setConnectionTimeout(30_000);       // 30s — fail fast
+        config.setIdleTimeout(600_000);             // 10min idle lifetime
+        config.setMaxLifetime(1_800_000);           // 30min max age (< MySQL wait_timeout)
+        config.setLeakDetectionThreshold(60_000);   // 60s — log stack trace if connection held >60s
+
+        // Performance properties — every one matters
         config.addDataSourceProperty("cachePrepStmts", "true");
         config.addDataSourceProperty("prepStmtCacheSize", "250");
         config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
@@ -89,255 +90,363 @@ public class DatabaseManager {
         config.addDataSourceProperty("useLocalSessionState", "true");
         config.addDataSourceProperty("rewriteBatchedStatements", "true");
         config.addDataSourceProperty("cacheResultSetMetadata", "true");
-        config.addDataSourceProperty("cacheServerConfiguration", "true");
         config.addDataSourceProperty("elideSetAutoCommits", "true");
         config.addDataSourceProperty("maintainTimeStats", "false");
-        
+
+        config.setPoolName(plugin.getName() + "-Pool");
         this.dataSource = new HikariDataSource(config);
-        plugin.getLogger().info("Database connection pool initialized");
     }
-    
-    private void createTables() {
-        executeAsync(conn -> {
-            try (PreparedStatement ps = conn.prepareStatement(
-                "CREATE TABLE IF NOT EXISTS player_data (" +
-                "uuid VARCHAR(36) PRIMARY KEY, " +
-                "name VARCHAR(16) NOT NULL, " +
-                "balance BIGINT DEFAULT 0, " +
-                "last_seen BIGINT NOT NULL, " +
-                "created_at BIGINT NOT NULL" +
-                ")"
-            )) {
-                ps.executeUpdate();
-                plugin.getLogger().info("Database tables created/verified");
-            }
-        }).exceptionally(ex -> {
-            plugin.getLogger().severe("Failed to create tables: " + ex.getMessage());
-            return null;
-        });
+
+    private void connectSQLite() {
+        String path = plugin.getDataFolder().getAbsolutePath() + "/data.db";
+        HikariConfig config = new HikariConfig();
+        config.setJdbcUrl("jdbc:sqlite:" + path);
+        config.setMaximumPoolSize(1);  // SQLite: 1 writer
+        config.setMinimumIdle(1);
+        config.addDataSourceProperty("busy_timeout", "5000");
+        config.setConnectionInitSql(
+            "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;"
+        );
+        this.dataSource = new HikariDataSource(config);
     }
-    
-    /**
-     * Execute async query with no return value
-     */
-    public CompletableFuture<Void> executeAsync(Consumer<Connection> action) {
-        return CompletableFuture.runAsync(() -> {
-            try (Connection conn = dataSource.getConnection()) {
-                action.accept(conn);
-            } catch (SQLException e) {
-                throw new RuntimeException("Database error", e);
-            }
-        });
+
+    public Connection getConnection() throws SQLException {
+        return dataSource.getConnection();
     }
-    
-    /**
-     * Execute async query with return value
-     */
-    public <T> CompletableFuture<T> queryAsync(Function<Connection, T> query) {
-        return CompletableFuture.supplyAsync(() -> {
-            try (Connection conn = dataSource.getConnection()) {
-                return query.apply(conn);
-            } catch (SQLException e) {
-                throw new RuntimeException("Database error", e);
-            }
-        });
+
+    // Pool health monitoring — schedule every 60s
+    public void logPoolStats() {
+        HikariPoolMXBean pool = dataSource.getHikariPoolMXBean();
+        if (pool == null) return;
+        int active = pool.getActiveConnections();
+        int idle = pool.getIdleConnections();
+        int waiting = pool.getThreadsAwaitingConnection();
+        plugin.getLogger().info(String.format(
+            "[Pool] Active=%d Idle=%d Waiting=%d Max=%d",
+            active, idle, waiting, dataSource.getMaximumPoolSize()
+        ));
+        if (waiting > 0) {
+            plugin.getLogger().warning("Threads waiting for connections — increase pool size or check for slow queries!");
+        }
     }
-    
-    /**
-     * Execute async query with sync callback on main thread
-     */
-    public <T> void queryAsyncThenSync(Function<Connection, T> query, Consumer<T> callback) {
-        queryAsync(query).thenAccept(result -> {
-            Bukkit.getScheduler().runTask(plugin, () -> callback.accept(result));
-        }).exceptionally(ex -> {
-            plugin.getLogger().severe("Query failed: " + ex.getMessage());
-            return null;
-        });
-    }
-    
+
     public void shutdown() {
         if (dataSource != null && !dataSource.isClosed()) {
             dataSource.close();
-            plugin.getLogger().info("Database connection pool closed");
         }
     }
-    
-    public HikariDataSource getDataSource() {
-        return dataSource;
-    }
+
+    public HikariDataSource getDataSource() { return dataSource; }
+
+    public enum DatabaseType { MYSQL, SQLITE }
 }
 ```
 
-### 2. Example Repository Class
+### 2. Async Query Methods with Proper Error Handling
 
 ```java
-package {package}.repositories;
+private final ExecutorService dbExecutor = Executors.newFixedThreadPool(4, r -> {
+    Thread t = new Thread(r, plugin.getName() + "-DB");
+    t.setDaemon(true);
+    return t;
+});
 
-import {package}.managers.DatabaseManager;
-import {package}.models.PlayerData;
-import org.bukkit.entity.Player;
+/** Execute a write with no return value */
+public CompletableFuture<Void> executeAsync(SqlConsumer action) {
+    return CompletableFuture.runAsync(() -> {
+        try (Connection conn = dataSource.getConnection()) {
+            action.accept(conn);
+        } catch (SQLException e) {
+            throw new RuntimeException("Database error", e);
+        }
+    }, dbExecutor);
+}
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
+/** Execute a query with a return value */
+public <T> CompletableFuture<T> queryAsync(SqlFunction<T> query) {
+    return CompletableFuture.supplyAsync(() -> {
+        try (Connection conn = dataSource.getConnection()) {
+            return query.apply(conn);
+        } catch (SQLException e) {
+            throw new RuntimeException("Database error", e);
+        }
+    }, dbExecutor);
+}
 
-public class PlayerRepository {
-    private final DatabaseManager database;
-    
-    public PlayerRepository(DatabaseManager database) {
-        this.database = database;
+/** Query async, apply result on main thread */
+public <T> void queryThenSync(SqlFunction<T> query, java.util.function.Consumer<T> callback) {
+    queryAsync(query).thenAccept(result -> {
+        org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> callback.accept(result));
+    }).exceptionally(ex -> {
+        plugin.getLogger().severe("Query failed: " + ex.getMessage());
+        return null;
+    });
+}
+
+@FunctionalInterface public interface SqlConsumer { void accept(Connection conn) throws SQLException; }
+@FunctionalInterface public interface SqlFunction<T> { T apply(Connection conn) throws SQLException; }
+```
+
+### 3. Schema Versioning (Start Day One)
+
+```java
+private static final int CURRENT_SCHEMA = 1;
+
+private void initializeSchema() {
+    executeAsync(conn -> {
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("CREATE TABLE IF NOT EXISTS schema_version (version INT NOT NULL)");
+            ResultSet rs = stmt.executeQuery("SELECT version FROM schema_version LIMIT 1");
+            int v = rs.next() ? rs.getInt("version") : 0;
+            applyMigrations(conn, v);
+        }
+    });
+}
+
+private void applyMigrations(Connection conn, int from) throws SQLException {
+    if (from < 1) {
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS player_data (
+                    uuid CHAR(36) PRIMARY KEY,
+                    name VARCHAR(16) NOT NULL,
+                    balance DECIMAL(20,2) DEFAULT 0.00,
+                    last_seen BIGINT NOT NULL,
+                    created_at BIGINT NOT NULL,
+                    INDEX idx_last_seen (last_seen)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """);
+            stmt.execute("INSERT INTO schema_version VALUES (1) ON DUPLICATE KEY UPDATE version=1");
+            plugin.getLogger().info("Applied migration v1.");
+        }
     }
-    
-    public CompletableFuture<PlayerData> load(UUID uuid) {
-        return database.queryAsync(conn -> {
-            try (PreparedStatement ps = conn.prepareStatement(
-                "SELECT * FROM player_data WHERE uuid = ?"
-            )) {
-                ps.setString(1, uuid.toString());
-                try (ResultSet rs = ps.executeQuery()) {
-                    if (rs.next()) {
-                        return new PlayerData(
-                            UUID.fromString(rs.getString("uuid")),
-                            rs.getString("name"),
-                            rs.getLong("balance"),
-                            rs.getLong("last_seen"),
-                            rs.getLong("created_at")
-                        );
-                    }
-                    return null;
-                }
+    // Add future migrations here — NEVER modify existing ones
+}
+```
+
+### 4. Deadlock-Safe Atomic Operations
+
+```java
+/**
+ * Atomic balance transfer with deadlock prevention.
+ * ALWAYS locks in UUID order to prevent circular wait deadlocks.
+ */
+public boolean transferBalance(UUID from, UUID to, double amount) {
+    // Sort UUIDs — ALWAYS lock lower UUID first
+    UUID first = from.compareTo(to) < 0 ? from : to;
+    UUID second = from.compareTo(to) < 0 ? to : from;
+
+    Connection conn = null;
+    try {
+        conn = dataSource.getConnection();
+        conn.setAutoCommit(false);
+
+        // Lock in sorted order
+        lockRow(conn, first);
+        if (!first.equals(second)) lockRow(conn, second);
+
+        // Deduct (atomic check-and-deduct)
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "UPDATE player_data SET balance = balance - ? WHERE uuid = ? AND balance >= ?")) {
+            stmt.setDouble(1, amount);
+            stmt.setString(2, from.toString());
+            stmt.setDouble(3, amount);
+            if (stmt.executeUpdate() == 0) {
+                conn.rollback();
+                return false; // Insufficient balance
             }
-        });
+        }
+
+        // Credit
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "UPDATE player_data SET balance = balance + ? WHERE uuid = ?")) {
+            stmt.setDouble(1, amount);
+            stmt.setString(2, to.toString());
+            stmt.executeUpdate();
+        }
+
+        conn.commit();
+        return true;
+    } catch (SQLException e) {
+        if (conn != null) { try { conn.rollback(); } catch (SQLException ex) {} }
+        plugin.getLogger().severe("Transfer failed: " + e.getMessage());
+        return false;
+    } finally {
+        if (conn != null) {
+            try { conn.setAutoCommit(true); conn.close(); } catch (SQLException e) {}
+        }
     }
-    
-    public CompletableFuture<Void> save(PlayerData data) {
-        return database.executeAsync(conn -> {
-            try (PreparedStatement ps = conn.prepareStatement(
-                "INSERT INTO player_data (uuid, name, balance, last_seen, created_at) " +
-                "VALUES (?, ?, ?, ?, ?) " +
-                "ON DUPLICATE KEY UPDATE name = ?, balance = ?, last_seen = ?"
-            )) {
-                ps.setString(1, data.getUuid().toString());
-                ps.setString(2, data.getName());
-                ps.setLong(3, data.getBalance());
-                ps.setLong(4, data.getLastSeen());
-                ps.setLong(5, data.getCreatedAt());
-                // ON DUPLICATE KEY UPDATE values
-                ps.setString(6, data.getName());
-                ps.setLong(7, data.getBalance());
-                ps.setLong(8, data.getLastSeen());
-                ps.executeUpdate();
-            }
-        });
-    }
-    
-    public CompletableFuture<Void> delete(UUID uuid) {
-        return database.executeAsync(conn -> {
-            try (PreparedStatement ps = conn.prepareStatement(
-                "DELETE FROM player_data WHERE uuid = ?"
-            )) {
-                ps.setString(1, uuid.toString());
-                ps.executeUpdate();
-            }
-        });
+}
+
+private void lockRow(Connection conn, UUID uuid) throws SQLException {
+    try (PreparedStatement stmt = conn.prepareStatement(
+            "SELECT uuid FROM player_data WHERE uuid = ? FOR UPDATE")) {
+        stmt.setString(1, uuid.toString());
+        stmt.executeQuery();
     }
 }
 ```
 
-### 3. config.yml Section
+### 5. Batch Operations (1 Round-Trip, Not N)
+
+```java
+public CompletableFuture<Void> saveAll(Collection<PlayerData> players) {
+    return CompletableFuture.runAsync(() -> {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(
+                 "INSERT INTO player_data (uuid, name, balance, last_seen, created_at) " +
+                 "VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE " +
+                 "name=VALUES(name), balance=VALUES(balance), last_seen=VALUES(last_seen)")) {
+
+            for (PlayerData data : players) {
+                stmt.setString(1, data.getUuid().toString());
+                stmt.setString(2, data.getName());
+                stmt.setDouble(3, data.getBalance());
+                stmt.setLong(4, data.getLastSeen());
+                stmt.setLong(5, data.getCreatedAt());
+                stmt.addBatch();
+            }
+            stmt.executeBatch(); // Single round-trip for ALL rows
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Batch save failed: " + e.getMessage());
+        }
+    }, dbExecutor);
+}
+```
+
+### 6. Example Repository with Async/Sync Bridge
+
+```java
+public class PlayerRepository {
+    private final DatabaseManager db;
+    private final JavaPlugin plugin;
+    private final Map<UUID, PlayerData> cache = new ConcurrentHashMap<>();
+
+    public PlayerRepository(JavaPlugin plugin, DatabaseManager db) {
+        this.plugin = plugin;
+        this.db = db;
+    }
+
+    /** Load from DB async, cache and notify on main thread */
+    public void loadAndApply(org.bukkit.entity.Player player) {
+        UUID uuid = player.getUniqueId();
+
+        // Cache hit — no I/O needed
+        PlayerData cached = cache.get(uuid);
+        if (cached != null) {
+            player.sendMessage(net.kyori.adventure.text.Component.text(
+                "Welcome back! Balance: " + cached.getBalance(),
+                net.kyori.adventure.text.format.NamedTextColor.GREEN));
+            return;
+        }
+
+        // Cache miss — load from DB
+        db.<PlayerData>queryAsync(conn -> {
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "SELECT * FROM player_data WHERE uuid = ?")) {
+                stmt.setString(1, uuid.toString());
+                ResultSet rs = stmt.executeQuery();
+                return rs.next() ? mapRow(rs) : createDefault(uuid);
+            }
+        }).thenAccept(data -> {
+            cache.put(uuid, data);
+            org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+                if (player.isOnline()) {
+                    player.sendMessage(net.kyori.adventure.text.Component.text(
+                        "Welcome! Balance: " + data.getBalance(),
+                        net.kyori.adventure.text.format.NamedTextColor.GREEN));
+                }
+            });
+        }).exceptionally(ex -> {
+            plugin.getLogger().severe("Failed to load " + uuid + ": " + ex.getMessage());
+            return null;
+        });
+    }
+
+    /** Fire-and-forget async save on player quit */
+    public void saveAndUnload(UUID uuid) {
+        PlayerData data = cache.remove(uuid);
+        if (data == null) return;
+        db.executeAsync(conn -> {
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "INSERT INTO player_data (uuid, name, balance, last_seen) " +
+                    "VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE " +
+                    "name=?, balance=?, last_seen=?")) {
+                stmt.setString(1, data.getUuid().toString());
+                stmt.setString(2, data.getName());
+                stmt.setDouble(3, data.getBalance());
+                stmt.setLong(4, data.getLastSeen());
+                stmt.setString(5, data.getName());
+                stmt.setDouble(6, data.getBalance());
+                stmt.setLong(7, data.getLastSeen());
+                stmt.executeUpdate();
+            }
+        });
+    }
+
+    /** Synchronous save for onDisable() — server is shutting down */
+    public void saveAllSync() {
+        for (PlayerData data : cache.values()) {
+            try (Connection conn = db.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(
+                     "INSERT INTO player_data (uuid, name, balance, last_seen) " +
+                     "VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE name=?, balance=?, last_seen=?")) {
+                stmt.setString(1, data.getUuid().toString());
+                stmt.setString(2, data.getName());
+                stmt.setDouble(3, data.getBalance());
+                stmt.setLong(4, data.getLastSeen());
+                stmt.setString(5, data.getName());
+                stmt.setDouble(6, data.getBalance());
+                stmt.setLong(7, data.getLastSeen());
+                stmt.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Failed to save " + data.getUuid() + ": " + e.getMessage());
+            }
+        }
+        cache.clear();
+    }
+}
+```
+
+### 7. config.yml Database Section
 
 ```yaml
 database:
+  type: mysql  # mysql or sqlite
   host: localhost
   port: 3306
-  database: minecraft
-  username: root
+  name: minecraft
+  user: root
   password: changeme
-```
-
-### 4. Dependency (pom.xml)
-
-```xml
-<dependency>
-    <groupId>com.zaxxer</groupId>
-    <artifactId>HikariCP</artifactId>
-    <version>5.1.0</version>
-</dependency>
-```
-
-### 5. Shade Configuration (pom.xml)
-
-```xml
-<plugin>
-    <groupId>org.apache.maven.plugins</groupId>
-    <artifactId>maven-shade-plugin</artifactId>
-    <version>3.5.1</version>
-    <configuration>
-        <relocations>
-            <relocation>
-                <pattern>com.zaxxer.hikari</pattern>
-                <shadedPattern>{package}.libs.hikari</shadedPattern>
-            </relocation>
-        </relocations>
-    </configuration>
-</plugin>
-```
-
-## Usage Example
-
-```java
-// In main plugin class
-private DatabaseManager databaseManager;
-private PlayerRepository playerRepository;
-
-@Override
-public void onEnable() {
-    databaseManager = new DatabaseManager(this);
-    playerRepository = new PlayerRepository(databaseManager);
-}
-
-@Override
-public void onDisable() {
-    databaseManager.shutdown();
-}
-
-// In listener
-@EventHandler
-public void onJoin(PlayerJoinEvent event) {
-    Player player = event.getPlayer();
-    
-    // Load async, apply sync
-    playerRepository.load(player.getUniqueId()).thenAccept(data -> {
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            if (data != null) {
-                player.sendMessage("Welcome back! Balance: " + data.getBalance());
-            } else {
-                // Create new player data
-                PlayerData newData = new PlayerData(player);
-                playerRepository.save(newData);
-            }
-        });
-    });
-}
 ```
 
 ## Critical Rules
 
-1. **NEVER** query database on main thread
-2. **ALWAYS** use HikariCP connection pool
-3. **ALWAYS** close connections (use try-with-resources)
-4. **ALWAYS** use PreparedStatement (prevent SQL injection)
+1. **NEVER** query database on main thread — always async with sync callback
+2. **ALWAYS** use HikariCP connection pool — never DriverManager.getConnection()
+3. **ALWAYS** close connections with try-with-resources
+4. **ALWAYS** use PreparedStatement — never string-concatenate SQL
 5. **ALWAYS** apply Bukkit API calls on main thread after async query
-6. **ALWAYS** shade HikariCP into your JAR
+6. **ALWAYS** shade HikariCP + relocate (but NOT JDBC drivers)
 7. **ALWAYS** close connection pool in onDisable()
+8. **ALWAYS** lock rows in UUID order to prevent deadlocks
+9. **ALWAYS** use `utf8mb4` charset for MySQL (not `utf8`)
+10. **ALWAYS** set `busy_timeout` on SQLite connections
+11. **ALWAYS** implement schema versioning from day one
+12. **ALWAYS** schedule pool health monitoring (every 60s)
+13. **NEVER** use `SELECT *` on tables with BLOB/TEXT columns
+14. **ALWAYS** batch multiple INSERTs into a single round-trip
+15. **ALWAYS** use `ON DUPLICATE KEY UPDATE` for upserts
 
 ## Common Mistakes to Avoid
 
-- ❌ Using `DriverManager.getConnection()` directly
-- ❌ Blocking main thread with database queries
-- ❌ Not closing connections
-- ❌ SQL injection via string concatenation
-- ❌ Forgetting to shade HikariCP
-- ❌ Not handling exceptions properly
+- ❌ Using `DriverManager.getConnection()` — loses connection pooling, prepared statement caching
+- ❌ Blocking main thread with database queries — server-wide TPS drop
+- ❌ Not closing connections — pool exhaustion → all queries hang
+- ❌ SQL injection via string concatenation — complete data loss possible
+- ❌ Forgetting to shade HikariCP — NoClassDefFoundError at runtime
+- ❌ Relocating JDBC drivers — breaks java.sql.DriverManager string-based class lookup
+- ❌ No schema versioning — manual migration nightmares on updates
+- ❌ SQLite without WAL mode — writers block all readers
+- ❌ MySQL with `utf8` charset — emoji in player names causes silent data truncation
+- ❌ Economy operations without atomic check-and-deduct — race condition → duplicated money

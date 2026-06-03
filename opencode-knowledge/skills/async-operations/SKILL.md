@@ -219,25 +219,151 @@ public void onDisable() {
 }
 ```
 
+### 7. Circuit Breaker for External Services
+
+```java
+/**
+ * Prevents cascading failure when external services (HTTP APIs, remote databases)
+ * become slow or unavailable. A single slow service can exhaust your thread pool
+ * and cascade into a full plugin outage. The circuit breaker fast-fails after
+ * N consecutive failures, giving the service time to recover.
+ */
+public class CircuitBreaker {
+    private enum State { CLOSED, OPEN, HALF_OPEN }
+    private State state = State.CLOSED;
+    private int failureCount = 0;
+    private long lastFailureTime = 0;
+    private final int failureThreshold;
+    private final long resetTimeoutMs;
+    private final JavaPlugin plugin;
+
+    public CircuitBreaker(JavaPlugin plugin, int failureThreshold, long resetTimeoutMs) {
+        this.plugin = plugin;
+        this.failureThreshold = failureThreshold;
+        this.resetTimeoutMs = resetTimeoutMs;
+    }
+
+    public synchronized boolean allowRequest() {
+        long now = System.currentTimeMillis();
+        switch (state) {
+            case CLOSED -> { return true; }
+            case OPEN -> {
+                if (now - lastFailureTime > resetTimeoutMs) {
+                    state = State.HALF_OPEN;
+                    failureCount = 0;
+                    plugin.getLogger().info("Circuit breaker HALF_OPEN — testing external service...");
+                    return true;
+                }
+                return false; // Fast-fail — circuit is open
+            }
+            case HALF_OPEN -> { return failureCount < 3; }
+        }
+        return false;
+    }
+
+    public synchronized void recordSuccess() {
+        if (state == State.HALF_OPEN) {
+            state = State.CLOSED;
+            failureCount = 0;
+            plugin.getLogger().info("Circuit breaker CLOSED — external service recovered.");
+        }
+    }
+
+    public synchronized void recordFailure() {
+        failureCount++;
+        lastFailureTime = System.currentTimeMillis();
+        if (state == State.CLOSED && failureCount >= failureThreshold) {
+            state = State.OPEN;
+            plugin.getLogger().warning("Circuit breaker OPEN — external service unavailable. Fast-failing for "
+                + resetTimeoutMs + "ms.");
+        }
+    }
+}
+
+// Usage:
+private final CircuitBreaker apiBreaker = new CircuitBreaker(plugin, 5, 30_000);
+
+public void fetchRemoteData(Runnable onSuccess) {
+    if (!apiBreaker.allowRequest()) {
+        plugin.getLogger().warning("Circuit open — using cached data instead.");
+        return; // Use stale cache or fallback
+    }
+    CompletableFuture.supplyAsync(() -> {
+        return httpClient.get("https://api.example.com/data"); // May throw
+    }, ioExecutor).thenAccept(data -> {
+        apiBreaker.recordSuccess();
+        Bukkit.getScheduler().runTask(plugin, () -> onSuccess.run());
+    }).exceptionally(ex -> {
+        apiBreaker.recordFailure();
+        plugin.getLogger().severe("API call failed: " + ex.getMessage());
+        return null;
+    });
+}
+```
+
+### 8. Timeout Handling for Async Operations
+
+```java
+/**
+ * Wraps a CompletableFuture with a timeout. If the operation doesn't complete
+ * within the timeout, the future is cancelled and a fallback is returned.
+ */
+public <T> CompletableFuture<T> withTimeout(CompletableFuture<T> future, long timeout, TimeUnit unit, T fallback) {
+    return future
+        .orTimeout(timeout, unit)
+        .exceptionally(ex -> {
+            if (ex instanceof TimeoutException) {
+                plugin.getLogger().warning("Async operation timed out after " + timeout + " " + unit);
+            } else {
+                plugin.getLogger().severe("Async operation failed: " + ex.getMessage());
+            }
+            return fallback;
+        });
+}
+
+// Usage:
+CompletableFuture<PlayerData> loadFuture = db.queryAsync(conn -> loadPlayer(conn, uuid));
+loadFuture = withTimeout(loadFuture, 5, TimeUnit.SECONDS, PlayerData.createDefault(uuid));
+loadFuture.thenAccept(data -> {
+    Bukkit.getScheduler().runTask(plugin, () -> applyToPlayer(player, data));
+});
+```
+
 ## Critical Rules
 
 1. **NEVER call Bukkit API from async thread** — IllegalStateException or silent corruption
-2. **ALWAYS use a sync callback** (`runTask` inside `runTaskAsynchronously`) for Bukkit API
+2. **ALWAYS use a sync callback** (`runTask` inside async completion) for Bukkit API
 3. **Always check `player.isOnline()`** in the sync callback — player may have disconnected
-4. **Use a dedicated ExecutorService** — don't use ForkJoinPool.commonPool()
-5. **Handle exceptions in every async chain** — unhandled exceptions silently kill the task
-6. **Shutdown executors in `onDisable()`** — otherwise threads prevent JVM exit
+4. **Use a dedicated ExecutorService** — NEVER use ForkJoinPool.commonPool() for I/O operations
+5. **Handle exceptions in EVERY async chain** — unhandled exceptions silently kill the task
+6. **Shutdown executors gracefully in `onDisable()`** — await termination, then force shutdown
 7. **Never load all database rows at once** — load on demand, unload on quit
+8. **Use circuit breakers for external HTTP API calls** — prevent cascading failure
+9. **Always set timeouts on async operations** — hung operations leak threads
+10. **Use `ConcurrentHashMap` for any cache accessed from async threads**
 
 ## Thread Safety Summary
 
 ```
 MAIN THREAD (Safe):
-  Bukkit API, Player state, World changes, Inventory, Teleport, Scoreboard
+  Bukkit API, Player state, World changes, Inventory, Teleport, Scoreboard, Event firing
 
 ASYNC THREAD (Safe):
   Database queries, HTTP calls, File I/O, Computations, Redis, Serialization
 
 BRIDGE PATTERN:
-  runTaskAsynchronously { DB work } -> runTask { Bukkit API }
+  1. Event fires (main thread) → 2. CompletableFuture.supplyAsync (worker thread)
+  → 3. .thenAccept (still worker) → 4. Bukkit.getScheduler().runTask (back to main)
+  → 5. Apply to Bukkit API (main thread)
 ```
+
+## Thread Pool Sizing Guide
+
+| Plugin Type | DB Threads | I/O Threads | Rationale |
+|------------|-----------|-------------|-----------|
+| Small (<5 online) | 2 | 2 | Minimal concurrent operations |
+| Medium (20-50 online) | 4 | 2 | Multiple concurrent joins/quits |
+| Large (100+ online) | 6 | 4 | High join/quit churn, batch saves |
+| Network (cross-server) | 8 | 4 | Shared database across servers |
+
+**Formula:** `dbThreads = ceil(activeConnections / 2)`. If your connection pool has 5 connections, a thread pool of 3 is sufficient — more threads than connections just queue waiting for connections.

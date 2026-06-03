@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { eq, and, desc } from 'drizzle-orm'
+import { eq, and, desc, inArray } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { projects } from '../db/schema/projects.js'
 import { users } from '../db/schema/users.js'
@@ -8,6 +8,7 @@ import { agentSessions } from '../db/schema/agent-sessions.js'
 import { agentMessages } from '../db/schema/agent-messages.js'
 import { agentLogs } from '../db/schema/agent-logs.js'
 import { providerApiKeys } from '../db/schema/provider-api-keys.js'
+import { nimJobs } from '../db/schema/nim-jobs.js'
 import { authMiddleware } from '../middleware/auth.js'
 import { agentExecutor } from '../agents/executor.js'
 import { opencodeBridge, sessionEventBus } from '../bridges/index.js'
@@ -25,7 +26,16 @@ const createSessionSchema = z.object({
 })
 
 const sendMessageSchema = z.object({
-  content: z.string().min(1).max(10000),
+  content: z.string().min(1).max(50000),
+  // Optional: when present, this short summary is the VISIBLE user message while the
+  // full `content` is what the agent executes. (Currently unused by the NIM flows —
+  // the Error Prompt Maker now shows the full prompt — but kept for flexibility.)
+  displayContent: z.string().max(2000).optional(),
+  // Optional: a NIM error_fix job id. When present the send is "claimed" against that
+  // job atomically (running/ready → completed) so it can only ever dispatch ONCE,
+  // making the dispatch idempotent + refresh-proof (a reload re-attaches and retries,
+  // but the claim is already taken so no duplicate message is sent).
+  nimJobId: z.string().uuid().optional(),
   model: z.string().max(100).optional(),
   bridge: z.enum(['opencode', 'kiro']).optional(),
   speed: z.enum(['fast', 'slow', 'rate_limited']).optional(),
@@ -278,6 +288,26 @@ export async function agentRoutes(app: FastifyInstance) {
       return reply.status(409).send({ message: 'Agent is already processing', statusCode: 409 })
     }
 
+    // NIM error-fix dispatch claim: atomically flip the job ready/running → completed.
+    // This is the single source of truth that the prompt has been dispatched, so a
+    // page refresh that re-attaches and retries the send can't double-dispatch — the
+    // claim row is already 'completed', the UPDATE matches nothing, and we 409.
+    if (parsed.data.nimJobId) {
+      const claimed = await db
+        .update(nimJobs)
+        .set({ status: 'completed', updatedAt: new Date() })
+        .where(and(
+          eq(nimJobs.id, parsed.data.nimJobId),
+          eq(nimJobs.projectId, projectId),
+          eq(nimJobs.userId, request.user!.id),
+          inArray(nimJobs.status, ['ready', 'running']),
+        ))
+        .returning({ id: nimJobs.id })
+      if (claimed.length === 0) {
+        return reply.status(409).send({ message: 'This fix prompt has already been dispatched', statusCode: 409 })
+      }
+    }
+
     // Persist the user message and flip the session to 'running' IMMEDIATELY —
     // before any of the slow provisioning below (LiteLLM proxy cold-start, OpenCode
     // instance spawn, knowledge generation), which can take 10-20s on a fresh
@@ -289,9 +319,13 @@ export async function agentRoutes(app: FastifyInstance) {
     // during that window lost the message entirely.) Validation below may still reject
     // the request; on those paths rejectSend() rolls back so nothing is left dangling.
     const prevSessionStatus = session.status
+    // The VISIBLE user message is `displayContent` when provided (a short summary),
+    // while the agent still executes the full `parsed.data.content`. This keeps a
+    // NIM-generated fix prompt out of the chat UI ("silent" Error Prompt Maker).
+    const visibleContent = parsed.data.displayContent ?? parsed.data.content
     const [message] = await db
       .insert(agentMessages)
-      .values({ sessionId, role: 'user', content: parsed.data.content })
+      .values({ sessionId, role: 'user', content: visibleContent })
       .returning()
     await db
       .update(agentSessions)

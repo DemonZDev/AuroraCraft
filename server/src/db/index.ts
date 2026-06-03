@@ -11,11 +11,12 @@ import * as codeReviews from './schema/code-reviews.js'
 import * as providerApiKeys from './schema/provider-api-keys.js'
 import * as projectLikes from './schema/project-likes.js'
 import * as projectViews from './schema/project-views.js'
+import * as nimJobs from './schema/nim-jobs.js'
 
 const client = postgres(env.DATABASE_URL)
 
 export const db = drizzle(client, {
-  schema: { ...users, ...sessions, ...projects, ...agentSessions, ...agentMessages, ...agentLogs, ...codeReviews, ...providerApiKeys, ...projectLikes, ...projectViews },
+  schema: { ...users, ...sessions, ...projects, ...agentSessions, ...agentMessages, ...agentLogs, ...codeReviews, ...providerApiKeys, ...projectLikes, ...projectViews, ...nimJobs },
 })
 
 export type Database = typeof db

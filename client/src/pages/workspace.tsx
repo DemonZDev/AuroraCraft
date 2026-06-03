@@ -1,4 +1,7 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react'
+import { PromptEnhancerModal, type EnhancerPhase } from '@/components/prompt-enhancer-modal'
+import { ErrorPromptMakerModal } from '@/components/error-prompt-maker-modal'
+import { useNimModels, useHasNimKey, useNimMutations, useNimJob, useActiveNimJob, isTerminal } from '@/hooks/use-nim'
 import { SOFTWARE_LABELS } from '@/lib/software-options'
 import { CustomSelect } from '@/components/ui/custom-select'
 import { Link, useParams } from 'react-router'
@@ -1267,7 +1270,7 @@ function getBridgeFromModel(modelId: string): 'opencode' | 'kiro' {
 
 
 
-function ChatPanel({ projectId, projectBridge, selectedModel, selectedSpeed, onModelChange, onSpeedChange, onRefreshFiles, onFileSelect, autoFixPayload, onAutoFixComplete, workspaceDisabled, onAiRunningChange, stopAiRef }: {
+function ChatPanel({ projectId, projectBridge, selectedModel, selectedSpeed, onModelChange, onSpeedChange, onRefreshFiles, onFileSelect, autoFixPayload, onAutoFixComplete, workspaceDisabled, onAiRunningChange, stopAiRef, onBeforeSend }: {
   projectId: string
   projectBridge?: string
   selectedModel: string
@@ -1276,11 +1279,12 @@ function ChatPanel({ projectId, projectBridge, selectedModel, selectedSpeed, onM
   onSpeedChange?: (speed: string) => void
   onRefreshFiles?: () => void
   onFileSelect?: (path: string) => void
-  autoFixPayload?: { prompt: string; model: string } | null
+  autoFixPayload?: { prompt: string; model: string; nimJobId?: string } | null
   onAutoFixComplete?: () => void
   workspaceDisabled?: boolean
   onAiRunningChange?: (running: boolean) => void
   stopAiRef?: React.MutableRefObject<(() => void) | null>
+  onBeforeSend?: (rawPrompt: string, deliver: (finalPrompt: string) => void) => void
 }) {
   const { sessions, isLoading: sessionsLoading, createSession } = useAgentSessions(projectId)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(() => {
@@ -1291,7 +1295,7 @@ function ChatPanel({ projectId, projectBridge, selectedModel, selectedSpeed, onM
     }
     return null
   })
-  const [pendingMessage, setPendingMessage] = useState<{ content: string; model: string } | null>(null)
+  const [pendingMessage, setPendingMessage] = useState<{ content: string; model: string; nimJobId?: string } | null>(null)
   
   const availableModels = AI_MODELS.filter(() => {
     if (!projectBridge) return true
@@ -1330,17 +1334,17 @@ function ChatPanel({ projectId, projectBridge, selectedModel, selectedSpeed, onM
 
   useEffect(() => {
     if (!autoFixPayload) return
-    const key = `${autoFixPayload.prompt}::${autoFixPayload.model}`
+    const key = autoFixPayload.nimJobId ?? `${autoFixPayload.prompt}::${autoFixPayload.model}`
     if (autoFixProcessedRef.current === key) return
     autoFixProcessedRef.current = key
 
     if (resolvedSessionId) {
-      setPendingMessage({ content: autoFixPayload.prompt, model: autoFixPayload.model })
+      setPendingMessage({ content: autoFixPayload.prompt, model: autoFixPayload.model, nimJobId: autoFixPayload.nimJobId })
     } else {
       const bridge = getBridgeFromModel(autoFixPayload.model)
       createSession({ bridge }).then((session) => {
         setActiveSessionId(session.id)
-        setPendingMessage({ content: autoFixPayload.prompt, model: autoFixPayload.model })
+        setPendingMessage({ content: autoFixPayload.prompt, model: autoFixPayload.model, nimJobId: autoFixPayload.nimJobId })
       })
     }
     onAutoFixComplete?.()
@@ -1355,7 +1359,7 @@ function ChatPanel({ projectId, projectBridge, selectedModel, selectedSpeed, onM
   }
 
   if (!resolvedSessionId) {
-    return <ChatEmptyState onSessionCreated={handleSessionCreated} createSession={createSession} selectedModel={selectedModel} selectedSpeed={selectedSpeed} onModelChange={onModelChange} onSpeedChange={onSpeedChange} />
+    return <ChatEmptyState onSessionCreated={handleSessionCreated} createSession={createSession} selectedModel={selectedModel} selectedSpeed={selectedSpeed} onModelChange={onModelChange} onSpeedChange={onSpeedChange} onBeforeSend={onBeforeSend} />
   }
 
   return (
@@ -1374,6 +1378,7 @@ function ChatPanel({ projectId, projectBridge, selectedModel, selectedSpeed, onM
       workspaceDisabled={workspaceDisabled}
       onAiRunningChange={onAiRunningChange}
       stopAiRef={stopAiRef}
+      onBeforeSend={onBeforeSend}
     />
   )
 }
@@ -1458,13 +1463,14 @@ const ChatInput = memo(function ChatInput({ onSend, disabled, isRunning, isCance
   )
 })
 
-function ChatEmptyState({ onSessionCreated, createSession, selectedModel, selectedSpeed, onModelChange, onSpeedChange }: {
+function ChatEmptyState({ onSessionCreated, createSession, selectedModel, selectedSpeed, onModelChange, onSpeedChange, onBeforeSend }: {
   onSessionCreated: (id: string, message: string) => void
   createSession: (body?: { bridge?: 'opencode' | 'kiro' }) => Promise<{ id: string }>
   selectedModel: string
   selectedSpeed?: string
   onModelChange: (modelId: string) => void
   onSpeedChange?: (speed: string) => void
+  onBeforeSend?: (rawPrompt: string, deliver: (finalPrompt: string) => void) => void
 }) {
   const [isCreating, setIsCreating] = useState(false)
 
@@ -1483,9 +1489,13 @@ function ChatEmptyState({ onSessionCreated, createSession, selectedModel, select
       </div>
       <ChatInput
         onSend={(msg) => {
-          setIsCreating(true)
-          const bridge = getBridgeFromModel(selectedModel)
-          createSession({ bridge }).then((session) => onSessionCreated(session.id, msg)).catch(() => setIsCreating(false))
+          const deliver = (finalPrompt: string) => {
+            setIsCreating(true)
+            const bridge = getBridgeFromModel(selectedModel)
+            createSession({ bridge }).then((session) => onSessionCreated(session.id, finalPrompt)).catch(() => setIsCreating(false))
+          }
+          if (onBeforeSend) onBeforeSend(msg, deliver)
+          else deliver(msg)
         }}
         disabled={isCreating}
         selectedModel={selectedModel}
@@ -1498,10 +1508,10 @@ function ChatEmptyState({ onSessionCreated, createSession, selectedModel, select
   )
 }
 
-function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSent, selectedModel, selectedSpeed, onModelChange, onSpeedChange, availableModels, onRefreshFiles, onFileSelect, workspaceDisabled, onAiRunningChange, stopAiRef }: {
+function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSent, selectedModel, selectedSpeed, onModelChange, onSpeedChange, availableModels, onRefreshFiles, onFileSelect, workspaceDisabled, onAiRunningChange, stopAiRef, onBeforeSend }: {
   projectId: string
   sessionId: string
-  pendingMessage?: { content: string; model: string } | null
+  pendingMessage?: { content: string; model: string; nimJobId?: string } | null
   onPendingMessageSent?: () => void
   selectedModel: string
   selectedSpeed?: string
@@ -1513,6 +1523,7 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
   workspaceDisabled?: boolean
   onAiRunningChange?: (running: boolean) => void
   stopAiRef?: React.MutableRefObject<(() => void) | null>
+  onBeforeSend?: (rawPrompt: string, deliver: (finalPrompt: string) => void) => void
 }) {
   const { session, messages, isLoading, sendMessage, isSending, sendError, invalidateAndRefetch, cancelSession, isCancelling } = useAgentSession(projectId, sessionId)
   const [awaitingStream, setAwaitingStream] = useState(false)
@@ -1548,7 +1559,7 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
       resetStream()
       streamStartMessageCountRef.current = messages.length
       completionHandledRef.current = false
-      void sendMessage({ content: pendingMessage.content, model: pendingMessage.model, bridge: getBridgeFromModel(pendingMessage.model), speed: selectedSpeed }).catch(() => setAwaitingStream(false))
+      void sendMessage({ content: pendingMessage.content, model: pendingMessage.model, bridge: getBridgeFromModel(pendingMessage.model), speed: selectedSpeed, nimJobId: pendingMessage.nimJobId }).catch(() => setAwaitingStream(false))
       onPendingMessageSent?.()
     }
   }, [pendingMessage, isConnected, sendMessage, onPendingMessageSent, resetStream, messages.length, selectedSpeed])
@@ -1562,7 +1573,7 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
         resetStream()
         streamStartMessageCountRef.current = messages.length
         completionHandledRef.current = false
-        void sendMessage({ content: pendingMessage.content, model: pendingMessage.model, bridge: getBridgeFromModel(pendingMessage.model), speed: selectedSpeed }).catch(() => setAwaitingStream(false))
+        void sendMessage({ content: pendingMessage.content, model: pendingMessage.model, bridge: getBridgeFromModel(pendingMessage.model), speed: selectedSpeed, nimJobId: pendingMessage.nimJobId }).catch(() => setAwaitingStream(false))
         onPendingMessageSent?.()
       }
     }, 5000)
@@ -1779,7 +1790,7 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
           </div>
         )}
         <ChatInput
-          onSend={handleSend}
+          onSend={(msg) => { if (onBeforeSend) onBeforeSend(msg, handleSend); else handleSend(msg) }}
           disabled={isSending || session?.status === 'running' || workspaceDisabled}
           isRunning={isRunning || awaitingStream}
           isCancelling={isCancelling}
@@ -2236,19 +2247,177 @@ export default function WorkspacePage() {
   }, [project?.bridge, selectedModel])
 
   const [selectedIssues, setSelectedIssues] = useState<Array<{ reviewId: string; issueIdx: number }>>([])
-  const [autoFixPayload, setAutoFixPayload] = useState<{ prompt: string; model: string } | null>(null)
+  const [autoFixPayload, setAutoFixPayload] = useState<{ prompt: string; model: string; nimJobId?: string } | null>(null)
   const [fixConfirmOpen, setFixConfirmOpen] = useState(false)
+  // In-Built Prompt Maker: model chosen in its "Select AI Model" modal (does NOT mutate
+  // the global workspace model). pendingInBuiltModel carries it across the re-fix confirm.
+  const [inBuiltModel, setInBuiltModel] = useState<string>('')
+  const [pendingInBuiltModel, setPendingInBuiltModel] = useState<string>('')
 
   const [aiRunning, setAiRunning] = useState(false)
   const stopAiRef = useRef<(() => void) | null>(null)
 
+  // ── NIM Prompt Enhancer ─────────────────────────────────────────────
+  const hasNimKey = useHasNimKey()
+  const { models: nimModels, defaultId: nimDefault } = useNimModels()
+  const nim = useNimMutations(projectId ?? '')
+  const [enhPhase, setEnhPhase] = useState<EnhancerPhase | null>(null)
+  const [enhJobId, setEnhJobId] = useState<string | null>(null)
+  const [enhPending, setEnhPending] = useState('')
+  const enhDeliverRef = useRef<((finalPrompt: string) => void) | null>(null)
+  const enhDismissedRef = useRef<Set<string>>(new Set())
+  const enhJob = useNimJob(projectId ?? '', enhJobId)
+  const { activeJob } = useActiveNimJob(projectId ?? '', hasNimKey)
+  const enhancerActive = enhPhase !== null
+  // ── Error Prompt Maker (Option A) ───────────────────────────────────
+  const [showErrorMaker, setShowErrorMaker] = useState(false)
+  const [errFixJobId, setErrFixJobId] = useState<string | null>(null)
+  const errFixJob = useNimJob(projectId ?? '', errFixJobId)
+  const errFixDispatchedRef = useRef<Set<string>>(new Set())
+  // True from "prompt ready → handed to the Agent" until the agent run's own lock
+  // (aiRunning) engages — bridges the gap so the workspace never briefly unlocks
+  // while the fix prompt is being sent.
+  const [fixDispatching, setFixDispatching] = useState(false)
+  // Active while an AI/in-built fix job is generating OR its prompt is being dispatched
+  // to the Agent. Locks the workspace the whole time and survives refresh (reattach).
+  const errorFixActive = errFixJobId !== null || fixDispatching
+
+  // ── Prompt Enhancer dispatch (refresh-proof agent hand-off) ─────────
+  const [agentDispatchJobId, setAgentDispatchJobId] = useState<string | null>(null)
+  const agentDispatchJob = useNimJob(projectId ?? '', agentDispatchJobId)
+  const agentDispatchDispatchedRef = useRef<Set<string>>(new Set())
+  // Bridges the brief gap between clearing agentDispatchJobId (after handing to the
+  // Agent send path) and aiRunning actually engaging, so the workspace never unlocks.
+  const [agentDispatchBridging, setAgentDispatchBridging] = useState(false)
+  const agentDispatchActive = agentDispatchJobId !== null || agentDispatchBridging
+
   // ── Review Lock System ──────────────────────────────────────────────
   const [reviewLock, setReviewLock] = useState<{ status: 'pending' | 'error' | 'completed'; reviewId: string; error?: string } | null>(null)
   const isReviewLocked = reviewLock?.status === 'pending'
-  const isWorkspaceLocked = isReviewLocked || aiRunning
+  const isWorkspaceLocked = isReviewLocked || aiRunning || enhancerActive || errorFixActive || agentDispatchActive
 
   // ── Toast Notifications ─────────────────────────────────────────────
   const { addToast, ToastContainer } = useToasts()
+
+  // ── Prompt Enhancer wiring ──────────────────────────────────────────
+  // Intercept a user-typed send: with a NIM key, open the enhancer; otherwise deliver as-is.
+  const requestEnhance = useCallback((rawPrompt: string, deliver: (finalPrompt: string) => void) => {
+    if (!hasNimKey) { deliver(rawPrompt); return }
+    enhDeliverRef.current = deliver
+    setEnhPending(rawPrompt)
+    setEnhPhase('confirm')
+  }, [hasNimKey])
+
+  // Drive the modal phase from the polled job.
+  useEffect(() => {
+    if (!enhJobId || !enhJob) return
+    if (enhJob.status === 'awaiting_user') setEnhPhase('result')
+    else if (enhJob.status === 'running') setEnhPhase('working')
+    else if (enhJob.status === 'timeout' || enhJob.status === 'failed') setEnhPhase('working')
+    else if (enhJob.status === 'cancelled' || enhJob.status === 'completed') { setEnhPhase(null); setEnhJobId(null) }
+  }, [enhJob, enhJobId])
+
+  // Re-attach a live enhance job on workspace open / refresh.
+  useEffect(() => {
+    if (enhPhase !== null || enhJobId) return
+    if (activeJob && activeJob.kind === 'prompt_enhance' && !isTerminal(activeJob.status) && !enhDismissedRef.current.has(activeJob.id)) {
+      setEnhJobId(activeJob.id)
+      setEnhPhase(activeJob.status === 'awaiting_user' ? 'result' : 'working')
+    }
+  }, [activeJob, enhJobId, enhPhase])
+
+  // Error-fix: when the optimised prompt is READY, dispatch the FULL prompt to the Agent.
+  // The send carries nimJobId so the server claims the job atomically (ready→completed),
+  // making dispatch idempotent + refresh-proof. We keep errFixJobId set (workspace stays
+  // locked) until the send is initiated, then clear it (aiRunning takes over the lock).
+  useEffect(() => {
+    if (!errFixJobId || !errFixJob) return
+    if (errFixJob.status === 'ready' && errFixJob.result?.prompt) {
+      const jid = errFixJobId
+      if (errFixDispatchedRef.current.has(jid)) return
+      errFixDispatchedRef.current.add(jid)
+      const prompt = errFixJob.result.prompt
+      const model = errFixJob.agentModel ?? selectedModel
+      if (isMobile) setMobileTab('chat')
+      // Hand off to the agent send path (creates a session if needed). nimJobId makes it
+      // single-dispatch even if a refresh re-attaches and retries.
+      setFixDispatching(true)
+      setAutoFixPayload({ prompt, model, nimJobId: jid })
+      // Release the generation lock; fixDispatching keeps the workspace locked until the
+      // agent run's own lock (aiRunning) engages.
+      setErrFixJobId(null)
+    } else if (errFixJob.status === 'failed' || errFixJob.status === 'timeout' || errFixJob.status === 'cancelled') {
+      const jid = errFixJobId
+      errFixDispatchedRef.current.add(jid)
+      setErrFixJobId(null)
+      if (errFixJob.status !== 'cancelled') {
+        addToast(errFixJob.status === 'timeout'
+          ? 'We are experiencing high traffic so the feature didn’t respond.'
+          : 'Auto-fix could not be prepared.', 'error')
+      }
+    }
+  }, [errFixJob, errFixJobId, selectedModel, isMobile])
+
+  // Re-attach a live error-fix job on workspace open / refresh (running OR ready-not-yet-sent).
+  useEffect(() => {
+    if (errFixJobId) return
+    if (activeJob && activeJob.kind === 'error_fix' && !isTerminal(activeJob.status) && !errFixDispatchedRef.current.has(activeJob.id)) {
+      setErrFixJobId(activeJob.id)
+    }
+  }, [activeJob, errFixJobId])
+
+  // Release the dispatch bridge-lock once the agent run has actually started, or as a
+  // safety net shortly after handoff (so a failed handoff can't lock forever).
+  useEffect(() => {
+    if (!fixDispatching) return
+    if (aiRunning) { setFixDispatching(false); return }
+    const t = setTimeout(() => setFixDispatching(false), 15000)
+    return () => clearTimeout(t)
+  }, [fixDispatching, aiRunning])
+
+  // ── Agent dispatch (enhancer → agent, refresh-proof) ─────────────────
+  // Re-attach a live agent_dispatch job on workspace open / refresh.
+  useEffect(() => {
+    if (agentDispatchJobId) return
+    if (activeJob && activeJob.kind === 'agent_dispatch' && activeJob.status === 'ready' && !agentDispatchDispatchedRef.current.has(activeJob.id)) {
+      setAgentDispatchJobId(activeJob.id)
+    }
+  }, [activeJob, agentDispatchJobId])
+
+  // When the dispatch job is ready, hand the FULL enhanced prompt to the Agent send path
+  // with nimJobId so the server claims it atomically (prevents duplicate on refresh).
+  useEffect(() => {
+    if (!agentDispatchJobId || !agentDispatchJob) return
+    if (agentDispatchJob.status === 'ready' && agentDispatchJob.result?.prompt) {
+      const jid = agentDispatchJobId
+      if (agentDispatchDispatchedRef.current.has(jid)) return
+      agentDispatchDispatchedRef.current.add(jid)
+      const prompt = agentDispatchJob.result.prompt
+      const model = agentDispatchJob.agentModel ?? selectedModel
+      if (isMobile) setMobileTab('chat')
+      setAgentDispatchBridging(true)
+      setAutoFixPayload({ prompt, model, nimJobId: jid })
+      setAgentDispatchJobId(null)
+    } else if (isTerminal(agentDispatchJob.status)) {
+      const jid = agentDispatchJobId
+      agentDispatchDispatchedRef.current.add(jid)
+      setAgentDispatchJobId(null)
+      setAgentDispatchBridging(false)
+      if (agentDispatchJob.status !== 'cancelled') {
+        addToast(agentDispatchJob.status === 'timeout'
+          ? 'We are experiencing high traffic so the feature didn’t respond.'
+          : 'Could not dispatch the enhanced prompt.', 'error')
+      }
+    }
+  }, [agentDispatchJob, agentDispatchJobId, selectedModel, isMobile])
+
+  // Release the agent dispatch bridge-lock once the agent run has started.
+  useEffect(() => {
+    if (!agentDispatchBridging) return
+    if (aiRunning) { setAgentDispatchBridging(false); return }
+    const t = setTimeout(() => setAgentDispatchBridging(false), 15000)
+    return () => clearTimeout(t)
+  }, [agentDispatchBridging, aiRunning])
 
   const toggleIssueSelection = (reviewId: string, idx: number) => {
     setSelectedIssues(prev => {
@@ -2258,28 +2427,32 @@ export default function WorkspacePage() {
     })
   }
 
-const handleAutoFix = () => {
+const openInBuiltAutoFix = () => {
+    if (!project) return
+    // Default the picker to the current workspace model; the modal lists the full
+    // AI_MODELS set (same as the workspace selector). Does not mutate the global model.
+    setInBuiltModel(selectedModel)
+    setAutoFixModalOpen(true)
+  }
+
+  const handleAutoFix = () => {
     if (!project || selectedIssues.length === 0) {
       if (selectedIssues.length === 0) addToast('Please select at least one issue to fix', 'error')
       return
     }
-    const availableModelsForBridge = AI_MODELS.filter(m => {
-      if (!project.bridge) return true
-      return project.bridge === 'kiro' ? m.id.startsWith('kiro/') : m.id.startsWith('opencode/')
-    })
-    if (availableModelsForBridge.length > 0) {
-      setSelectedModel(availableModelsForBridge[0].id)
-    }
-    setAutoFixModalOpen(true)
+    // With a NIM key, offer AI Prompt Maker vs In-Built; otherwise go straight to in-built.
+    if (hasNimKey) { setShowErrorMaker(true); return }
+    openInBuiltAutoFix()
   }
 
-  const confirmAutoFix = async (skipConfirmation = false) => {
+  const confirmAutoFix = async (agentModel: string, skipConfirmation = false) => {
     if (!skipConfirmation) {
       const hasFixed = selectedIssues.some(({ reviewId, issueIdx }) => {
         const review = reviewHistory.find(r => r.id === reviewId)
         return review?.issuesJson?.[issueIdx]?._fixed === true
       })
       if (hasFixed) {
+        setPendingInBuiltModel(agentModel)
         setFixConfirmOpen(true)
         return
       }
@@ -2294,7 +2467,7 @@ const handleAutoFix = () => {
       return
     }
 
-    const prompt = `Fix the following code review issues:\n\n${issues.map((issue: any, i: number) => 
+    const prompt = `Fix the following code review issues:\n\n${issues.map((issue: any, i: number) =>
       `${i + 1}. [${issue.severity}] ${issue.fileName}\n${issue.codegenInstructions}\n`
     ).join('\n')}`
 
@@ -2327,7 +2500,15 @@ const handleAutoFix = () => {
 
     if (isMobile) setMobileTab('chat')
 
-    setAutoFixPayload({ prompt, model: selectedModel })
+    // Register the in-built prompt as a ready dispatch job so the send is locked +
+    // refresh-proof + single-dispatch, exactly like the AI flow. The dispatch effect
+    // (driven by errFixJob 'ready') then hands it to the Agent.
+    try {
+      const r = await nim.dispatch.mutateAsync({ prompt, agentModel })
+      setErrFixJobId(r.jobId)
+    } catch {
+      addToast('Could not start the fix.', 'error')
+    }
   }
 
   const fetchReviewHistory = async () => {
@@ -2596,7 +2777,6 @@ const handleAutoFix = () => {
         if (data.status === 'pending') {
           setReviewLock({ status: 'pending', reviewId: data.reviewId })
           fetchReviewHistory()
-          addToast('Code review started — running in background', 'info')
         } else {
           setReviewResults(data)
           fetchReviewHistory()
@@ -2671,6 +2851,133 @@ const handleAutoFix = () => {
     )
   }
 
+  // NIM overlays (Prompt Enhancer + Error Prompt Maker) — rendered in BOTH the mobile
+  // and desktop return trees below so the feature works on every layout.
+  const nimOverlays = (
+    <>
+      {/* Prompt Enhancer (NVIDIA NIM) — interactive phases only (confirm/options/result).
+          The 'working' phase shows the top status banner instead of a centered modal. */}
+      {enhPhase && enhPhase !== 'working' && (
+        <PromptEnhancerModal
+          phase={enhPhase}
+          job={enhJob}
+          models={nimModels}
+          defaultModelId={nimDefault}
+          onSendAsIs={() => {
+            const d = enhDeliverRef.current; const p = enhPending
+            enhDeliverRef.current = null; setEnhPhase(null); setEnhPending('')
+            d?.(p)
+          }}
+          onEnhanceClicked={() => setEnhPhase('options')}
+          onStart={(style, model) => {
+            nim.enhance.mutateAsync({ prompt: enhPending, style, nimModel: model })
+              .then((r) => { setEnhJobId(r.jobId); setEnhPhase('working') })
+              .catch(() => { setEnhPhase(null); addToast('Could not start the enhancer.', 'error') })
+          }}
+          onConfirmSend={() => {
+            const jid = enhJobId
+            if (jid) enhDismissedRef.current.add(jid)
+            enhDeliverRef.current = null; setEnhPhase(null); setEnhJobId(null); setEnhPending('')
+            if (!jid) return
+            // Create a refresh-proof dispatch job (server marks enhance completed + creates
+            // a ready agent_dispatch job). The agent send + atomic claim is handled by the
+            // same dispatch effect used for the error-fix flow.
+            nim.enhanceDispatch.mutateAsync({ jobId: jid, agentModel: selectedModel })
+              .then((r: { jobId: string }) => setAgentDispatchJobId(r.jobId))
+              .catch(() => addToast('Could not dispatch enhanced prompt to agent.', 'error'))
+          }}
+          onRefine={(changeRequest) => { if (enhJobId) { void nim.refine.mutateAsync({ jobId: enhJobId, changeRequest }); setEnhPhase('working') } }}
+          onCancel={() => {
+            const jid = enhJobId
+            if (jid) enhDismissedRef.current.add(jid)
+            enhDeliverRef.current = null; setEnhPhase(null); setEnhJobId(null); setEnhPending('')
+            if (jid) void nim.cancel.mutateAsync(jid)
+          }}
+        />
+      )}
+
+      {/* Error Prompt Maker — 2-option window (AI Prompt Maker vs In-Built) */}
+      {showErrorMaker && (
+        <ErrorPromptMakerModal
+          nimModels={nimModels}
+          nimDefault={nimDefault}
+          agentModels={AI_MODELS}
+          defaultAgentModel={selectedModel}
+          onClose={() => setShowErrorMaker(false)}
+          onPickInBuilt={() => { setShowErrorMaker(false); openInBuiltAutoFix() }}
+          onStartAI={(nimModel, agentModel) => {
+            setShowErrorMaker(false)
+            const refs = selectedIssues.map(s => ({ reviewId: s.reviewId, issueIdx: s.issueIdx }))
+            // optimistically mark the issues fixed (parity with the in-built flow)
+            const byReview: Record<string, number[]> = {}
+            for (const { reviewId, issueIdx } of refs) { if (!byReview[reviewId]) byReview[reviewId] = []; byReview[reviewId].push(issueIdx) }
+            Promise.all(Object.entries(byReview).map(([rid, idxs]) =>
+              fetch(`/api/projects/${projectId}/coderabbit/reviews/${rid}/fix-issues`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+                body: JSON.stringify({ fixedIndices: idxs }),
+              }).catch(() => {})
+            )).finally(() => fetchReviewHistory())
+            nim.errorFix.mutateAsync({ reviewIssueRefs: refs, nimModel, agentModel })
+              .then((r) => setErrFixJobId(r.jobId))
+              .catch(() => addToast('Could not start the AI prompt maker.', 'error'))
+            setReviewHistoryOpen(false)
+            setSelectedIssues([])
+            if (isMobile) setMobileTab('chat')
+          }}
+        />
+      )}
+
+      {/* Working-phase centered modals removed — all background tasks now show in the
+          unified top status banner (AI enhancing / AI reviewing / Agent working / etc.). */}
+    </>
+  )
+
+  // Unified workspace status banner — shows contextual messages + optional stop action.
+  const workspaceBanner = (() => {
+    if (!isWorkspaceLocked) return null
+    let message = 'Please wait…'
+    let onStop: (() => void) | undefined
+    let stopLabel = 'Stop'
+
+    if (agentDispatchActive) {
+      message = 'Sending enhanced prompt to AI Agent…'
+    } else if (errorFixActive && (!errFixJobId || errFixJob?.status !== 'running')) {
+      message = 'Sending to AI Agent…'
+    } else if (errorFixActive && errFixJob?.status === 'running') {
+      message = 'AI is making optimized prompt'
+      onStop = () => { const j = errFixJobId; if (j) { errFixDispatchedRef.current.add(j); setErrFixJobId(null); void nim.cancel.mutateAsync(j) } }
+      stopLabel = 'Force Stop'
+    } else if (enhPhase === 'working') {
+      message = 'AI is enhancing prompt'
+      onStop = () => { const j = enhJobId; if (j) { enhDismissedRef.current.add(j); enhDeliverRef.current = null; setEnhPhase(null); setEnhJobId(null); setEnhPending(''); void nim.cancel.mutateAsync(j) } }
+      stopLabel = 'Force Stop'
+    } else if (isReviewLocked) {
+      message = 'AI is reviewing codes'
+    } else if (aiRunning) {
+      message = 'Agent is working'
+      onStop = () => stopAiRef.current?.()
+    }
+
+    return (
+      <div className="shrink-0 relative flex items-center justify-center gap-2.5 bg-gradient-to-r from-primary/[0.03] via-primary/[0.06] to-primary/[0.03] border-b border-primary/10 py-2 px-4 z-50 overflow-hidden">
+        <span className="inline-flex items-center gap-1">
+          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" style={{ animationDelay: '0ms' }} />
+          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" style={{ animationDelay: '200ms' }} />
+          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" style={{ animationDelay: '400ms' }} />
+        </span>
+        <span className="text-sm font-medium text-primary">{message}</span>
+        {onStop && (
+          <button
+            onClick={onStop}
+            className="ml-1 flex items-center gap-1 rounded-md bg-destructive/10 hover:bg-destructive/20 px-2 py-0.5 text-xs font-medium text-destructive transition-colors"
+          >
+            <Square className="h-3 w-3" /> {stopLabel}
+          </button>
+        )}
+      </div>
+    )
+  })()
+
   if (isMobile) {
     const mobileTabs = isChatFirst
       ? [{ id: 'chat' as const, icon: MessageCircle, label: 'Chat' }, { id: 'files' as const, icon: FolderTree, label: 'Files' }, { id: 'code' as const, icon: Code2, label: 'Code' }]
@@ -2679,20 +2986,7 @@ const handleAutoFix = () => {
     return (
       <>
         <ToastContainer />
-        {isWorkspaceLocked && (
-          <div className="shrink-0 flex items-center justify-center gap-2 bg-primary/90 py-2 px-4 text-sm font-medium text-primary-foreground backdrop-blur animate-pulse z-50">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span>{isReviewLocked ? 'Review is ongoing, please wait' : 'AI is generating code, please wait'}</span>
-            {aiRunning && (
-              <button
-                onClick={() => stopAiRef.current?.()}
-                className="ml-2 flex items-center gap-1 rounded bg-destructive px-2 py-0.5 text-xs text-destructive-foreground hover:bg-destructive/80"
-              >
-                <Square className="h-3 w-3" /> Stop
-              </button>
-            )}
-          </div>
-        )}
+        {workspaceBanner}
         {reviewLock?.status === 'error' && (
           <div className="shrink-0 flex items-center justify-between gap-2 bg-red-500/90 py-2 px-4 text-sm font-medium text-white backdrop-blur z-50">
             <div className="flex items-center gap-2">
@@ -2837,6 +3131,7 @@ const handleAutoFix = () => {
               onAutoFixComplete={() => setAutoFixPayload(null)}
               workspaceDisabled={isWorkspaceLocked}
               onAiRunningChange={setAiRunning}
+              onBeforeSend={requestEnhance}
               stopAiRef={stopAiRef}
             />
           </div>
@@ -3330,17 +3625,17 @@ const handleAutoFix = () => {
             </p>
             
             <div className="space-y-2 mb-6">
-              {AI_MODELS.filter(m => { if (!project.bridge) return true; const prefix = project.bridge === 'kiro' ? 'kiro/' : 'opencode/'; return m.id.startsWith(prefix) }).map((model) => (
+              {AI_MODELS.map((model) => (
                 <button
                   key={model.id}
-                  onClick={() => setSelectedModel(model.id)}
+                  onClick={() => setInBuiltModel(model.id)}
                   className={`w-full rounded-lg border p-3 text-left transition-colors ${
-                    selectedModel === model.id
+                    inBuiltModel === model.id
                       ? 'border-primary bg-primary/10'
                       : 'border-border bg-background hover:bg-surface'
                   }`}
                 >
-                  <div className="font-medium text-sm text-text">{model.name}</div>
+                  <div className="font-medium text-sm text-text">{model.name}{model.minTier === 'paid' ? ' (premium)' : ''}</div>
                   <div className="text-xs text-text-muted mt-1">{model.description}</div>
                 </button>
               ))}
@@ -3354,8 +3649,9 @@ const handleAutoFix = () => {
                 Cancel
               </button>
               <button
-                onClick={() => confirmAutoFix()}
-                className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                onClick={() => confirmAutoFix(inBuiltModel)}
+                disabled={!inBuiltModel}
+                className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
               >
                 Start Fixing
               </button>
@@ -3378,7 +3674,7 @@ const handleAutoFix = () => {
                 Cancel
               </button>
               <button
-                onClick={() => confirmAutoFix(true)}
+                onClick={() => confirmAutoFix(pendingInBuiltModel, true)}
                 className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
               >
                 Continue
@@ -3409,6 +3705,7 @@ const handleAutoFix = () => {
           setDisconnectModalOpen(true)
         }}
       />
+      {nimOverlays}
     </>
   )
 }
@@ -3573,6 +3870,7 @@ const handleAutoFix = () => {
               onAutoFixComplete={() => setAutoFixPayload(null)}
               workspaceDisabled={isWorkspaceLocked}
               onAiRunningChange={setAiRunning}
+              onBeforeSend={requestEnhance}
               stopAiRef={stopAiRef}
             />
             </aside>
@@ -3613,6 +3911,7 @@ const handleAutoFix = () => {
               onAutoFixComplete={() => setAutoFixPayload(null)}
               workspaceDisabled={isWorkspaceLocked}
               onAiRunningChange={setAiRunning}
+              onBeforeSend={requestEnhance}
               stopAiRef={stopAiRef}
             />
             </aside>
@@ -4078,17 +4377,17 @@ const handleAutoFix = () => {
             </p>
             
             <div className="space-y-2 mb-6">
-              {AI_MODELS.filter(m => { if (!project.bridge) return true; const prefix = project.bridge === 'kiro' ? 'kiro/' : 'opencode/'; return m.id.startsWith(prefix) }).map((model) => (
+              {AI_MODELS.map((model) => (
                 <button
                   key={model.id}
-                  onClick={() => setSelectedModel(model.id)}
+                  onClick={() => setInBuiltModel(model.id)}
                   className={`w-full rounded-lg border p-3 text-left transition-colors ${
-                    selectedModel === model.id
+                    inBuiltModel === model.id
                       ? 'border-primary bg-primary/10'
                       : 'border-border bg-background hover:bg-surface'
                   }`}
                 >
-                  <div className="font-medium text-sm text-text">{model.name}</div>
+                  <div className="font-medium text-sm text-text">{model.name}{model.minTier === 'paid' ? ' (premium)' : ''}</div>
                   <div className="text-xs text-text-muted mt-1">{model.description}</div>
                 </button>
               ))}
@@ -4102,8 +4401,9 @@ const handleAutoFix = () => {
                 Cancel
               </button>
               <button
-                onClick={() => confirmAutoFix()}
-                className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                onClick={() => confirmAutoFix(inBuiltModel)}
+                disabled={!inBuiltModel}
+                className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
               >
                 Start Fixing
               </button>
@@ -4128,7 +4428,7 @@ const handleAutoFix = () => {
                 Cancel
               </button>
               <button
-                onClick={() => confirmAutoFix(true)}
+                onClick={() => confirmAutoFix(pendingInBuiltModel, true)}
                 className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
               >
                 Continue
@@ -4159,6 +4459,8 @@ const handleAutoFix = () => {
           setDisconnectModalOpen(true)
         }}
       />
+
+      {nimOverlays}
     </div>
   )
 }

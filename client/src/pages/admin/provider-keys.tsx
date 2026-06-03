@@ -17,6 +17,7 @@ const PROVIDERS = [
   { id: 'bluesminds', label: 'Bluesminds' },
   { id: 'modal', label: 'Modal' },
   { id: 'firecrawl', label: 'Firecrawl MCP (Search)' },
+  { id: 'nvidia', label: 'NVIDIA NIM' },
 ]
 
 export default function AdminProviderKeysPage() {
@@ -167,6 +168,10 @@ export default function AdminProviderKeysPage() {
                   ? 'Fast tier for GLM-5.1, Kimi K2.6, Qwen3.6 Plus, MiniMax M2.7, DeepSeek V4 Pro'
                   : p.id === 'bluesminds'
                   ? 'Slow tier for GLM-5.1, Kimi K2.6, Qwen3.6 Plus, MiniMax M2.7, Gemini 3.1 Pro, Qwen3.6 Max, GPT-5.3 Chat'
+                  : p.id === 'firecrawl'
+                  ? 'Web search/scrape MCP for paid users'
+                  : p.id === 'nvidia'
+                  ? 'NVIDIA NIM — powers the Prompt Enhancer & Error Prompt Maker (free + paid users)'
                   : 'Rate-limited tier for GLM-5.1 only'}
               </div>
             </div>

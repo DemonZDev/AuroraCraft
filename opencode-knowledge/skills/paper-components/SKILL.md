@@ -269,11 +269,103 @@ public final class Messages {
 | `<rainbow>` | Rainbow text | Rainbow effect |
 | `<newline>` | Line break | New line |
 
+### 11. MiniMessage Template Caching (Critical Performance)
+
+Parsing MiniMessage strings is ~3µs per call. In hot paths (scoreboards, action bars), cache the parsed Component:
+
+```java
+public class MessageCache {
+    private static final MiniMessage MM = MiniMessage.miniMessage();
+    private final Map<String, Component> cache = new ConcurrentHashMap<>();
+    private final JavaPlugin plugin;
+
+    public MessageCache(JavaPlugin plugin) { this.plugin = plugin; }
+
+    /** Parse once, reuse forever. Thread-safe. */
+    public Component get(String miniMessageTemplate) {
+        return cache.computeIfAbsent(miniMessageTemplate, MM::deserialize);
+    }
+
+    /** Load all messages from messages.yml at startup */
+    public void loadAll(FileConfiguration messagesConfig) {
+        for (String key : messagesConfig.getKeys(true)) {
+            String value = messagesConfig.getString(key);
+            if (value != null && value.contains("<")) {
+                cache.put(key, MM.deserialize(value));
+            }
+        }
+        plugin.getLogger().info("Cached " + cache.size() + " message templates.");
+    }
+}
+
+// Usage — zero parsing overhead at runtime:
+private final MessageCache messages;
+
+@Override
+public void onEnable() {
+    messages = new MessageCache(this);
+    messages.loadAll(getConfig());
+}
+player.sendMessage(messages.get("errors.no-permission"));
+```
+
+### 12. Adventure Migration: ChatColor → Components
+
+**Phase 1: Compatibility layer** (wrap legacy code, don't rewrite everything at once):
+```java
+public final class LegacyCompat {
+    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
+
+    public static Component fromLegacy(String legacyText) {
+        return LEGACY.deserialize(ChatColor.translateAlternateColorCodes('&', legacyText));
+    }
+}
+// Old code: player.sendMessage(LegacyCompat.fromLegacy("&cError"));
+
+// New code: player.sendMessage(Component.text("Error", NamedTextColor.RED));
+```
+
+**Phase 2: Move to MiniMessage** (user-facing messages become readable markup):
+```yaml
+# messages.yml
+errors:
+  no-permission: "<red>✗</red> <gray>No permission.</gray>"
+  player-not-found: "<red>Player not found: <white>{player}</white></red>"
+```
+
+**Phase 3: Remove legacy** — delete all ChatColor imports and LegacyCompat usage.
+
+### 13. Audience API (Multi-Player Messaging)
+
+```java
+import net.kyori.adventure.audience.Audience;
+
+// Send to specific players
+Audience.audience(player1, player2, player3)
+    .sendMessage(Component.text("Party invite!", NamedTextColor.GREEN));
+
+// Send to all with permission
+Audience audience = Audience.audience(
+    Bukkit.getOnlinePlayers().stream()
+        .filter(p -> p.hasPermission("myplugin.admin"))
+        .collect(Collectors.toList())
+);
+audience.sendMessage(Component.text("[Admin Alert] Server restart in 30s!", NamedTextColor.RED));
+
+// Console + all players
+Audience.audience(Bukkit.getConsoleSender(), Audience.audience(Bukkit.getOnlinePlayers()))
+    .sendMessage(Component.text("Broadcast!", NamedTextColor.GOLD));
+```
+
 ## Critical Rules
 
-1. **NEVER use `ChatColor` or `player.sendMessage(String)`** on Paper — deprecated since 1.21.4
+1. **NEVER use `ChatColor` or `player.sendMessage(String)`** on Paper — deprecated
 2. **Use MiniMessage for complex formatting** — cleaner than chained Component builders
-3. **Components are thread-safe** — can be created on any thread (unlike Bukkit API)
+3. **Components are thread-safe** — can be created on any thread
 4. **`Bukkit.broadcast(Component)` replaces `Bukkit.broadcastMessage(String)`**
 5. **Legacy `player.sendTitle()` is deprecated** — use `player.showTitle(Title.title(...))`
 6. **Adventure is BUNDLED with Paper** — no dependency needed, `provided` scope
+7. **CACHE parsed MiniMessage Components** — parsing is expensive, Components are immutable and reusable
+8. **Use LegacyComponentSerializer for gradual migration** from ChatColor
+9. **Never mix Adventure Components and ChatColor** in the same plugin — pick one
+10. **Components can contain click/hover events** — but don't rely on them for critical functionality

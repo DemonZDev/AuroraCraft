@@ -205,6 +205,100 @@ commands:
 # 	home:                ← TAB character — YAML forbids tabs
 ```
 
+### 5. Config Versioning and Migration
+
+```java
+public class ConfigManager {
+    private static final int CURRENT_CONFIG_VERSION = 3;
+    private final {MainClass} plugin;
+    private FileConfiguration config;
+
+    public ConfigManager({MainClass} plugin) {
+        this.plugin = plugin;
+        plugin.saveDefaultConfig();
+        this.config = plugin.getConfig();
+
+        int version = config.getInt("config-version", 1);
+        if (version < CURRENT_CONFIG_VERSION) {
+            migrateConfig(version);
+        }
+        validate();
+    }
+
+    private void migrateConfig(int fromVersion) {
+        plugin.getLogger().info("Migrating config from v" + fromVersion + " to v" + CURRENT_CONFIG_VERSION);
+
+        if (fromVersion < 2) {
+            // v1→v2: Rename "money" section to "economy"
+            if (config.contains("money")) {
+                config.set("economy", config.get("money"));
+                config.set("money", null);
+            }
+        }
+        if (fromVersion < 3) {
+            // v2→v3: Add feature toggles for new features
+            config.addDefault("features.daily-rewards", true);
+            config.addDefault("features.player-shops", false);
+        }
+
+        config.set("config-version", CURRENT_CONFIG_VERSION);
+        plugin.saveConfig();
+        plugin.getLogger().info("Config migration complete.");
+    }
+}
+```
+
+### 6. Adventure Component Messages (Paper)
+
+```java
+public class MessageManager {
+    private final {MainClass} plugin;
+    private FileConfiguration messagesConfig;
+    private final Map<String, Component> componentCache = new ConcurrentHashMap<>();
+    private static final MiniMessage MM = MiniMessage.miniMessage();
+
+    public MessageManager({MainClass} plugin) {
+        this.plugin = plugin;
+        File file = new File(plugin.getDataFolder(), "messages.yml");
+        if (!file.exists()) plugin.saveResource("messages.yml", false);
+        this.messagesConfig = YamlConfiguration.loadConfiguration(file);
+
+        // Pre-cache all messages at startup — zero parsing overhead at runtime
+        for (String key : messagesConfig.getKeys(true)) {
+            String value = messagesConfig.getString(key);
+            if (value != null && value.contains("<")) {
+                componentCache.put(key, MM.deserialize(value));
+            }
+        }
+        plugin.getLogger().info("Cached " + componentCache.size() + " message templates.");
+    }
+
+    public Component get(String key) {
+        Component cached = componentCache.get(key);
+        if (cached != null) return cached;
+        // Fallback for simple string messages
+        String raw = messagesConfig.getString(key, "&cMissing: " + key);
+        return LegacyComponentSerializer.legacySection()
+            .deserialize(ChatColor.translateAlternateColorCodes('&', raw));
+    }
+
+    public void send(Player player, String key) {
+        player.sendMessage(get(key));
+    }
+}
+```
+
+```yaml
+# messages.yml — uses MiniMessage format
+prefix: "<gray>[<blue>{plugin}</blue>]</gray>"
+errors:
+  no-permission: "<prefix> <red>No permission.</red>"
+  player-not-found: "<prefix> <red>Player <white>{player}</white> not found.</red>"
+  invalid-number: "<prefix> <red>'<white>{input}</white>' is not a valid number.</red>"
+commands:
+  balance: "<prefix> <green>Balance: <gold>${amount}</gold></green>"
+```
+
 ## Critical Rules
 
 1. **NEVER call `config.get()` directly in commands/managers** — use ConfigManager wrapper
@@ -214,3 +308,8 @@ commands:
 5. **Use YAML 1.1 syntax** — spaces for indentation, never tabs
 6. **Comment heavily** — the config IS documentation for server admins
 7. **Separate messages from settings** — messages.yml for user-facing text
+8. **Include config-version for migration** — plan for future schema changes from day one
+9. **Cache parsed Adventure Components at startup** — zero parsing overhead at runtime
+10. **Use MiniMessage for message templates** — server admins can read and edit them
+11. **NEVER expose raw FileConfiguration** to other classes — typed accessors only
+12. **Clamp numeric config values to valid ranges** — prevent negative max-homes, etc.

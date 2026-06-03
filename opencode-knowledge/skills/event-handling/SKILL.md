@@ -162,12 +162,128 @@ pm.registerEvents(new InventoryListener(this), this);
 | `HIGHEST` | Final overrides |
 | `MONITOR` | Logging/auditing only — **NEVER cancel at MONITOR** |
 
+### 8. Custom Events (Plugin Communication)
+
+Custom events allow other plugins to react to your plugin's actions without compile-time dependencies:
+
+```java
+public class TokensChangeEvent extends org.bukkit.event.Event implements org.bukkit.event.Cancellable {
+    private static final org.bukkit.event.HandlerList HANDLERS = new org.bukkit.event.HandlerList();
+    private final UUID playerUuid;
+    private final int previousAmount;
+    private int newAmount;
+    private boolean cancelled;
+
+    public TokensChangeEvent(UUID playerUuid, int previousAmount, int newAmount) {
+        this.playerUuid = playerUuid;
+        this.previousAmount = previousAmount;
+        this.newAmount = newAmount;
+    }
+
+    // Getters and setters...
+
+    // CRITICAL: Both getHandlers() AND getHandlerList() are REQUIRED
+    @Override public org.bukkit.event.HandlerList getHandlers() { return HANDLERS; }
+    public static org.bukkit.event.HandlerList getHandlerList() { return HANDLERS; }
+}
+
+// Fire the event — other plugins can cancel or modify newAmount
+TokensChangeEvent event = new TokensChangeEvent(uuid, oldAmount, newAmount);
+Bukkit.getPluginManager().callEvent(event);
+if (!event.isCancelled()) {
+    applyBalance(event.getNewAmount()); // Use potentially-modified value
+}
+```
+
+### 9. Async Events (AsyncPlayerChatEvent, AsyncChatEvent)
+
+```java
+// Paper 1.19+ — AsyncChatEvent (preferred)
+@EventHandler
+public void onChat(AsyncChatEvent event) {
+    // This fires ASYNC — most Bukkit API is UNSAFE here
+    String content = PlainTextComponentSerializer.plainText().serialize(event.message());
+
+    if (content.contains("badword")) {
+        event.setCancelled(true); // Safe — modifying event object
+        // Schedule sync for Bukkit API
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            event.getPlayer().sendMessage(Component.text("Watch your language!", NamedTextColor.RED));
+        });
+    }
+}
+
+// Legacy — AsyncPlayerChatEvent (Paper < 1.19, Spigot)
+@EventHandler
+public void onChatLegacy(AsyncPlayerChatEvent event) {
+    if (event.getMessage().contains("badword")) {
+        event.setCancelled(true); // Safe in async
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            event.getPlayer().sendMessage(Component.text("Watch your language!", NamedTextColor.RED));
+        });
+    }
+}
+```
+
+### 10. Folia-Safe Event Handling
+
+```java
+// On Folia: never assume single-threaded execution
+// Always use entity.getScheduler() or RegionScheduler for Bukkit API calls
+
+@EventHandler
+public void onDamage(EntityDamageByEntityEvent event) {
+    if (!(event.getEntity() instanceof Player victim)) return;
+
+    // ✅ Folia-safe — uses entity's own scheduler
+    victim.getScheduler().run(plugin, task -> {
+        victim.sendMessage(Component.text("You took damage!", NamedTextColor.RED));
+    }, null);
+
+    // ❌ Folia-unsafe — assumes global main thread
+    // victim.sendMessage(Component.text("You took damage!"));
+}
+```
+
+### 11. Event Listener Lifecycle (Dynamic Registration)
+
+```java
+public class TemporaryListener implements Listener {
+    private final JavaPlugin plugin;
+    private boolean registered = false;
+
+    public TemporaryListener(JavaPlugin plugin) { this.plugin = plugin; }
+
+    public void enable() {
+        if (!registered) {
+            plugin.getServer().getPluginManager().registerEvents(this, plugin);
+            registered = true;
+        }
+    }
+
+    public void disable() {
+        if (registered) {
+            org.bukkit.event.HandlerList.unregisterAll(this);
+            registered = false;
+        }
+    }
+}
+
+// Use for: minigame phases, temporary restrictions, event-based features
+// NEVER register without a corresponding unregister path
+```
+
 ## Critical Rules
 
 1. **ALWAYS** set `ignoreCancelled = true` unless you specifically need cancelled events
 2. **ALWAYS** `return` immediately after `event.setCancelled(true)`
 3. **ALWAYS** check entity type with `instanceof` before casting
-4. **NEVER** register listeners per-player — register once in `onEnable()`
-5. **NEVER** cancel events at `MONITOR` priority
-6. **ALWAYS** throttle `PlayerMoveEvent` — check block change, not every movement
-7. **ALWAYS** cancel inventory clicks before processing GUI logic
+4. **NEVER** register listeners per-player — register once in onEnable(), use GUIManager for per-player routing
+5. **NEVER** cancel or modify events at `MONITOR` priority — MONITOR is READ-ONLY
+6. **ALWAYS** throttle `PlayerMoveEvent` — check block change, not every head rotation
+7. **ALWAYS** cancel inventory clicks before processing GUI logic — prevent item theft/duplication
+8. **NEVER** call most Bukkit API from AsyncPlayerChatEvent — it's async. Use runTask callback.
+9. **ALWAYS** include BOTH `getHandlers()` AND static `getHandlerList()` in custom events
+10. **For Folia**: use entity.getScheduler().run() for Bukkit API in event handlers
+11. **ALWAYS** provide an unregister path for any dynamically registered listener
+12. **KEEP LISTENERS THIN** — they detect events and delegate to managers. No database queries, no business logic

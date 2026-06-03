@@ -179,12 +179,123 @@ permissions:
     default: op
 ```
 
+### 6. BaseCommand Abstract Class (Reduce Boilerplate)
+
+```java
+public abstract class BaseCommand implements CommandExecutor, TabCompleter {
+    protected final {MainClass} plugin;
+
+    public BaseCommand({MainClass} plugin) { this.plugin = plugin; }
+
+    @Override
+    public final boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+        // 1. Permission check (fail fast)
+        if (getPermission() != null && !sender.hasPermission(getPermission())) {
+            sender.sendMessage(Component.text("No permission.", NamedTextColor.RED));
+            return true;
+        }
+        // 2. Player-only check
+        if (requiresPlayer() && !(sender instanceof Player)) {
+            sender.sendMessage(Component.text("Players only.", NamedTextColor.RED));
+            return true;
+        }
+        // 3. Execute
+        execute(sender, args);
+        return true;
+    }
+
+    protected abstract void execute(CommandSender sender, String[] args);
+    protected String getPermission() { return null; }
+    protected boolean requiresPlayer() { return false; }
+
+    @Override
+    public List<String> onTabComplete(CommandSender sender, Command cmd, String label, String[] args) {
+        return Collections.emptyList();
+    }
+}
+
+// Usage — clean, focused on business logic:
+public class BalanceCommand extends BaseCommand {
+    private final EconomyManager economy;
+    public BalanceCommand(MyPlugin plugin, EconomyManager economy) {
+        super(plugin);
+        this.economy = economy;
+    }
+    @Override
+    protected void execute(CommandSender sender, String[] args) {
+        Player player = (Player) sender;
+        double balance = economy.getBalance(player.getUniqueId());
+        player.sendMessage(Component.text("Balance: $" + balance, NamedTextColor.GREEN));
+    }
+    @Override protected String getPermission() { return "myplugin.balance"; }
+    @Override protected boolean requiresPlayer() { return true; }
+}
+```
+
+### 7. Paper Brigadier Commands (Paper 1.20.6+)
+
+```java
+@Override
+public void onEnable() {
+    BrigadierCommand brigadier = getServer().getBrigadierCommand();
+    brigadier.getDispatcher().register(
+        literal("mycommand")
+            .requires(source -> source.getSender().hasPermission("myplugin.command"))
+            .then(argument("target", StringArgumentType.word())
+                .suggests((ctx, builder) -> {
+                    for (Player p : getServer().getOnlinePlayers()) {
+                        builder.suggest(p.getName());
+                    }
+                    return builder.buildFuture();
+                })
+                .then(argument("amount", IntegerArgumentType.integer(1, 10000))
+                    .executes(ctx -> {
+                        String target = StringArgumentType.getString(ctx, "target");
+                        int amount = IntegerArgumentType.getInteger(ctx, "amount");
+                        Player sender = (Player) ctx.getSource().getSender();
+                        // Execute command
+                        return 1; // Success
+                    })
+                )
+            )
+    );
+}
+```
+
+### 8. Debounce Pattern (Prevent Rapid-Fire Commands)
+
+```java
+private final Map<UUID, Long> lastCommandUse = new ConcurrentHashMap<>();
+private static final long COOLDOWN_MS = 1000; // 1 second
+
+@Override
+public void execute(CommandSender sender, String[] args) {
+    if (sender instanceof Player player) {
+        UUID uuid = player.getUniqueId();
+        long now = System.currentTimeMillis();
+        long lastUse = lastCommandUse.getOrDefault(uuid, 0L);
+        if (now - lastUse < COOLDOWN_MS) {
+            player.sendMessage(Component.text("Slow down! Please wait before using this command again.",
+                NamedTextColor.RED));
+            return;
+        }
+        lastCommandUse.put(uuid, now);
+    }
+    // Proceed with command...
+}
+```
+
 ## Critical Rules
 
 1. **ALWAYS check `args.length` before accessing `args[n]`** — ArrayIndexOutOfBoundsException
-2. **ALWAYS wrap `Integer.parseInt()` in try-catch** — NumberFormatException
+2. **ALWAYS wrap `Integer.parseInt()`/`Double.parseDouble()` in try-catch** — NumberFormatException
 3. **ALWAYS null-check `Bukkit.getPlayer()`** — returns null if offline
 4. **NEVER return null from `onTabComplete()`** — return `Collections.emptyList()`
 5. **ONE class per top-level command** — use SubCommand interface for subcommands
-6. **Check permission BEFORE executing** — fail fast with clear message
+6. **Check permission BEFORE any processing** — fail fast with clear message
 7. **Register commands in `onEnable()`** — never in constructors
+8. **Validate ALL input** — argument count, type, range, permissions, target existence
+9. **Use enum for subcommands, not if-else chains** — Map<String, SubCommand>
+10. **Consider BaseCommand for boilerplate reduction** — permission, player-only, etc.
+11. **Consider Paper Brigadier** for rich argument types and suggestions on Paper 1.20.6+
+12. **Cooldowns on expensive commands** — prevent rapid-fire spam of database-heavy operations
