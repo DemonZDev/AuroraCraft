@@ -2,7 +2,9 @@ import { eq, and } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { nimJobs } from '../db/schema/nim-jobs.js'
 import { nimChat, NimError, type NimMessage } from '../bridges/nim-client.js'
-import { resolveNimModel } from '../config/nim-models.js'
+
+// A resolved call target: the provider endpoint + the upstream model id (real name).
+export interface NimTarget { baseUrl: string; slug: string }
 
 const JOB_DEADLINE_MS = 30 * 60 * 1000 // 30 minutes (spec)
 const ENHANCE_MAX_TOKENS = 12000
@@ -98,14 +100,13 @@ class NimEngine {
   }
 
   // ── Prompt Enhancer ────────────────────────────────────────────────────
-  async runEnhance(jobId: string, apiKey: string, style: EnhanceStyle, modelId: string, input: EnhanceInput): Promise<void> {
+  async runEnhance(jobId: string, apiKey: string, style: EnhanceStyle, target: NimTarget, input: EnhanceInput): Promise<void> {
     const signal = this.register(jobId)
-    const model = resolveNimModel(modelId)
     try {
       const ctx = `Project: ${input.projectName ?? 'unknown'} | Platform: ${input.software ?? 'paper'} | Language: ${input.language ?? 'java'}`
       // Call 1 — draft in the chosen style.
       const draft = await nimChat({
-        apiKey, slug: model.slug, maxTokens: ENHANCE_MAX_TOKENS, signal,
+        apiKey, baseUrl: target.baseUrl, slug: target.slug, maxTokens: ENHANCE_MAX_TOKENS, signal,
         messages: [
           { role: 'system', content: STYLE_SYSTEM[style] },
           { role: 'user', content: `${ctx}\n\nUSER PROMPT:\n${input.prompt}\n\nReturn ONLY the rewritten prompt.` },
@@ -113,7 +114,7 @@ class NimEngine {
       })
       // Call 2 — finalize / clean pass (agentic: a second call refining the first).
       const finalized = await nimChat({
-        apiKey, slug: model.slug, maxTokens: ENHANCE_MAX_TOKENS, signal,
+        apiKey, baseUrl: target.baseUrl, slug: target.slug, maxTokens: ENHANCE_MAX_TOKENS, signal,
         messages: [
           { role: 'system', content: FINALIZE_SYSTEM },
           { role: 'user', content: draft.content || input.prompt },
@@ -128,12 +129,11 @@ class NimEngine {
     }
   }
 
-  async runRefine(jobId: string, apiKey: string, modelId: string, currentPrompt: string, changeRequest: string, history: unknown[]): Promise<void> {
+  async runRefine(jobId: string, apiKey: string, target: NimTarget, currentPrompt: string, changeRequest: string, history: unknown[]): Promise<void> {
     const signal = this.register(jobId)
-    const model = resolveNimModel(modelId)
     try {
       const out = await nimChat({
-        apiKey, slug: model.slug, maxTokens: ENHANCE_MAX_TOKENS, signal,
+        apiKey, baseUrl: target.baseUrl, slug: target.slug, maxTokens: ENHANCE_MAX_TOKENS, signal,
         messages: [
           { role: 'system', content: 'You refine an existing prompt according to the user\'s change request. Keep everything good; apply the requested change. Return ONLY the updated prompt text.' },
           { role: 'user', content: `CURRENT PROMPT:\n${currentPrompt}\n\nCHANGE REQUEST:\n${changeRequest}` },
@@ -152,9 +152,8 @@ class NimEngine {
   // ── Error Prompt Maker (Option A) ──────────────────────────────────────
   // Single fast NIM call. NO file reading — the optimised fix prompt is engineered
   // purely from the selected code-review issues (max 30) for speed + accuracy.
-  async runErrorFix(jobId: string, apiKey: string, modelId: string, input: ErrorFixInput): Promise<void> {
+  async runErrorFix(jobId: string, apiKey: string, target: NimTarget, input: ErrorFixInput): Promise<void> {
     const signal = this.register(jobId)
-    const model = resolveNimModel(modelId)
     try {
       const ordered = [...input.issues].sort(
         (a, b) => (SEVERITY_RANK[(a.severity ?? 'minor').toLowerCase()] ?? 3) - (SEVERITY_RANK[(b.severity ?? 'minor').toLowerCase()] ?? 3),
@@ -179,7 +178,7 @@ class NimEngine {
         { role: 'user', content: `Code-review issues to fix (${ordered.length}):\n\n${issuesText}` },
       ]
 
-      const out = await nimChat({ apiKey, slug: model.slug, maxTokens: FIX_MAX_TOKENS, signal, messages })
+      const out = await nimChat({ apiKey, baseUrl: target.baseUrl, slug: target.slug, maxTokens: FIX_MAX_TOKENS, signal, messages })
       if (out.finishReason === 'length') console.warn(`[nim] error-fix job ${jobId} hit token limit (finish_reason=length); output may be truncated`)
       const finalPrompt = (out.content || '').trim().slice(0, MAX_FIX_PROMPT_CHARS)
       if (!finalPrompt) { await this.setTerminal(jobId, 'failed', 'Empty response from model'); return }

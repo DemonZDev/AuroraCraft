@@ -7,7 +7,8 @@ export interface AgentExecutionContext {
   projectId: string
   prompt: string
   bridgeName: string
-  model?: string
+  model?: string          // OpenCode-resolvable model id passed to the bridge (opencode/<id> | openai/<uuid>)
+  billingModelId?: string // AuroraCraft ai_models row uuid, used for token reconciliation
   speed?: string
   opencodeSessionId?: string
   kiroSessionId?: string
@@ -20,7 +21,8 @@ export interface AgentExecutionContext {
   javaVersion?: string
   projectDirectory?: string
   userHomeDir?: string
-  firecrawlApiKey?: string
+  mcpServers?: Array<{ name: string; config: Record<string, unknown> }>
+  mcpDisconnect?: string[]
   userId?: string
   estimatedCost?: number
   providerId?: string

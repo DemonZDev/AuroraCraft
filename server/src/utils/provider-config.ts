@@ -1,7 +1,10 @@
 import { writeFile, mkdir, chmod } from 'fs/promises'
-import { dirname } from 'path'
-import type { AIModelDef, ModelProvider, ProviderId } from '../config/ai-models.js'
-import { PROVIDER_CONFIG } from '../config/ai-models.js'
+import type { ResolvedModel } from './ai-runtime.js'
+
+// @ai-sdk/openai-compatible is used for all OpenAI-compatible providers in the
+// direct path (when LiteLLM is unavailable). Previously blocked by OpenCode
+// issue #5674 (≤1.15.13) where baseURL/apiKey were not forwarded — fixed in 1.16+.
+const OPENAI_COMPATIBLE_NPM = '@ai-sdk/openai-compatible'
 
 export interface OpenCodeProviderConfig {
   npm?: string
@@ -37,42 +40,46 @@ export function getProjectConfigDirectory(projectDir: string): string {
   return `/var/lib/auroracraft/configs/default/${safe}`
 }
 
+/**
+ * Generate an OpenCode config that talks to a provider directly (no LiteLLM).
+ * Used for the built-in Zen provider and for free OpenAI-compatible providers.
+ */
 export function generateProviderConfig(
-  model: AIModelDef,
-  provider: ModelProvider,
-  apiKey: string,
+  model: ResolvedModel,
+  apiKey: string | undefined,
 ): OpenCodeConfig {
-  const providerConfig = PROVIDER_CONFIG[provider.id]
   const config: OpenCodeConfig = {
     $schema: 'https://opencode.ai/config.json',
     permission: 'allow',
     tools: { question: false },
   }
 
-  if (provider.id === 'opencode') {
-    config.model = provider.modelId
+  // Zen: no provider block — OpenCode resolves `opencode/<id>` ids natively
+  // (and reads an optional Zen key from auth.json for higher rate limits).
+  if (model.provider.kind === 'zen') {
+    config.model = model.realName
     return config
   }
 
+  // OpenAI-compatible provider, keyed by its slug.
+  // @ai-sdk/openai-compatible (1.16+) forwards baseURL/apiKey correctly
+  // and accepts any model name format including ones with '/' (e.g.
+  // NVIDIA NIM's "moonshotai/kimi-k2.6").
   config.provider = {
-    [provider.id]: {
-      npm: providerConfig.npmPackage,
-      name: providerConfig.name,
+    [model.provider.slug]: {
+      npm: OPENAI_COMPATIBLE_NPM,
+      name: model.provider.name,
       options: {
-        baseURL: providerConfig.baseUrl,
+        baseURL: model.provider.baseUrl,
         apiKey,
       },
       models: {
-        [provider.modelId]: {
-          name: model.name,
-        },
+        [model.realName]: { name: model.showName },
       },
     },
   }
-
-  // When only one provider is configured, OpenCode resolves models by the
-  // key in the provider's models list (no providerId/ prefix needed).
-  config.model = provider.modelId
+  // Single provider configured → OpenCode resolves by the model key (no providerId/ prefix).
+  config.model = model.realName
 
   return config
 }
@@ -155,30 +162,31 @@ export async function writeZenAuthJson(
 /**
  * Generate an OpenCode provider config that routes through a local LiteLLM Proxy
  * instead of hitting the upstream provider directly. This enables per-project
- * dynamic routing, custom pricing, and budget enforcement.
+ * dynamic routing, custom pricing, and budget enforcement (paid models).
  */
 export function generateLiteLLMProviderConfig(
-  model: AIModelDef,
+  model: ResolvedModel,
   litellmUrl: string,
   masterKey: string,
 ): OpenCodeConfig {
-  // Use OpenCode's built-in `openai` provider with a custom baseURL.
-  // This avoids the known bug with @ai-sdk/openai-compatible where options
-  // are not forwarded (https://github.com/anomalyco/opencode/issues/5674).
+  // Use OpenCode's @ai-sdk/openai-compatible with custom baseURL.
+  // Switched from built-in openai provider because @ai-sdk/openai uses
+  // the Responses API (/v1/responses), which many providers (NVIDIA NIM,
+  // OpenRouter) don't support. @ai-sdk/openai-compatible uses standard
+  // /v1/chat/completions. Fixed in OpenCode 1.16+ (#5674).
   const config: OpenCodeConfig = {
     $schema: 'https://opencode.ai/config.json',
     permission: 'allow',
     tools: { question: false },
     provider: {
       openai: {
+        npm: '@ai-sdk/openai-compatible',
         options: {
           baseURL: `${litellmUrl}/v1`,
           apiKey: masterKey,
         },
         models: {
-          [model.id]: {
-            name: model.name,
-          },
+          [model.id]: { name: model.showName },
         },
       },
     },
@@ -187,5 +195,3 @@ export function generateLiteLLMProviderConfig(
 
   return config
 }
-
-

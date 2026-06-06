@@ -8,14 +8,16 @@ import { agentSessions } from '../db/schema/agent-sessions.js'
 import { agentMessages } from '../db/schema/agent-messages.js'
 import { agentLogs } from '../db/schema/agent-logs.js'
 import { providerApiKeys } from '../db/schema/provider-api-keys.js'
+import { aiProviders } from '../db/schema/ai-providers.js'
 import { nimJobs } from '../db/schema/nim-jobs.js'
 import { authMiddleware } from '../middleware/auth.js'
 import { agentExecutor } from '../agents/executor.js'
 import { opencodeBridge, sessionEventBus } from '../bridges/index.js'
 import { processManager } from '../bridges/opencode-process-manager.js'
 import { generateOpenCodeKnowledge } from '../utils/opencode-knowledge.js'
-import { AI_MODELS, getModelById, getProviderForModel, canUseModel, modelCanUseZen } from '../config/ai-models.js'
-import { getUserTokens, hasEnoughTokens, deductTokens, estimateMessageCost, canAccessTier, getUserProviderKeys, calculateMaxOutputTokens, MIN_PREMIUM_BALANCE } from '../utils/token-service.js'
+import { resolveModelById, listModelsForUsage, listModelsForLiteLLM, canUseModel, getUserProviderKeyMap, type ResolvedModel } from '../utils/ai-runtime.js'
+import { buildUserMcpServers } from '../utils/mcp-runtime.js'
+import { getUserTokens, hasEnoughTokens, deductTokens, estimateMessageCost, calculateMaxOutputTokens, MIN_PREMIUM_BALANCE } from '../utils/token-service.js'
 import { generateProviderConfig, generateLiteLLMProviderConfig, generateMinimalProjectConfig, writeProjectConfig, writeIsolatedProjectConfig, writeZenAuthJson } from '../utils/provider-config.js'
 import { generateLiteLLMConfig, writeLiteLLMConfig } from '../utils/litellm-config.js'
 import { litellmProcessManager } from '../bridges/litellm-process-manager.js'
@@ -38,7 +40,7 @@ const sendMessageSchema = z.object({
   nimJobId: z.string().uuid().optional(),
   model: z.string().max(100).optional(),
   bridge: z.enum(['opencode', 'kiro']).optional(),
-  speed: z.enum(['fast', 'slow', 'rate_limited']).optional(),
+  speed: z.string().max(40).optional(),
 })
 
 const sessionModelTracker = new Map<string, string>()
@@ -352,137 +354,124 @@ export async function agentRoutes(app: FastifyInstance) {
     let resolvedModelId: string | undefined
     let estimatedCost = 0
     let providerId: string | undefined
-    let modelDef: ReturnType<typeof getModelById> = undefined
+    let resolvedModel: ResolvedModel | undefined
     let litellmUrl: string | undefined
     let providerChanged = false
     let deductResult: { deducted: number; remainingBalance: number; balanceExhausted: boolean } | undefined
     let maxOutputTokens: number | undefined
 
     const [user] = await db.select().from(users).where(eq(users.id, request.user!.id)).limit(1)
-    const userTier = user?.tier ?? 'free'
+    const userTier: 'free' | 'paid' = user?.tier ?? 'free'
     const requestedModelId = parsed.data.model ?? ''
-    const requestedSpeed = parsed.data.speed ?? 'fast'
 
-    const userKeys = await getUserProviderKeys(request.user!.id)
+    // slug → apiKey for the user's AI-provider keys (the built-in Zen provider's slug is 'opencode').
+    const userKeys = await getUserProviderKeyMap(request.user!.id)
 
     if (requestedModelId) {
-      modelDef = getModelById(requestedModelId)
-      if (!modelDef) {
+      resolvedModel = (await resolveModelById(requestedModelId)) ?? undefined
+      if (!resolvedModel) {
         return rejectSend(400, 'Unknown model selected')
       }
-      if (!canUseModel(requestedModelId, userTier)) {
-        return rejectSend(403, `Model ${modelDef.name} requires a paid subscription. Upgrade your account to access it.`)
+      if (!resolvedModel.provider.isActive || !resolvedModel.isActive) {
+        return rejectSend(400, `${resolvedModel.showName} is currently disabled.`)
+      }
+      if (!canUseModel(resolvedModel, userTier)) {
+        return rejectSend(403, `Model ${resolvedModel.showName} requires a paid subscription. Upgrade your account to access it.`)
       }
 
-      const provider = getProviderForModel(requestedModelId, requestedSpeed, userKeys)
-      if (provider) {
-        providerId = provider.id
-        // OpenCode provider model IDs already include the 'opencode/' prefix.
-        // External providers need the '{provider}/{model}' format.
-        resolvedModelId = provider.id === 'opencode'
-          ? provider.modelId
-          : `${provider.id}/${provider.modelId}`
-      }
-      if (!provider) {
-        return rejectSend(400, `Provider not available for ${modelDef.name} at ${requestedSpeed} speed`)
+      const provider = resolvedModel.provider
+      providerId = provider.slug
+      const requiresApiKey = provider.kind !== 'zen'
+      const billable = !provider.isFree
+      const userApiKey = userKeys[provider.slug]
+
+      // Zen resolves `opencode/<id>` natively; others use the raw model id
+      // (rewritten to `openai/<uuid>` below when routed through LiteLLM).
+      resolvedModelId = resolvedModel.realName
+
+      if (requiresApiKey && !userApiKey) {
+        return rejectSend(503, `You don't have an API key for ${provider.name}. Please contact an administrator to set one up.`)
       }
 
-      if (provider.requiresApiKey) {
-        const userApiKey = userKeys[provider.id]
-
-        if (!userApiKey) {
-          return rejectSend(503, `You don't have an API key for ${provider.id}. Please contact an administrator to set one up.`)
+      if (billable) {
+        const currentBalance = await getUserTokens(request.user!.id)
+        if (currentBalance < MIN_PREMIUM_BALANCE) {
+          return rejectSend(402, `Your token balance is too low for premium models. Minimum required: ${MIN_PREMIUM_BALANCE} tokens. You have ${currentBalance} tokens. Please purchase more tokens or use a free model.`)
         }
 
-        if (modelDef.minTier !== 'free') {
-          const currentBalance = await getUserTokens(request.user!.id)
-          if (currentBalance < MIN_PREMIUM_BALANCE) {
-            return rejectSend(402, `Your token balance is too low for premium models. Minimum required: ${MIN_PREMIUM_BALANCE} tokens. You have ${currentBalance} tokens. Please purchase more tokens or use a free model.`)
-          }
-
-          estimatedCost = estimateMessageCost(parsed.data.content, modelDef, provider.id)
-          const hasTokens = await hasEnoughTokens(request.user!.id, estimatedCost)
-          if (!hasTokens) {
-            return rejectSend(402, `Insufficient AI tokens. Estimated cost: ${estimatedCost} tokens. Please purchase more tokens or use a free model.`)
-          }
-
-          deductResult = await deductTokens(
-            request.user!.id,
-            estimatedCost,
-            `Pre-charge for ${modelDef.name} (${provider.id})`,
-            sessionId,
-          )
-          if (deductResult.deducted < estimatedCost) {
-            app.log.warn({ userId: request.user!.id, requested: estimatedCost, deducted: deductResult.deducted, remaining: deductResult.remainingBalance }, 'Partial token deduction — race condition or concurrent usage')
-          }
+        estimatedCost = estimateMessageCost(parsed.data.content, resolvedModel.pricing)
+        const hasTokens = await hasEnoughTokens(request.user!.id, estimatedCost)
+        if (!hasTokens) {
+          return rejectSend(402, `Insufficient AI tokens. Estimated cost: ${estimatedCost} tokens. Please purchase more tokens or use a free model.`)
         }
 
-    // Calculate max output tokens based on user's total available balance
-    // so generation is hard-capped and cannot exceed what they can afford
-    if (modelDef) {
-      const totalAvailableBalance = (deductResult?.deducted ?? 0) + (deductResult?.remainingBalance ?? await getUserTokens(request.user!.id))
-      maxOutputTokens = calculateMaxOutputTokens(
-        totalAvailableBalance,
-        parsed.data.content,
-        modelDef,
-        provider?.id,
-      )
-      app.log.info({ userId: request.user!.id, maxOutputTokens, totalAvailableBalance, model: modelDef.id }, 'Calculated max output tokens')
-    }
+        deductResult = await deductTokens(
+          request.user!.id,
+          estimatedCost,
+          `Pre-charge for ${resolvedModel.showName} (${provider.slug})`,
+          sessionId,
+        )
+        if (deductResult.deducted < estimatedCost) {
+          app.log.warn({ userId: request.user!.id, requested: estimatedCost, deducted: deductResult.deducted, remaining: deductResult.remainingBalance }, 'Partial token deduction — race condition or concurrent usage')
+        }
+      }
 
-    let litellmUrl: string | undefined
-    let litellmMasterKey: string | undefined
+      // Hard-cap output generation to what the user can afford.
+      {
+        const totalAvailableBalance = (deductResult?.deducted ?? 0) + (deductResult?.remainingBalance ?? await getUserTokens(request.user!.id))
+        maxOutputTokens = calculateMaxOutputTokens(totalAvailableBalance, parsed.data.content, resolvedModel.pricing)
+        app.log.info({ userId: request.user!.id, maxOutputTokens, totalAvailableBalance, model: resolvedModel.id }, 'Calculated max output tokens')
+      }
 
-        try {
-          // For premium external providers, route through LiteLLM Proxy instead of
-          // hitting the provider directly. LiteLLM enforces per-project budget
-          // (converted from tokens → USD) and provides unified model routing.
-          if (provider.id !== 'opencode') {
-            const userTokenBalance = await getUserTokens(request.user!.id)
-            const llmConfig = await generateLiteLLMConfig(projectDir, AI_MODELS, userKeys, userTokenBalance)
-            const configPath = await writeLiteLLMConfig(projectDir, llmConfig)
+      let litellmMasterKey: string | undefined
+      try {
+        // Route ALL OpenAI-compatible providers through LiteLLM Proxy — it handles the
+        // /responses → /chat/completions translation for providers that don't support
+        // the Responses API (NVIDIA NIM, OpenRouter, etc.) and enforces per-model
+        // pricing + budget for billable ones. Only the built-in Zen provider hits
+        // OpenCode directly via the native opencode/<id> format.
+        const needsLiteLLM = provider.kind !== 'zen'
+        if (needsLiteLLM) {
+          const userTokenBalance = await getUserTokens(request.user!.id)
+          // Collect all non-Zen agent models the user has keys for, not just billable ones.
+          const allModels = await listModelsForLiteLLM('agent')
+          const llmConfig = await generateLiteLLMConfig(projectDir, allModels, userKeys, userTokenBalance)
+          const configPath = await writeLiteLLMConfig(projectDir, llmConfig)
+          try {
             litellmUrl = await litellmProcessManager.acquire({ directory: projectDir, configPath })
             litellmMasterKey = llmConfig.general_settings.master_key
-            // When routing through LiteLLM, the resolved model ID must include
-            // the provider prefix ('openai/') so the workspace config matches the
-            // isolated config and the bridge sends the correct provider/model pair.
-            resolvedModelId = `openai/${modelDef.id}`
-            app.log.info({ projectDir, litellmUrl, model: modelDef.id }, 'Started LiteLLM proxy for project')
+            // The workspace + isolated configs must agree on `openai/<uuid>`.
+            resolvedModelId = `openai/${resolvedModel.id}`
+            app.log.info({ projectDir, litellmUrl, model: resolvedModel.id }, 'Started LiteLLM proxy for project')
+          } catch (liteErr) {
+            app.log.warn({ err: liteErr, projectDir }, 'LiteLLM proxy failed — falling back to direct provider')
+            // litellmUrl stays undefined → generateProviderConfig is used below
           }
-
-          // Write the FULL provider config (with API key) to an isolated
-          // per-project directory outside the workspace tree. Root-only 600
-          // permissions prevent users from extracting keys via the code editor.
-          let fullConfig
-          if (litellmUrl && litellmMasterKey) {
-            fullConfig = generateLiteLLMProviderConfig(modelDef, litellmUrl, litellmMasterKey)
-          } else {
-            fullConfig = generateProviderConfig(modelDef, provider, userApiKey)
-          }
-          await writeIsolatedProjectConfig(projectDir, fullConfig)
-
-          // Detect provider changes by comparing the old project config
-          const oldConfigStr = await readFile(`${projectDir}/opencode.json`, 'utf8').catch(() => null)
-          const oldProvider = oldConfigStr ? JSON.parse(oldConfigStr).provider : undefined
-          const newProvider = fullConfig.provider
-          providerChanged = JSON.stringify(oldProvider) !== JSON.stringify(newProvider)
-
-          if (providerChanged) {
-            app.log.info({ projectDir, provider: provider.id }, 'Provider config changed — restarting OpenCode instance')
-            await processManager.forceStop(projectDir)
-          }
-          app.log.info({ projectDir, provider: provider.id, model: modelDef.id, viaLiteLLM: !!litellmUrl }, 'Wrote provider config')
-        } catch (err) {
-          app.log.warn({ err, projectDir }, 'Failed to write provider config')
         }
+
+        // Write the FULL provider config (with API key) to an isolated per-project
+        // directory outside the workspace tree (root-only 600 perms).
+        const fullConfig = (litellmUrl && litellmMasterKey)
+          ? generateLiteLLMProviderConfig(resolvedModel, litellmUrl, litellmMasterKey)
+          : generateProviderConfig(resolvedModel, userApiKey)
+        await writeIsolatedProjectConfig(projectDir, fullConfig)
+
+        // Detect provider changes by comparing the old project config.
+        const oldConfigStr = await readFile(`${projectDir}/opencode.json`, 'utf8').catch(() => null)
+        const oldProvider = oldConfigStr ? JSON.parse(oldConfigStr).provider : undefined
+        providerChanged = JSON.stringify(oldProvider) !== JSON.stringify(fullConfig.provider)
+
+        if (providerChanged) {
+          app.log.info({ projectDir, provider: provider.slug }, 'Provider config changed — restarting OpenCode instance')
+          await processManager.forceStop(projectDir)
+        }
+        app.log.info({ projectDir, provider: provider.slug, model: resolvedModel.id, viaLiteLLM: !!litellmUrl }, 'Wrote provider config')
+      } catch (err) {
+        app.log.warn({ err, projectDir }, 'Failed to write provider config')
       }
 
-      // If this is a Zen-capable model and the user has a Zen API key,
-      // write the Zen key to auth.json so OpenCode uses Zen (higher rate limits).
-      // Without a Zen key, the model falls back to OpenCode's free tier.
-      // Write a MINIMAL project-level config (no secrets) into the workspace.
-      // This ensures the correct model ID is always set in the project config.
-      // Must be written AFTER LiteLLM routing updates resolvedModelId.
+      // Write a MINIMAL project-level config (no secrets) into the workspace so the
+      // correct model id is always set. Must run AFTER LiteLLM updates resolvedModelId.
       const projectConfig = generateMinimalProjectConfig(resolvedModelId)
       try {
         await writeProjectConfig(projectDir, projectConfig)
@@ -490,10 +479,12 @@ export async function agentRoutes(app: FastifyInstance) {
         app.log.warn({ err, projectDir }, 'Failed to write project config')
       }
 
-      if (modelCanUseZen(requestedModelId) && userKeys.zen) {
+      // Optional Zen key (built-in 'opencode' provider) → auth.json for higher rate limits.
+      // Without it, Zen models still work on OpenCode's free tier.
+      if (provider.kind === 'zen' && userKeys.opencode) {
         try {
-          await writeZenAuthJson(projectDir, userKeys.zen)
-          app.log.info({ projectDir, model: modelDef.id }, 'Wrote Zen auth.json')
+          await writeZenAuthJson(projectDir, userKeys.opencode)
+          app.log.info({ projectDir, model: resolvedModel.id }, 'Wrote Zen auth.json')
         } catch (err) {
           app.log.warn({ err, projectDir }, 'Failed to write Zen auth.json')
         }
@@ -574,6 +565,11 @@ export async function agentRoutes(app: FastifyInstance) {
       sessionEventBus.clearBuffer(sessionId)
     }
 
+    // Resolve which admin-configured MCP servers this user can run (key substitution included).
+    const mcp = bridgeName === 'opencode'
+      ? await buildUserMcpServers(request.user!.id)
+      : { servers: [], disconnect: [] }
+
     // Fire-and-forget: launch the AI agent executor asynchronously
     agentExecutor.execute(
       {
@@ -581,7 +577,10 @@ export async function agentRoutes(app: FastifyInstance) {
         projectId,
         prompt: parsed.data.content,
         bridgeName,
-        model: parsed.data.model ?? resolvedModelId,
+        // The bridge needs the OpenCode-resolvable model id (opencode/<id> or openai/<uuid>),
+        // NOT the AuroraCraft model row uuid. billingModelId carries the uuid for reconciliation.
+        model: resolvedModelId ?? parsed.data.model,
+        billingModelId: requestedModelId || undefined,
         speed: parsed.data.speed,
         opencodeSessionId: bridgeName === 'opencode' ? opencodeSessionId : undefined,
         kiroSessionId: bridgeName === 'kiro' ? (session.kiroSessionId ?? undefined) : undefined,
@@ -594,7 +593,8 @@ export async function agentRoutes(app: FastifyInstance) {
         javaVersion: project.javaVersion,
         projectDirectory: projectDir,
         userHomeDir: `/home/auroracraft-${username.toLowerCase()}`,
-        firecrawlApiKey: userTier === 'paid' ? userKeys.firecrawl : undefined,
+        mcpServers: mcp.servers,
+        mcpDisconnect: mcp.disconnect,
         userId: request.user!.id,
         estimatedCost,
         providerId,
@@ -728,30 +728,34 @@ export async function agentRoutes(app: FastifyInstance) {
 
   app.get('/api/ai/models', { preHandler: [authMiddleware] }, async (request, reply) => {
     const [user] = await db.select({ tier: users.tier }).from(users).where(eq(users.id, request.user!.id)).limit(1)
-    const tier = user?.tier ?? 'free'
-    const userKeys = await getUserProviderKeys(request.user!.id)
+    const tier: 'free' | 'paid' = user?.tier ?? 'free'
+    const userKeys = await getUserProviderKeyMap(request.user!.id)
 
-    const models = AI_MODELS.filter(m => {
-      if (tier === 'paid') return true
-      return m.minTier === 'free'
-    }).map(m => ({
-      id: m.id,
-      name: m.name,
-      description: m.description,
-      minTier: m.minTier,
-      providers: m.providers.map(p => ({
-        id: p.id,
-        speed: p.speed,
-        requiresApiKey: p.requiresApiKey,
-        hasKey: p.requiresApiKey ? !!userKeys[p.id] : true,
-      })),
-      disabled: m.minTier !== 'free' && m.providers.every(p => p.requiresApiKey && !userKeys[p.id]),
-      disabledReason: m.minTier !== 'free' && m.providers.every(p => p.requiresApiKey && !userKeys[p.id])
-        ? 'No API key configured for any provider'
-        : undefined,
-    }))
+    const resolved = await listModelsForUsage('agent', tier)
+    const models = resolved.map((m) => {
+      const requiresApiKey = m.provider.kind !== 'zen'
+      const hasKey = !requiresApiKey || !!userKeys[m.provider.slug]
+      const disabled = requiresApiKey && !userKeys[m.provider.slug]
+      return {
+        id: m.id,
+        name: m.showName,
+        description: m.description,
+        // free/paid follows the provider; minTier kept for frontend compatibility
+        minTier: m.provider.isFree ? 'free' : 'paid',
+        isFree: m.provider.isFree,
+        typeTag: m.typeTag,
+        weight: m.weight,
+        providerId: m.provider.id,
+        providerSlug: m.provider.slug,
+        providerName: m.provider.name,
+        requiresApiKey,
+        hasKey,
+        disabled,
+        disabledReason: disabled ? `No API key configured for ${m.provider.name}` : undefined,
+      }
+    })
 
-    return { models, tier, userKeys: Object.keys(userKeys) }
+    return { models, tier, providerKeys: Object.keys(userKeys) }
   })
 
   app.get('/api/user/tokens', { preHandler: [authMiddleware] }, async (request, reply) => {
@@ -764,15 +768,19 @@ export async function agentRoutes(app: FastifyInstance) {
   })
 
   app.get('/api/user/provider-keys', { preHandler: [authMiddleware] }, async (request) => {
-    const keys = await db
-      .select({ provider: providerApiKeys.provider, apiKey: providerApiKeys.apiKey, isActive: providerApiKeys.isActive, createdAt: providerApiKeys.createdAt })
+    // Which AI providers + MCPs the current user holds an active key for (slug/id only — never the key).
+    const provRows = await db
+      .select({ slug: aiProviders.slug, isActive: providerApiKeys.isActive, createdAt: providerApiKeys.createdAt })
+      .from(providerApiKeys)
+      .innerJoin(aiProviders, eq(providerApiKeys.providerId, aiProviders.id))
+      .where(and(eq(providerApiKeys.userId, request.user!.id), eq(providerApiKeys.isActive, true)))
+    const mcpRows = await db
+      .select({ mcpId: providerApiKeys.mcpId })
       .from(providerApiKeys)
       .where(and(eq(providerApiKeys.userId, request.user!.id), eq(providerApiKeys.isActive, true)))
-    return keys.map(k => ({
-      provider: k.provider,
-      apiKey: k.apiKey.length > 12 ? `${k.apiKey.slice(0, 8)}••••••••${k.apiKey.slice(-4)}` : '••••••••',
-      isActive: k.isActive,
-      createdAt: k.createdAt,
-    }))
+    return {
+      providers: provRows.map((k) => ({ provider: k.slug, isActive: k.isActive, createdAt: k.createdAt })),
+      mcps: mcpRows.filter((m) => !!m.mcpId).map((m) => ({ mcpId: m.mcpId })),
+    }
   })
 }

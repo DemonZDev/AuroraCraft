@@ -7,13 +7,6 @@ interface UserTokens {
   tier: 'free' | 'paid'
 }
 
-export interface UserProviderKeys {
-  provider: string
-  apiKey: string
-  isActive: boolean
-  createdAt: string
-}
-
 export function useUserTokens() {
   const { data, isLoading } = useQuery({
     queryKey: ['user', 'tokens'],
@@ -22,13 +15,4 @@ export function useUserTokens() {
   })
 
   return { tokens: data ?? null, isLoading }
-}
-
-export function useUserProviderKeys() {
-  const { data, isLoading } = useQuery({
-    queryKey: ['user', 'provider-keys'],
-    queryFn: () => api.get<UserProviderKeys[]>('/user/provider-keys'),
-  })
-
-  return { keys: data ?? [], isLoading }
 }

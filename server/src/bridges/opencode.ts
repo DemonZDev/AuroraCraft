@@ -69,7 +69,7 @@ interface OpenCodeTodo {
 
 const THINKING_TAG_RE = /<thinking>([\s\S]*?)<\/thinking>/gi
 const REASONING_TAG_RE = /<reasoning>([\s\S]*?)<\/reasoning>/gi
-const DEEPSEEK_THINKING_RE = /(?:^|[\n\r])\s*<think>([\s\S]*?)<\/think>(?:\s*|[\n\r])/gi
+const DEEPSEEK_THINKING_RE = /<think>([\s\S]*?)<\/think>/gi
 
 function parseThinkingTags(text: string): MessagePart[] {
   if (!text) return []
@@ -781,12 +781,21 @@ export class OpenCodeBridge implements BridgeInterface {
   }
 
   async createOrResolveSession(baseUrl: string, directory: string, title?: string, existingId?: string, forceNew?: boolean): Promise<string> {
+    // Helper: fetch with a hard race timeout — AbortSignal.timeout can fail
+    // to abort in some Node.js runtimes, so Promise.race guards against hangs.
+    const fetchSafe = async (url: string, init: RequestInit, timeoutMs: number) => {
+      const ac = new AbortController()
+      const timer = setTimeout(() => ac.abort(), timeoutMs)
+      try {
+        return await fetch(url, { ...init, signal: ac.signal })
+      } finally {
+        clearTimeout(timer)
+      }
+    }
+
     if (!forceNew && existingId) {
       try {
-        const res = await fetch(`${baseUrl}/session/${existingId}`, {
-          method: 'GET',
-          signal: AbortSignal.timeout(5000),
-        })
+        const res = await fetchSafe(`${baseUrl}/session/${existingId}`, { method: 'GET' }, 5000)
         if (res.ok) return existingId
       } catch { /* session not found, create new */ }
     }
@@ -794,10 +803,7 @@ export class OpenCodeBridge implements BridgeInterface {
     // Try to find existing session by title (project link name)
     if (!forceNew && title) {
       try {
-        const res = await fetch(`${baseUrl}/session`, {
-          method: 'GET',
-          signal: AbortSignal.timeout(5000),
-        })
+        const res = await fetchSafe(`${baseUrl}/session`, { method: 'GET' }, 5000)
         if (res.ok) {
           const sessions = (await res.json()) as OpenCodeSession[]
           const matching = sessions.find((s) => s.title === title)
@@ -812,12 +818,11 @@ export class OpenCodeBridge implements BridgeInterface {
     const body: Record<string, string> = {}
     if (title) body.title = title
 
-    const res = await fetch(url.toString(), {
+    const res = await fetchSafe(url.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(10000),
-    })
+    }, 10000)
 
     if (!res.ok) {
       throw new Error(`Failed to create OpenCode session: status ${res.status}`)
@@ -912,24 +917,27 @@ export class OpenCodeBridge implements BridgeInterface {
       }
     }
 
-    // Configure Firecrawl MCP server if the user has an API key
-    if (task.context?.firecrawlApiKey) {
-      try {
-        const { addMCPServer, buildFirecrawlMCPConfig } = await import('../utils/opencode-mcp.js')
-        const mcpConfig = buildFirecrawlMCPConfig(task.context.firecrawlApiKey)
-        await addMCPServer(baseUrl, 'firecrawl', mcpConfig)
-        console.log('[OpenCode] Added Firecrawl MCP server')
-      } catch (err) {
-        console.warn('[OpenCode] Failed to add Firecrawl MCP server:', err instanceof Error ? err.message : err)
+    // Register the admin-configured MCP servers this user is allowed to run
+    // (resolved + key-substituted upstream in agents.ts).
+    const mcpServers = task.context?.mcpServers ?? []
+    const mcpDisconnect = task.context?.mcpDisconnect ?? []
+    if (mcpServers.length || mcpDisconnect.length) {
+      const { addRawMCPServer, disconnectMCPServer } = await import('../utils/opencode-mcp.js')
+      for (const server of mcpServers) {
+        try {
+          await addRawMCPServer(baseUrl, server.name, server.config)
+          console.log(`[OpenCode] Added MCP server: ${server.name}`)
+        } catch (err) {
+          console.warn(`[OpenCode] Failed to add MCP server ${server.name}:`, err instanceof Error ? err.message : err)
+        }
       }
-    } else {
-      // Disconnect stale Firecrawl MCP if key was removed
-      try {
-        const { disconnectMCPServer } = await import('../utils/opencode-mcp.js')
-        await disconnectMCPServer(baseUrl, 'firecrawl')
-        console.log('[OpenCode] Disconnected stale Firecrawl MCP server')
-      } catch (err) {
-        // Non-fatal: server might not exist
+      // Remove stale registrations (e.g. an api MCP whose key was removed).
+      for (const name of mcpDisconnect) {
+        try {
+          await disconnectMCPServer(baseUrl, name)
+        } catch {
+          // Non-fatal: server might not exist
+        }
       }
     }
 
@@ -945,6 +953,8 @@ export class OpenCodeBridge implements BridgeInterface {
       )
 
       onEvent({ type: 'status', content: 'Sending prompt to AI agent...', timestamp: new Date().toISOString() })
+
+      const contextPrompt = this.buildContextPrompt(task)
 
       // Clear stale buffered events from previous messages so they aren't replayed
       this.subscriptionManager.clearBuffer(directory, opencodeSessionId)
@@ -1077,8 +1087,7 @@ export class OpenCodeBridge implements BridgeInterface {
         }, { once: true })
       })
 
-      // Build context prompt and send to OpenCode
-      const contextPrompt = this.buildContextPrompt(task)
+      // Send prompt to OpenCode
 
       // Get baseline assistant message count before sending prompt
       // so pollUntilIdle only considers NEW messages for completion

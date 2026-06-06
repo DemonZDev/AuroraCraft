@@ -80,14 +80,24 @@ export async function listMCPServers(
 }
 
 /**
- * Build a Firecrawl MCP server configuration.
+ * Add or update an MCP server using a raw OpenCode MCP config object
+ * (the value an admin pastes into the MCP form, already key-substituted).
+ * `enabled: true` is forced so disabled-by-config servers still attach.
  */
-export function buildFirecrawlMCPConfig(apiKey: string): MCPServerConfig {
-  return {
-    command: 'npx',
-    args: ['-y', 'firecrawl-mcp'],
-    env: {
-      FIRECRAWL_API_KEY: apiKey,
-    },
+export async function addRawMCPServer(
+  baseUrl: string,
+  name: string,
+  config: Record<string, unknown>,
+): Promise<void> {
+  const res = await fetch(`${baseUrl}/mcp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, config: { ...config, enabled: true } }),
+    signal: AbortSignal.timeout(15000),
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => 'Unknown error')
+    throw new Error(`Failed to add MCP server ${name}: ${res.status} ${text}`)
   }
 }

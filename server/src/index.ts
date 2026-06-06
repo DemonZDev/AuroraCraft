@@ -14,6 +14,7 @@ import { healthRoutes } from './routes/health.js'
 import { projectRoutes } from './routes/projects.js'
 import { agentRoutes } from './routes/agents.js'
 import { adminRoutes } from './routes/admin.js'
+import { aiAdminRoutes } from './routes/ai-admin.js'
 import { communityRoutes } from './routes/community.js'
 import { githubRoutes } from './routes/github.js'
 import coderabbitRoutes from './routes/coderabbit.js'
@@ -45,6 +46,7 @@ await app.register(healthRoutes)
 await app.register(projectRoutes)
 await app.register(agentRoutes)
 await app.register(adminRoutes)
+await app.register(aiAdminRoutes)
 await app.register(communityRoutes)
 await app.register(githubRoutes)
 await app.register(coderabbitRoutes)

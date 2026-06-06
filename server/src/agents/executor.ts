@@ -64,7 +64,8 @@ export class AgentExecutor {
             compiler: context.compiler,
             javaVersion: context.javaVersion,
             projectDirectory: context.projectDirectory,
-            firecrawlApiKey: context.firecrawlApiKey,
+            mcpServers: context.mcpServers,
+            mcpDisconnect: context.mcpDisconnect,
             litellmUrl: context.litellmUrl,
             maxOutputTokens: context.maxOutputTokens,
           },
@@ -121,23 +122,22 @@ export class AgentExecutor {
       })
 
       // Reconcile pre-charged tokens against actual usage
-      if (context.userId && context.estimatedCost && context.estimatedCost > 0 && context.model) {
+      if (context.userId && context.estimatedCost && context.estimatedCost > 0 && context.billingModelId) {
         try {
-          const { getModelById } = await import('../config/ai-models.js')
-          const modelDef = getModelById(context.model)
-          if (modelDef) {
+          const { resolveModelById } = await import('../utils/ai-runtime.js')
+          const resolved = await resolveModelById(context.billingModelId)
+          if (resolved) {
             const actualCost = calculateActualCost(
               context.prompt,
               result.output,
-              modelDef,
-              context.providerId as any,
+              resolved.pricing,
             )
             const reconcileResult = await reconcileTokens(
               context.userId,
               context.estimatedCost,
               actualCost,
-              modelDef.name,
-              context.providerId,
+              resolved.showName,
+              resolved.provider.slug,
               context.sessionId,
             )
             if (reconcileResult.balanceExhausted) {
@@ -218,7 +218,13 @@ export class AgentExecutor {
   }
 
   private async addLog(sessionId: string, logType: string, message: string): Promise<void> {
-    await db.insert(agentLogs).values({ sessionId, logType, message })
+    // Best-effort: the session row may have been deleted (e.g. project deleted mid-run),
+    // which would violate the FK. Never let logging crash the executor.
+    try {
+      await db.insert(agentLogs).values({ sessionId, logType, message })
+    } catch (err) {
+      console.warn(`[AgentExecutor] Skipped log for ${sessionId} (${logType}):`, err instanceof Error ? err.message : err)
+    }
   }
 }
 

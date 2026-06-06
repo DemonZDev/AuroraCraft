@@ -226,9 +226,8 @@ export class LiteLLMProcessManager {
     })
 
     // Wait for LiteLLM to be ready (it exposes /health endpoint).
-    // Give extra time (60s) because LiteLLM may need to load models
-    // and initialize the HTTP server after printing the banner.
-    const ready = await this.waitForReady(url, 60_000, masterKey)
+    // Model validation during startup can take 40-55s — give ample time.
+    const ready = await this.waitForReady(url, 90_000, masterKey)
     if (!ready) {
       console.error(`[LiteLLM] Failed to bind within 60s on port ${port}`)
       await this.stopInstance(directory)
@@ -296,18 +295,28 @@ export class LiteLLMProcessManager {
       headers['Authorization'] = `Bearer ${apiKey}`
     }
 
+    let firstResponseAt: number | undefined
     while (Date.now() < deadline) {
       try {
         const res = await fetch(`${url}/health`, {
           method: 'GET',
           headers,
-          signal: AbortSignal.timeout(10000),
+          signal: AbortSignal.timeout(15000),
         })
-        if (res.ok) return true
+        if (!firstResponseAt) firstResponseAt = Date.now()
+        if (res.ok) {
+          if (firstResponseAt) {
+            console.log(`[LiteLLM] Health check passed after ${((Date.now() - (deadline - timeoutMs)) / 1000).toFixed(1)}s`)
+          }
+          return true
+        }
       } catch {
-        // Not ready yet
+        // Not ready yet — connection refused or timeout
       }
       await new Promise((r) => setTimeout(r, pollInterval))
+    }
+    if (firstResponseAt) {
+      console.log(`[LiteLLM] Health endpoint responded but never returned 200 within ${timeoutMs / 1000}s`)
     }
     return false
   }

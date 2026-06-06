@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Loader2, CheckCircle2, XCircle, Terminal, Shield, Coins, User as UserIcon, KeyRound, Plus, Trash2, Pencil, Check, X } from 'lucide-react'
-import { useAdminUsers, useAdminUserProviderKeys } from '@/hooks/use-admin'
+import { useAdminUsers } from '@/hooks/use-admin'
+import { useUserKeys, useUserKeyMutations } from '@/hooks/use-ai-admin'
 import { api } from '@/lib/api'
 import { GlassyConfirmModal, GlassyPromptModal } from '@/components/ui/glassy'
 import type { KiroAuthStatus } from '@/types'
@@ -167,68 +168,6 @@ export default function AdminUsersPage() {
   const [tierUpdateError, setTierUpdateError] = useState('')
   const [providerKeysOpen, setProviderKeysOpen] = useState(false)
   const [providerKeysUser, setProviderKeysUser] = useState<{ id: string; username: string } | null>(null)
-  const [newProviderKey, setNewProviderKey] = useState('')
-  const [addingProviderKey, setAddingProviderKey] = useState(false)
-  const [providerKeyError, setProviderKeyError] = useState('')
-
-  const handleUpdateProviderKey = async (provider: string, newApiKey: string) => {
-    if (!providerKeysUser || !newApiKey.trim()) return
-    try {
-      const res = await fetch(`/api/admin/users/${providerKeysUser.id}/provider-keys/${provider}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ apiKey: newApiKey.trim() }),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.message || 'Failed to update key')
-      }
-    } catch (err: any) {
-      throw new Error(err.message || 'Failed to update key')
-    }
-  }
-
-  const handleAddProviderKey = async () => {
-    if (!providerKeysUser || !newProviderKey.trim()) return
-    const [provider, ...rest] = newProviderKey.split(':')
-    const apiKey = rest.join(':').trim()
-    if (!provider || !apiKey) {
-      setProviderKeyError('Format: provider:api_key — e.g. fireworks:sk-xxx or firecrawl:fc-xxx')
-      return
-    }
-    setAddingProviderKey(true)
-    setProviderKeyError('')
-    try {
-      const res = await fetch(`/api/admin/users/${providerKeysUser.id}/provider-keys`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ provider: provider.trim().toLowerCase(), apiKey }),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.message || 'Failed to add key')
-      }
-      setNewProviderKey('')
-    } catch (err: any) {
-      setProviderKeyError(err.message)
-    } finally {
-      setAddingProviderKey(false)
-    }
-  }
-
-  const handleDeleteProviderKey = async (userId: string, provider: string) => {
-    try {
-      const res = await fetch(`/api/admin/users/${userId}/provider-keys/${provider}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      })
-      if (!res.ok) throw new Error('Failed to delete key')
-    } catch {
-      // non-fatal
-    }
-  }
 
   const handleGrantTokens = (value: string) => {
     if (!tokenGrantUser) return
@@ -582,190 +521,153 @@ export default function AdminUsersPage() {
       />
 
       {providerKeysOpen && providerKeysUser && (
-        <ProviderKeysModal
+        <UserKeysModal
           userId={providerKeysUser.id}
           username={providerKeysUser.username}
           onClose={() => {
             setProviderKeysOpen(false)
             setProviderKeysUser(null)
-            setNewProviderKey('')
-            setProviderKeyError('')
           }}
-          onAdd={handleAddProviderKey}
-          onDelete={handleDeleteProviderKey}
-          onEdit={handleUpdateProviderKey}
-          newKey={newProviderKey}
-          setNewKey={setNewProviderKey}
-          adding={addingProviderKey}
-          error={providerKeyError}
         />
       )}
     </div>
   )
 }
 
-function ProviderKeysModal({
-  userId,
-  username,
-  onClose,
-  onAdd,
-  onDelete,
-  onEdit,
-  newKey,
-  setNewKey,
-  adding,
-  error,
-}: {
-  userId: string
-  username: string
-  onClose: () => void
-  onAdd: () => void
-  onDelete: (userId: string, provider: string) => void
-  onEdit: (provider: string, apiKey: string) => Promise<void>
-  newKey: string
-  setNewKey: (value: string) => void
-  adding: boolean
-  error: string
+function KeyRow({ label, badge, hasKey, masked, locked, lockedReason, onSet, onRemove }: {
+  label: string
+  badge?: React.ReactNode
+  hasKey: boolean
+  masked: string | null
+  locked?: boolean
+  lockedReason?: string
+  onSet: (apiKey: string) => Promise<unknown>
+  onRemove: () => Promise<unknown>
 }) {
-  const { keys, isLoading, refetch } = useAdminUserProviderKeys(userId)
-  const [editingKey, setEditingKey] = useState<string | null>(null)
-  const [editValue, setEditValue] = useState('')
-  const [savingEdit, setSavingEdit] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
 
-  const handleAdd = async () => {
-    await onAdd()
-    refetch()
+  const save = async () => {
+    if (!val.trim()) return
+    setBusy(true); setErr('')
+    try { await onSet(val.trim()); setEditing(false); setVal('') }
+    catch (e: any) { setErr(e?.message || 'Failed to save key') }
+    finally { setBusy(false) }
   }
-
-  const handleDelete = async (provider: string) => {
-    await onDelete(userId, provider)
-    refetch()
-  }
-
-  const startEdit = (provider: string) => {
-    setEditingKey(provider)
-    setEditValue('')
-  }
-
-  const cancelEdit = () => {
-    setEditingKey(null)
-    setEditValue('')
-  }
-
-  const saveEdit = async (provider: string) => {
-    if (!editValue.trim()) return
-    setSavingEdit(true)
-    try {
-      await onEdit(provider, editValue.trim())
-      setEditingKey(null)
-      setEditValue('')
-      refetch()
-    } finally {
-      setSavingEdit(false)
-    }
+  const remove = async () => {
+    setBusy(true); setErr('')
+    try { await onRemove() }
+    catch (e: any) { setErr(e?.message || 'Failed to remove key') }
+    finally { setBusy(false) }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-lg border border-border bg-surface p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-lg font-semibold text-text mb-1">Provider API Keys — {username}</h2>
-        <p className="text-sm text-text-muted mb-4">Configure API keys for this user. Format: provider:api_key — e.g. fireworks:sk-xxx, bluesminds:bm-xxx, firecrawl:fc-xxx, or nvidia:nvapi-xxx (NVIDIA NIM, enables the Prompt Enhancer & Error Prompt Maker)</p>
-
-        {error && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/30">
-            <p className="text-sm text-red-600 dark:text-red-300">{error}</p>
+    <div className="rounded-lg border border-border bg-background p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-sm font-medium text-text shrink-0">{label}</span>
+          {badge}
+          {!editing && (hasKey
+            ? <code className="text-xs text-text-muted font-mono truncate">{masked}</code>
+            : <span className="text-xs text-text-dim">no key set</span>)}
+        </div>
+        {!editing && (
+          <div className="flex items-center gap-1 shrink-0">
+            <button onClick={() => { setEditing(true); setErr('') }} disabled={locked}
+              className="text-text-dim hover:text-primary p-1 disabled:opacity-30" title={locked ? lockedReason : (hasKey ? 'Edit key' : 'Set key')}>
+              {hasKey ? <Pencil className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+            </button>
+            {hasKey && (
+              <button onClick={remove} disabled={busy} className="text-red-500 hover:text-red-400 p-1" title="Remove key">
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         )}
-
-        <div className="flex gap-2 mb-4">
-          <input
-            type="text"
-            value={newKey}
-            onChange={(e) => setNewKey(e.target.value)}
-            placeholder="fireworks:sk-xxx, firecrawl:fc-xxx, or nvidia:nvapi-xxx..."
-            className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-text placeholder:text-text-dim focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-          />
-          <button
-            onClick={handleAdd}
-            disabled={!newKey.trim() || adding}
-            className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            Add
+      </div>
+      {locked && !editing && <p className="mt-1 text-[10px] text-warning">{lockedReason}</p>}
+      {editing && (
+        <div className="mt-2 flex items-center gap-2">
+          <input type="password" value={val} autoFocus onChange={(e) => setVal(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setEditing(false); setVal(''); setErr('') } }}
+            placeholder="Paste API key…"
+            className="flex-1 rounded border border-border bg-surface px-2 py-1 text-xs text-text placeholder:text-text-dim focus:border-primary focus:outline-none" />
+          <button onClick={save} disabled={!val.trim() || busy} className="text-success hover:text-success/80 p-1 disabled:opacity-50">
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+          </button>
+          <button onClick={() => { setEditing(false); setVal(''); setErr('') }} className="text-text-dim hover:text-text-muted p-1">
+            <X className="h-3.5 w-3.5" />
           </button>
         </div>
+      )}
+      {err && <p className="mt-1.5 text-[11px] text-destructive">{err}</p>}
+    </div>
+  )
+}
 
-        {isLoading ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-5 w-5 animate-spin text-text-dim" />
-          </div>
-        ) : keys.length === 0 ? (
-          <p className="text-center text-sm text-text-dim py-4">No API keys configured for this user</p>
+function UserKeysModal({ userId, username, onClose }: { userId: string; username: string; onClose: () => void }) {
+  const { keys, isLoading } = useUserKeys(userId)
+  const { setKey, removeKey } = useUserKeyMutations(userId)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="w-full max-w-xl rounded-lg border border-border bg-surface p-6 shadow-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-semibold text-text mb-1">API Keys — {username}</h2>
+        <p className="text-sm text-text-muted mb-4">Keys are stored on the backend and never shown in full. Paid-provider keys require a paid user.</p>
+
+        {isLoading || !keys ? (
+          <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-text-dim" /></div>
         ) : (
-          <div className="space-y-2 max-h-64 overflow-y-auto">
-            {keys.map((key) => (
-              <div key={key.id} className="rounded-lg border border-border bg-background p-3">
-                {editingKey === key.provider ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-text capitalize shrink-0">{key.provider}</span>
-                    <input
-                      type="text"
-                      value={editValue}
-                      onChange={(e) => setEditValue(e.target.value)}
-                      placeholder="Enter new API key..."
-                      autoFocus
-                      className="flex-1 rounded border border-border bg-surface px-2 py-1 text-xs text-text placeholder:text-text-dim focus:border-primary focus:outline-none"
+          <div className="space-y-5">
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-text-dim mb-2">AI Model Providers</h3>
+              {keys.providers.length === 0 ? (
+                <p className="text-sm text-text-dim py-2">No providers configured. Add some in AI Runtime.</p>
+              ) : (
+                <div className="space-y-2">
+                  {keys.providers.map((p) => (
+                    <KeyRow
+                      key={p.providerId}
+                      label={p.name}
+                      badge={p.isFree
+                        ? <span className="rounded-full bg-success/10 px-1.5 py-0.5 text-[10px] text-success">free</span>
+                        : <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">paid</span>}
+                      hasKey={p.hasKey}
+                      masked={p.maskedKey}
+                      onSet={(apiKey) => setKey.mutateAsync({ providerId: p.providerId, apiKey })}
+                      onRemove={() => removeKey.mutateAsync({ providerId: p.providerId })}
                     />
-                    <button
-                      onClick={() => saveEdit(key.provider)}
-                      disabled={!editValue.trim() || savingEdit}
-                      className="text-success hover:text-success/80 p-1 disabled:opacity-50"
-                    >
-                      {savingEdit ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                    </button>
-                    <button
-                      onClick={cancelEdit}
-                      className="text-text-dim hover:text-text-muted p-1"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-sm font-medium text-text capitalize shrink-0">{key.provider}</span>
-                      <code className="text-xs text-text-muted font-mono truncate">{key.apiKey}</code>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        onClick={() => startEdit(key.provider)}
-                        className="text-text-dim hover:text-primary p-1"
-                        title="Edit API key"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(key.provider)}
-                        className="text-red-500 hover:text-red-400 p-1"
-                        title="Delete API key"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-text-dim mb-2">MCPs</h3>
+              {keys.mcps.length === 0 ? (
+                <p className="text-sm text-text-dim py-2">No API-type MCPs configured.</p>
+              ) : (
+                <div className="space-y-2">
+                  {keys.mcps.map((m) => (
+                    <KeyRow
+                      key={m.mcpId}
+                      label={m.name}
+                      hasKey={m.hasKey}
+                      masked={m.maskedKey}
+                      onSet={(apiKey) => setKey.mutateAsync({ mcpId: m.mcpId, apiKey })}
+                      onRemove={() => removeKey.mutateAsync({ mcpId: m.mcpId })}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
         )}
 
-        <div className="mt-4 flex justify-end">
-          <button
-            onClick={onClose}
-            className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover"
-          >
-            Close
-          </button>
+        <div className="mt-5 flex justify-end">
+          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">Close</button>
         </div>
       </div>
     </div>

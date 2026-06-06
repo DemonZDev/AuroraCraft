@@ -1,1 +1,0 @@
-{"nodes": [{"id": "routes_health_health_routes", "label": "Health Check Route", "file_type": "code", "source_file": "server/src/routes/health.ts", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null}], "edges": [], "hyperedges": []}

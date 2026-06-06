@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 
-export interface NimModelOption { id: string; label: string; isReasoning: boolean }
+export interface NimModelOption { id: string; label: string; typeTag?: string; providerName?: string; isFree?: boolean; hasKey?: boolean }
 export type NimJobStatus = 'running' | 'awaiting_user' | 'ready' | 'completed' | 'cancelled' | 'failed' | 'timeout'
 export interface NimJobView {
   id: string
@@ -19,22 +19,37 @@ export interface NimJobView {
 const TERMINAL: NimJobStatus[] = ['completed', 'cancelled', 'failed', 'timeout']
 export const isTerminal = (s?: NimJobStatus | null) => !!s && TERMINAL.includes(s)
 
+interface NimModelsResponse {
+  enhancer: NimModelOption[]
+  errorMaker: NimModelOption[]
+  defaultEnhancerId: string
+  defaultErrorMakerId: string
+}
+
+/** Models for the Prompt Enhancer & Error Prompt Maker pickers (DB-driven, per-usage). */
 export function useNimModels() {
   const { data } = useQuery({
     queryKey: ['nim', 'models'],
-    queryFn: () => api.get<{ models: NimModelOption[]; defaultId: string }>('/nim/models'),
-    staleTime: 1000 * 60 * 60,
+    queryFn: () => api.get<NimModelsResponse>('/nim/models'),
+    staleTime: 1000 * 60 * 10,
   })
-  return { models: data?.models ?? [], defaultId: data?.defaultId ?? 'step-3.7-flash' }
+  return {
+    enhancerModels: data?.enhancer ?? [],
+    errorMakerModels: data?.errorMaker ?? [],
+    defaultEnhancerId: data?.defaultEnhancerId ?? '',
+    defaultErrorMakerId: data?.defaultErrorMakerId ?? '',
+  }
 }
 
-/** True if the current user has an active NVIDIA NIM key (feature is hidden otherwise). */
+/** True if the current user can run at least one enhancer/error-maker model (has a key for it). */
 export function useHasNimKey() {
   const { data } = useQuery({
-    queryKey: ['user', 'provider-keys'],
-    queryFn: () => api.get<Array<{ provider: string; isActive: boolean }>>('/user/provider-keys'),
+    queryKey: ['nim', 'models'],
+    queryFn: () => api.get<NimModelsResponse>('/nim/models'),
+    staleTime: 1000 * 60 * 10,
   })
-  return (data ?? []).some((k) => k.provider === 'nvidia' && k.isActive)
+  const all = [...(data?.enhancer ?? []), ...(data?.errorMaker ?? [])]
+  return all.some((m) => m.hasKey)
 }
 
 /** Poll a single NIM job until terminal. */

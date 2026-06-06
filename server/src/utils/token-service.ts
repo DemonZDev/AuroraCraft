@@ -2,9 +2,8 @@ import { db } from '../db/index.js'
 import { users } from '../db/schema/users.js'
 import { tokenTransactions, providerApiKeys } from '../db/schema/provider-api-keys.js'
 import { eq, sql, and } from 'drizzle-orm'
-import type { UserTier, ProviderId } from '../config/ai-models.js'
-import { calculateTokenCost, estimateTokens, getModelPricing, TOKEN_MULTIPLIER, TOKENS_PER_USD } from '../config/ai-models.js'
-import type { AIModelDef } from '../config/ai-models.js'
+import { calculateTokenCost, estimateTokens, TOKEN_MULTIPLIER, TOKENS_PER_USD } from '../config/ai-models.js'
+import type { ModelPricing, UserTier } from '../config/ai-models.js'
 
 /** Minimum token balance required to send messages using premium (paid) models */
 export const MIN_PREMIUM_BALANCE = 30
@@ -115,10 +114,10 @@ export async function refundTokens(
     .where(eq(users.id, userId))
 }
 
-export function estimateMessageCost(inputText: string, model: AIModelDef, providerId?: ProviderId): number {
+export function estimateMessageCost(inputText: string, pricing: ModelPricing): number {
   const estimatedInput = estimateTokens(inputText)
   const estimatedOutput = estimatedInput * 2
-  return calculateTokenCost(estimatedInput, estimatedOutput, model, providerId)
+  return calculateTokenCost(estimatedInput, estimatedOutput, pricing)
 }
 
 /**
@@ -128,10 +127,8 @@ export function estimateMessageCost(inputText: string, model: AIModelDef, provid
 export function calculateMaxOutputTokens(
   remainingTokens: number,
   inputText: string,
-  model: AIModelDef,
-  providerId?: ProviderId,
+  pricing: ModelPricing,
 ): number {
-  const pricing = getModelPricing(model, providerId)
   if (!pricing || (pricing.inputPer1M === 0 && pricing.outputPer1M === 0)) {
     return Number.MAX_SAFE_INTEGER // Free models: no limit
   }
@@ -155,12 +152,11 @@ export function calculateMaxOutputTokens(
 export function calculateActualCost(
   inputText: string,
   outputText: string,
-  model: AIModelDef,
-  providerId?: ProviderId,
+  pricing: ModelPricing,
 ): number {
   const actualInput = estimateTokens(inputText)
   const actualOutput = estimateTokens(outputText)
-  return calculateTokenCost(actualInput, actualOutput, model, providerId)
+  return calculateTokenCost(actualInput, actualOutput, pricing)
 }
 
 export interface ReconcileResult {
@@ -214,23 +210,7 @@ export async function reconcileTokens(
   return { refunded, extraCharged, balanceExhausted }
 }
 
-export function getMinTier(model: AIModelDef): UserTier {
-  return model.minTier
-}
-
 export function canAccessTier(userTier: UserTier, requiredTier: UserTier): boolean {
   if (userTier === 'paid') return true
   return requiredTier === 'free'
-}
-
-export async function getUserProviderKeys(userId: string): Promise<Record<string, string>> {
-  const keys = await db
-    .select({ provider: providerApiKeys.provider, apiKey: providerApiKeys.apiKey })
-    .from(providerApiKeys)
-    .where(and(eq(providerApiKeys.userId, userId), eq(providerApiKeys.isActive, true)))
-  const result: Record<string, string> = {}
-  for (const k of keys) {
-    result[k.provider] = k.apiKey
-  }
-  return result
 }

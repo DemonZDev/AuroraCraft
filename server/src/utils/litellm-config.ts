@@ -1,7 +1,7 @@
 import { writeFile, readFile, mkdir, chmod } from 'fs/promises'
 import { createHash, randomBytes } from 'crypto'
-import type { AIModelDef, ProviderId } from '../config/ai-models.js'
-import { getModelPricing, TOKEN_MULTIPLIER, TOKENS_PER_USD } from '../config/ai-models.js'
+import { TOKEN_MULTIPLIER, TOKENS_PER_USD } from '../config/ai-models.js'
+import type { ResolvedModel } from './ai-runtime.js'
 import { getProjectConfigDirectory } from './provider-config.js'
 
 export interface LiteLLMModelMapping {
@@ -9,7 +9,7 @@ export interface LiteLLMModelMapping {
   litellm_params: {
     model: string
     api_key: string
-    api_base: string
+    api_base?: string
   }
   model_info: {
     input_cost_per_token: number
@@ -62,59 +62,44 @@ export async function getOrCreateLiteLLMMasterKey(projectDir: string): Promise<s
  */
 export async function generateLiteLLMConfig(
   projectDir: string,
-  models: AIModelDef[],
+  models: ResolvedModel[],
   providerKeys: Record<string, string>,
   availableTokens: number,
 ): Promise<LiteLLMConfig> {
   const modelList: LiteLLMModelMapping[] = []
 
   for (const model of models) {
-    // Only include premium models (not free/zen)
-    if (model.minTier === 'free') continue
+    // Only non-Zen OpenAI-compatible models route through LiteLLM.
+    // Zen models (opencode/<id> format) bypass it entirely.
+    if (model.provider.kind === 'zen') continue
+    if (!model.provider.baseUrl) continue
 
-    // Find the provider that has an API key available
-    const provider = model.providers.find(p =>
-      p.requiresApiKey && providerKeys[p.id]
-    ) || model.providers.find(p => !p.requiresApiKey)
-
-    if (!provider) continue
-    if (provider.id === 'opencode') continue // Zen models bypass LiteLLM
-
-    const apiKey = providerKeys[provider.id]
+    const apiKey = providerKeys[model.provider.slug]
     if (!apiKey) continue
 
-    const pricing = getModelPricing(model, provider.id)
-
     // LiteLLM uses cost per token (not per 1M)
-    const inputCostPerToken = pricing.inputPer1M / 1_000_000
-    const outputCostPerToken = pricing.outputPer1M / 1_000_000
+    const inputCostPerToken = model.pricing.inputPer1M / 1_000_000
+    const outputCostPerToken = model.pricing.outputPer1M / 1_000_000
 
-    // Determine the correct api_base for this provider
-    let apiBase: string
-    switch (provider.id) {
-      case 'fireworks':
-        apiBase = 'https://api.fireworks.ai/inference/v1'
-        break
-      case 'bluesminds':
-        apiBase = 'https://api.bluesminds.com/v1'
-        break
-      case 'modal':
-        apiBase = 'https://api.us-west-2.modal.direct/v1'
-        break
-      default:
-        continue
-    }
-
-    // Build the upstream model string for LiteLLM
-    // Format: openai/{model_id} for OpenAI-compatible endpoints
-    const upstreamModel = `openai/${provider.modelId}`
+    // Upstream model string: openai/<realName> with api_base works for most
+    // OpenAI-compatible providers (Fireworks, Bluesminds, NVIDIA NIM).
+    // OpenRouter uses the native openrouter/ prefix so LiteLLM can handle
+    // rate limiting, load balancing, and fallback routing internally.
+    // NVIDIA NIM (integrate.api.nvidia.com) is a plain OpenAI-compatible
+    // endpoint — no special prefix needed.
+    const isOpenRouter = model.provider.slug === 'openrouter'
+    const upstreamModel = isOpenRouter
+      ? `openrouter/${model.realName}`
+      : `openai/${model.realName}`
 
     modelList.push({
-      model_name: model.id, // AuroraCraft model ID (e.g., 'kimi-k2.6')
+      model_name: model.id,
       litellm_params: {
         model: upstreamModel,
         api_key: apiKey,
-        api_base: apiBase,
+        // OpenRouter: let LiteLLM's native openrouter integration handle routing,
+        // rate limiting, and provider fallback internally (no explicit api_base needed).
+        ...(isOpenRouter ? {} : { api_base: model.provider.baseUrl }),
       },
       model_info: {
         input_cost_per_token: inputCostPerToken,
@@ -176,7 +161,9 @@ function convertToYAML(config: LiteLLMConfig): string {
     lines.push('    litellm_params:')
     lines.push('      model: ' + model.litellm_params.model)
     lines.push('      api_key: ' + model.litellm_params.api_key)
-    lines.push('      api_base: ' + model.litellm_params.api_base)
+    if (model.litellm_params.api_base) {
+      lines.push('      api_base: ' + model.litellm_params.api_base)
+    }
     lines.push('    model_info:')
     lines.push('      input_cost_per_token: ' + model.model_info.input_cost_per_token)
     lines.push('      output_cost_per_token: ' + model.model_info.output_cost_per_token)

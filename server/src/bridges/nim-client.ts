@@ -1,5 +1,3 @@
-import { NIM_BASE_URL } from '../config/nim-models.js'
-
 export interface NimMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
   content: string
@@ -48,6 +46,7 @@ const PER_CALL_TIMEOUT_MS = 5 * 60 * 1000
  */
 export async function nimChat(opts: {
   apiKey: string
+  baseUrl: string
   slug: string
   messages: NimMessage[]
   tools?: NimToolDef[]
@@ -55,7 +54,7 @@ export async function nimChat(opts: {
   temperature?: number
   signal?: AbortSignal
 }): Promise<NimChatResult> {
-  const { apiKey, slug, messages, tools, maxTokens = 8192, temperature = 0.4, signal } = opts
+  const { apiKey, baseUrl, slug, messages, tools, maxTokens = 8192, temperature = 0.4, signal } = opts
 
   const perCall = new AbortController()
   const timer = setTimeout(() => perCall.abort(), PER_CALL_TIMEOUT_MS)
@@ -66,7 +65,7 @@ export async function nimChat(opts: {
   }
 
   try {
-    const res = await fetch(`${NIM_BASE_URL}/chat/completions`, {
+    const res = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,

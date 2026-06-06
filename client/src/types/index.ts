@@ -180,19 +180,20 @@ export interface AdminProject {
   ownerUsername: string | null
 }
 
-export interface AIModelProvider {
-  id: string
-  speed: string
-  requiresApiKey: boolean
-  hasKey?: boolean
-}
-
+// A single agent model as served by GET /api/ai/models (one row per provider+tag).
 export interface AIModel {
   id: string
   name: string
   description: string
   minTier: string
-  providers: AIModelProvider[]
+  isFree: boolean
+  typeTag: string
+  weight: number
+  providerId: string
+  providerSlug: string
+  providerName: string
+  requiresApiKey: boolean
+  hasKey: boolean
   disabled?: boolean
   disabledReason?: string
 }
@@ -203,19 +204,9 @@ export interface TokenBalance {
   tier: string
 }
 
-export const AI_MODELS: AIModel[] = [
-  { id: 'opencode-deepseek-v4-flash-free', name: 'DeepSeek V4 Flash', description: 'Fast free coding model with strong reasoning', minTier: 'free', providers: [{ id: 'opencode', speed: 'fast', requiresApiKey: false }, { id: 'zen', speed: 'fast', requiresApiKey: true }] },
-  { id: 'opencode-nemotron-3-super-free', name: 'Nemotron 3 Super', description: 'NVIDIA free model optimized for coding', minTier: 'free', providers: [{ id: 'opencode', speed: 'fast', requiresApiKey: false }, { id: 'zen', speed: 'fast', requiresApiKey: true }] },
-  { id: 'glm-5.1', name: 'GLM-5.1', description: 'Zhipu GLM-5.1 frontier model (premium)', minTier: 'paid', providers: [{ id: 'fireworks', speed: 'fast', requiresApiKey: true }] },
-  { id: 'glm-5.1-free', name: 'GLM-5.1', description: 'Zhipu GLM-5.1 frontier model (free, rate-limited)', minTier: 'free', providers: [{ id: 'modal', speed: 'rate_limited', requiresApiKey: true }] },
-  { id: 'kimi-k2.6', name: 'Kimi K2.6', description: 'Moonshot Kimi K2.6 - SOTA coding', minTier: 'paid', providers: [{ id: 'fireworks', speed: 'fast', requiresApiKey: true }, { id: 'bluesminds', speed: 'slow', requiresApiKey: true }] },
-  { id: 'qwen3.6-plus', name: 'Qwen3.6 Plus', description: 'Alibaba Qwen3.6 Plus - Multilingual', minTier: 'paid', providers: [{ id: 'fireworks', speed: 'fast', requiresApiKey: true }, { id: 'bluesminds', speed: 'slow', requiresApiKey: true }] },
-  { id: 'minimax-m2.7', name: 'MiniMax M2.7', description: 'MiniMax M2.7 - Agentic coding', minTier: 'paid', providers: [{ id: 'fireworks', speed: 'fast', requiresApiKey: true }] },
-  { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', description: 'DeepSeek V4 Pro with thinking mode', minTier: 'paid', providers: [{ id: 'fireworks', speed: 'fast', requiresApiKey: true }, { id: 'bluesminds', speed: 'slow', requiresApiKey: true }] },
-  { id: 'qwen3.6-max', name: 'Qwen3.6 Max', description: 'Alibaba Qwen3.6 Max - Enhanced', minTier: 'paid', providers: [{ id: 'bluesminds', speed: 'slow', requiresApiKey: true }] },
-]
-
-export const DEFAULT_MODEL_ID = 'opencode-deepseek-v4-flash-free'
+// Sentinel for "no model selected yet"; the workspace resolves the real default
+// from GET /api/ai/models (first usable model by weight) once it loads.
+export const DEFAULT_MODEL_ID = ''
 
 // ── Streaming event types (mirroring server StreamEvent) ─────────────
 

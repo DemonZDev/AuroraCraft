@@ -15,7 +15,8 @@ export interface BridgeTask {
     projectDirectory?: string
     userHomeDir?: string
     username?: string
-    firecrawlApiKey?: string
+    mcpServers?: Array<{ name: string; config: Record<string, unknown> }>
+    mcpDisconnect?: string[]
     litellmUrl?: string
     maxOutputTokens?: number
   }

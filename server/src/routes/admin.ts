@@ -1,11 +1,13 @@
 import type { FastifyInstance } from 'fastify'
-import { sql, eq, desc, and } from 'drizzle-orm'
+import { sql, eq, desc, asc, and } from 'drizzle-orm'
 import { access, constants } from 'fs/promises'
 import { db } from '../db/index.js'
 import { users } from '../db/schema/users.js'
 import { projects } from '../db/schema/projects.js'
 import { agentSessions } from '../db/schema/agent-sessions.js'
 import { providerApiKeys } from '../db/schema/provider-api-keys.js'
+import { aiProviders } from '../db/schema/ai-providers.js'
+import { mcps } from '../db/schema/mcps.js'
 import { authMiddleware, adminGuard } from '../middleware/auth.js'
 import { grantTokens, getUserTokens, deductTokens } from '../utils/token-service.js'
 
@@ -196,18 +198,18 @@ export async function adminRoutes(app: FastifyInstance) {
     }
 
     if (tier === 'free' && user.tier === 'paid') {
-      const keys = await db
-        .select({ provider: providerApiKeys.provider })
+      // Block demotion while the user holds any key for a PAID provider.
+      const paidKeys = await db
+        .select({ name: aiProviders.name })
         .from(providerApiKeys)
-        .where(eq(providerApiKeys.userId, id))
-      const paidOnlyProviders = ['fireworks', 'bluesminds', 'firecrawl']
-      const blockingKeys = keys.filter(k => paidOnlyProviders.includes(k.provider))
-      if (blockingKeys.length > 0) {
-        const providers = blockingKeys.map(k => k.provider).join(', ')
+        .innerJoin(aiProviders, eq(providerApiKeys.providerId, aiProviders.id))
+        .where(and(eq(providerApiKeys.userId, id), eq(aiProviders.isFree, false)))
+      if (paidKeys.length > 0) {
+        const names = [...new Set(paidKeys.map(k => k.name))]
         return reply.status(409).send({
-          message: `Cannot downgrade to free tier. User has paid-only API keys configured for: ${providers}. Delete these keys first.`,
+          message: `Cannot downgrade to free tier. User has paid-provider API keys configured for: ${names.join(', ')}. Delete these keys first.`,
           statusCode: 409,
-          providers: blockingKeys.map(k => k.provider),
+          providers: names,
         })
       }
     }
@@ -266,88 +268,118 @@ export async function adminRoutes(app: FastifyInstance) {
     return { success: true, deducted: amount, remainingBalance: currentBalance - amount }
   })
 
-  // Per-user provider key management
-  app.get('/api/admin/users/:id/provider-keys', async (request) => {
+  // ── Per-user keys: AI providers + MCPs ────────────────────────────────
+  // Keys are never returned in full — only a masked preview (first 8 + last 4).
+  const maskKey = (key: string) => (key.length > 12 ? `${key.slice(0, 8)}••••••••${key.slice(-4)}` : '••••••••')
+
+  app.get('/api/admin/users/:id/keys', async (request) => {
     const { id } = request.params as { id: string }
-    const keys = await db
-      .select()
-      .from(providerApiKeys)
-      .where(eq(providerApiKeys.userId, id))
-      .orderBy(desc(providerApiKeys.createdAt))
-    return keys.map(k => ({
-      id: k.id,
-      provider: k.provider,
-      apiKey: k.apiKey.length > 12 ? `${k.apiKey.slice(0, 8)}••••••••${k.apiKey.slice(-4)}` : '••••••••',
-      isActive: k.isActive,
-      createdAt: k.createdAt,
-    }))
+
+    const allProviders = await db.select().from(aiProviders).orderBy(asc(aiProviders.name))
+    const apiMcps = await db.select().from(mcps).where(eq(mcps.apiType, 'api')).orderBy(asc(mcps.name))
+    const userKeys = await db.select().from(providerApiKeys).where(eq(providerApiKeys.userId, id))
+
+    const byProvider = new Map(userKeys.filter(k => k.providerId).map(k => [k.providerId, k]))
+    const byMcp = new Map(userKeys.filter(k => k.mcpId).map(k => [k.mcpId, k]))
+
+    return {
+      providers: allProviders.map(p => {
+        const k = byProvider.get(p.id)
+        return {
+          providerId: p.id,
+          name: p.name,
+          slug: p.slug,
+          isFree: p.isFree,
+          isActive: p.isActive,
+          isBuiltin: p.isBuiltin,
+          hasKey: !!k,
+          maskedKey: k ? maskKey(k.apiKey) : null,
+        }
+      }),
+      mcps: apiMcps.map(m => {
+        const k = byMcp.get(m.id)
+        return {
+          mcpId: m.id,
+          name: m.name,
+          isActive: m.isActive,
+          hasKey: !!k,
+          maskedKey: k ? maskKey(k.apiKey) : null,
+        }
+      }),
+    }
   })
 
-  app.post('/api/admin/users/:id/provider-keys', async (request, reply) => {
+  // Set or replace a key for an AI provider OR an MCP (exactly one of providerId/mcpId).
+  app.post('/api/admin/users/:id/keys', async (request, reply) => {
     const { id } = request.params as { id: string }
-    const { provider, apiKey } = request.body as { provider: string; apiKey: string }
-
-    if (!provider || !apiKey) {
-      return reply.status(400).send({ message: 'Provider and API key are required', statusCode: 400 })
-    }
-
-    // Paid-only providers require user to be on paid tier
-    const paidOnlyProviders = ['fireworks', 'bluesminds', 'firecrawl']
-    if (paidOnlyProviders.includes(provider)) {
-      const [user] = await db.select({ tier: users.tier }).from(users).where(eq(users.id, id)).limit(1)
-      if (!user || user.tier !== 'paid') {
-        return reply.status(403).send({
-          message: `Cannot add ${provider} API key. User must be on paid tier to use paid-only providers.`,
-          statusCode: 403,
-        })
-      }
-    }
-
-    const [existing] = await db
-      .select()
-      .from(providerApiKeys)
-      .where(and(eq(providerApiKeys.userId, id), eq(providerApiKeys.provider, provider)))
-      .limit(1)
-
-    if (existing) {
-      return reply.status(409).send({
-        message: `This user already has a ${provider} API key. Use the edit button to update it.`,
-        statusCode: 409,
-      })
-    }
-
-    await db.insert(providerApiKeys).values({
-      userId: id,
-      provider,
-      apiKey,
-      createdBy: request.user!.id,
-      isActive: true,
-    })
-
-    return { success: true }
-  })
-
-  app.patch('/api/admin/users/:id/provider-keys/:provider', async (request, reply) => {
-    const { id, provider } = request.params as { id: string; provider: string }
-    const { apiKey } = request.body as { apiKey: string }
+    const { providerId, mcpId, apiKey } = request.body as { providerId?: string; mcpId?: string; apiKey?: string }
 
     if (!apiKey || !apiKey.trim()) {
       return reply.status(400).send({ message: 'API key is required', statusCode: 400 })
     }
+    if (!!providerId === !!mcpId) {
+      return reply.status(400).send({ message: 'Provide exactly one of providerId or mcpId', statusCode: 400 })
+    }
 
-    await db
-      .update(providerApiKeys)
-      .set({ apiKey: apiKey.trim(), updatedAt: new Date() })
-      .where(and(eq(providerApiKeys.userId, id), eq(providerApiKeys.provider, provider)))
+    if (providerId) {
+      const [provider] = await db.select().from(aiProviders).where(eq(aiProviders.id, providerId)).limit(1)
+      if (!provider) return reply.status(404).send({ message: 'Provider not found', statusCode: 404 })
 
+      // Paid providers: key may only be held by paid users.
+      if (!provider.isFree) {
+        const [u] = await db.select({ tier: users.tier }).from(users).where(eq(users.id, id)).limit(1)
+        if (!u || u.tier !== 'paid') {
+          return reply.status(403).send({
+            message: `Cannot add a key for ${provider.name}. User must be on the paid tier to hold paid-provider keys.`,
+            statusCode: 403,
+          })
+        }
+      }
+
+      const [existing] = await db.select().from(providerApiKeys)
+        .where(and(eq(providerApiKeys.userId, id), eq(providerApiKeys.providerId, providerId))).limit(1)
+      if (existing) {
+        await db.update(providerApiKeys)
+          .set({ apiKey: apiKey.trim(), isActive: true, updatedAt: new Date() })
+          .where(eq(providerApiKeys.id, existing.id))
+      } else {
+        await db.insert(providerApiKeys).values({
+          userId: id, providerId, provider: provider.slug, apiKey: apiKey.trim(), createdBy: request.user!.id, isActive: true,
+        })
+      }
+      return { success: true }
+    }
+
+    // MCP key
+    const [mcp] = await db.select().from(mcps).where(eq(mcps.id, mcpId!)).limit(1)
+    if (!mcp) return reply.status(404).send({ message: 'MCP not found', statusCode: 404 })
+    if (mcp.apiType !== 'api') return reply.status(400).send({ message: 'This MCP does not use an API key', statusCode: 400 })
+
+    const [existing] = await db.select().from(providerApiKeys)
+      .where(and(eq(providerApiKeys.userId, id), eq(providerApiKeys.mcpId, mcpId!))).limit(1)
+    if (existing) {
+      await db.update(providerApiKeys)
+        .set({ apiKey: apiKey.trim(), isActive: true, updatedAt: new Date() })
+        .where(eq(providerApiKeys.id, existing.id))
+    } else {
+      await db.insert(providerApiKeys).values({
+        userId: id, mcpId: mcpId!, apiKey: apiKey.trim(), createdBy: request.user!.id, isActive: true,
+      })
+    }
     return { success: true }
   })
 
-  app.delete('/api/admin/users/:id/provider-keys/:provider', async (request) => {
-    const { id, provider } = request.params as { id: string; provider: string }
-    await db
-      .delete(providerApiKeys)
-      .where(and(eq(providerApiKeys.userId, id), eq(providerApiKeys.provider, provider)))
+  // Remove a key for an AI provider OR an MCP (query: ?providerId=… or ?mcpId=…).
+  app.delete('/api/admin/users/:id/keys', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { providerId, mcpId } = request.query as { providerId?: string; mcpId?: string }
+    if (providerId) {
+      await db.delete(providerApiKeys).where(and(eq(providerApiKeys.userId, id), eq(providerApiKeys.providerId, providerId)))
+    } else if (mcpId) {
+      await db.delete(providerApiKeys).where(and(eq(providerApiKeys.userId, id), eq(providerApiKeys.mcpId, mcpId)))
+    } else {
+      return reply.status(400).send({ message: 'Provide providerId or mcpId', statusCode: 400 })
+    }
     return { success: true }
   })
 }

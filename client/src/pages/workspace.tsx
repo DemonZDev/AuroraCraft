@@ -64,8 +64,10 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { useProject } from '@/hooks/use-projects'
 import { useAgentSessions, useAgentSession, useStreamingAgent, useProjectFiles, useFileContent, useFileOperations } from '@/hooks/use-agent'
 import { useUserTokens } from '@/hooks/use-user-tokens'
+import { useAgentModels } from '@/hooks/use-ai-models'
 import { api } from '@/lib/api'
-import { AI_MODELS, DEFAULT_MODEL_ID } from '@/types'
+import { DEFAULT_MODEL_ID } from '@/types'
+import type { AIModel } from '@/types'
 import type {
   AgentMessage,
   AgentSession,
@@ -102,7 +104,7 @@ function removeLeakedBadgeText(content: string): string {
     // Strip any literal thinking/reasoning tags that leaked through
     .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
     .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '')
-    .replace(/\n\s*?thinking[\s\S]*?<\/think>\s*\n?/gi, '\n')
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
 
   // Remove raw tool/file markers and leftover ANSI fragments.
   return normalized
@@ -1098,12 +1100,24 @@ function MessageContent({ message, onFileSelect }: { message: AgentMessage; onFi
 
 // ── Model selector ───────────────────────────────────────────────────
 
-function ModelSelector({ selectedModel, selectedSpeed, onModelChange, onSpeedChange, availableModels, disabled }: {
+// Group the flat model list by show name (preserving the backend's weight order).
+function groupModels(models: AIModel[]): { name: string; rows: AIModel[] }[] {
+  const groups: { name: string; rows: AIModel[] }[] = []
+  const index = new Map<string, AIModel[]>()
+  for (const m of models) {
+    let rows = index.get(m.name)
+    if (!rows) { rows = []; index.set(m.name, rows); groups.push({ name: m.name, rows }) }
+    rows.push(m)
+  }
+  return groups
+}
+
+function ModelSelector({ selectedModel, onModelChange, onSpeedChange, availableModels, disabled }: {
   selectedModel: string
   selectedSpeed?: string
   onModelChange: (modelId: string) => void
   onSpeedChange?: (speed: string) => void
-  availableModels?: typeof AI_MODELS
+  availableModels?: AIModel[]
   disabled?: boolean
 }) {
   const [open, setOpen] = useState(false)
@@ -1127,9 +1141,22 @@ function ModelSelector({ selectedModel, selectedSpeed, onModelChange, onSpeedCha
     }
   }, [open])
 
-  const models = availableModels ?? AI_MODELS
+  // Self-fetch as a fallback so the selector is never empty even when a caller
+  // (e.g. the new-project empty state) doesn't pass availableModels. The query is cached.
+  const { models: fetchedModels } = useAgentModels()
+  const models = availableModels && availableModels.length > 0 ? availableModels : fetchedModels
   const current = models.find((m) => m.id === selectedModel) ?? models[0]
-  const currentProvider = current.providers.find(p => p.speed === (selectedSpeed || 'fast')) ?? current.providers[0]
+  const groups = groupModels(models)
+  const currentGroup = groups.find((g) => g.rows.some((r) => r.id === current?.id))
+
+  // Pick a row: prefer a usable one (has key, not disabled), else the first.
+  const pickRow = (rows: AIModel[]) => rows.find((r) => !r.disabled) ?? rows[0]
+  const selectRow = (row: AIModel) => {
+    if (row.disabled) return
+    onModelChange(row.id)
+    onSpeedChange?.(row.typeTag || 'fast')
+    setOpen(false)
+  }
 
   return (
     <div ref={ref} className="relative">
@@ -1143,117 +1170,74 @@ function ModelSelector({ selectedModel, selectedSpeed, onModelChange, onSpeedCha
         )}
       >
         <Cpu className="h-3 w-3 shrink-0" />
-        <span className="max-w-[7rem] truncate">{current.name}</span>
-        {current.providers.length > 1 && (
-          <span className="rounded bg-accent px-1 py-0.5 text-[10px] text-text-dim uppercase">{currentProvider?.speed}</span>
+        <span className="max-w-[7rem] truncate">{current?.name ?? 'Select model'}</span>
+        {currentGroup && currentGroup.rows.length > 1 && current?.typeTag && (
+          <span className="rounded bg-accent px-1 py-0.5 text-[10px] text-text-dim uppercase">{current.typeTag}</span>
         )}
         <ChevronDown className={cn('h-3 w-3 shrink-0 transition-transform', open && 'rotate-180')} />
       </button>
       {open && (() => {
-        const freeModels = models.filter((m) => m.minTier === 'free')
-        const paidModels = models.filter((m) => m.minTier === 'paid')
+        const freeGroups = groups.filter((g) => g.rows.every((r) => r.isFree))
+        const paidGroups = groups.filter((g) => g.rows.some((r) => !r.isFree))
+        const renderGroup = (g: { name: string; rows: AIModel[] }) => {
+          const isSelected = g.rows.some((r) => r.id === selectedModel)
+          const head = pickRow(g.rows)
+          const multi = g.rows.length > 1
+          return (
+            <div key={g.name} className="px-1">
+              <button
+                type="button"
+                onClick={() => selectRow(head)}
+                disabled={head.disabled}
+                className={cn(
+                  'flex w-full flex-col rounded-md px-2 py-2 text-left transition-colors',
+                  head.disabled ? 'cursor-not-allowed opacity-50' : 'hover:bg-surface-hover',
+                  isSelected && 'bg-primary/10'
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <span className={cn('text-xs font-medium', isSelected ? 'text-primary' : 'text-text')}>{g.name}</span>
+                  {!multi && head.typeTag && <span className="rounded bg-accent px-1.5 py-0.5 text-[10px] text-text-dim">{head.typeTag}</span>}
+                  {!multi && head.disabled && <span className="rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-500">No Key</span>}
+                </div>
+                <p className="mt-0.5 text-[11px] text-text-dim">{head.description}</p>
+                {!multi && head.disabledReason && <p className="mt-0.5 text-[10px] text-red-500/70">{head.disabledReason}</p>}
+              </button>
+              {multi && (
+                <div className="ml-2 mt-1 flex flex-wrap gap-1 pb-1">
+                  {g.rows.map((row) => (
+                    <button
+                      key={row.id}
+                      type="button"
+                      onClick={() => selectRow(row)}
+                      disabled={row.disabled}
+                      title={row.disabledReason}
+                      className={cn(
+                        'rounded px-2 py-0.5 text-[10px] transition-colors',
+                        row.disabled && 'cursor-not-allowed opacity-50',
+                        row.id === selectedModel ? 'bg-primary/20 text-primary' : 'bg-accent text-text-dim hover:bg-surface-hover'
+                      )}
+                    >
+                      {row.typeTag || row.providerName}{row.disabled ? ' · no key' : ''}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        }
         return (
           <div className={cn(
             'absolute left-0 z-50 w-72 max-h-[70vh] overflow-y-auto rounded-lg border border-border bg-surface shadow-lg',
             openUpward ? 'bottom-full mb-1' : 'top-full mt-1'
           )}>
             <div className="p-1">
-              {freeModels.length > 0 && (
-                <>
-                  <p className="px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-success">Free Models</p>
-                  {freeModels.map(model => (
-                    <button
-                      key={model.id}
-                      type="button"
-                      onClick={() => {
-                        onModelChange(model.id)
-                        const hasSpeed = model.providers.some(p => p.speed === (selectedSpeed || 'fast'))
-                        if (!hasSpeed && onSpeedChange) {
-                          onSpeedChange(model.providers[0]?.speed || 'fast')
-                        }
-                        setOpen(false)
-                      }}
-                      className={cn(
-                        'flex w-full flex-col rounded-md px-3 py-2 text-left transition-colors hover:bg-surface-hover',
-                        model.id === selectedModel && 'bg-primary/10'
-                      )}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className={cn('text-xs font-medium', model.id === selectedModel ? 'text-primary' : 'text-text')}>
-                          {model.name}
-                        </span>
-                        <span className="rounded bg-accent px-1.5 py-0.5 text-[10px] text-text-dim">{model.providers[0].id}</span>
-                      </div>
-                      <p className="mt-0.5 text-[11px] text-text-dim">{model.description}</p>
-                    </button>
-                  ))}
-                </>
-              )}
-              {freeModels.length > 0 && paidModels.length > 0 && (
-                <div className="mx-2 my-1 border-t border-border" />
-              )}
-              {paidModels.length > 0 && (
-                <>
-                  <p className="px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-primary/60">Premium Models</p>
-                  {paidModels.map(model => (
-                    <div key={model.id} className="px-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!model.disabled) {
-                            onModelChange(model.id)
-                            const hasSpeed = model.providers.some(p => p.speed === (selectedSpeed || 'fast'))
-                            if (!hasSpeed && onSpeedChange) {
-                              onSpeedChange(model.providers[0]?.speed || 'fast')
-                            }
-                            setOpen(false)
-                          }
-                        }}
-                        disabled={model.disabled}
-                        className={cn(
-                          'flex w-full flex-col rounded-md px-2 py-2 text-left transition-colors',
-                          model.disabled
-                            ? 'cursor-not-allowed opacity-50'
-                            : 'hover:bg-surface-hover',
-                          model.id === selectedModel && !model.disabled && 'bg-primary/10'
-                        )}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className={cn('text-xs font-medium', model.id === selectedModel && !model.disabled ? 'text-primary' : 'text-text')}>
-                            {model.name}
-                          </span>
-                          {model.disabled && (
-                            <span className="rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-500">No Key</span>
-                          )}
-                        </div>
-                        <p className="mt-0.5 text-[11px] text-text-dim">{model.description}</p>
-                        {model.disabledReason && (
-                          <p className="mt-0.5 text-[10px] text-red-500/70">{model.disabledReason}</p>
-                        )}
-                      </button>
-                      {model.id === selectedModel && model.providers.length > 1 && onSpeedChange && (
-                        <div className="ml-2 mt-1 flex flex-wrap gap-1">
-                          {model.providers.map(provider => (
-                            <button
-                              key={provider.speed}
-                              type="button"
-                              onClick={() => { onSpeedChange(provider.speed); setOpen(false) }}
-                              className={cn(
-                                'rounded px-2 py-0.5 text-[10px] transition-colors',
-                                (selectedSpeed || 'fast') === provider.speed
-                                  ? 'bg-primary/20 text-primary'
-                                  : 'bg-accent text-text-dim hover:bg-surface-hover'
-                              )}
-                            >
-                              {provider.id} ({provider.speed})
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </>
-              )}
+              {models.length === 0 && <p className="px-3 py-3 text-[11px] text-text-dim">No models available. Ask an admin to configure AI models.</p>}
+              {freeGroups.length > 0 && <p className="px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-success">Free Models</p>}
+              {freeGroups.map(renderGroup)}
+              {freeGroups.length > 0 && paidGroups.length > 0 && <div className="mx-2 my-1 border-t border-border" />}
+              {paidGroups.length > 0 && <p className="px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-primary/60">Premium Models</p>}
+              {paidGroups.map(renderGroup)}
             </div>
           </div>
         )
@@ -1270,7 +1254,7 @@ function getBridgeFromModel(modelId: string): 'opencode' | 'kiro' {
 
 
 
-function ChatPanel({ projectId, projectBridge, selectedModel, selectedSpeed, onModelChange, onSpeedChange, onRefreshFiles, onFileSelect, autoFixPayload, onAutoFixComplete, workspaceDisabled, onAiRunningChange, stopAiRef, onBeforeSend }: {
+function ChatPanel({ projectId, selectedModel, selectedSpeed, onModelChange, onSpeedChange, onRefreshFiles, onFileSelect, autoFixPayload, onAutoFixComplete, workspaceDisabled, onAiRunningChange, stopAiRef, onBeforeSend }: {
   projectId: string
   projectBridge?: string
   selectedModel: string
@@ -1297,10 +1281,7 @@ function ChatPanel({ projectId, projectBridge, selectedModel, selectedSpeed, onM
   })
   const [pendingMessage, setPendingMessage] = useState<{ content: string; model: string; nimJobId?: string } | null>(null)
   
-  const availableModels = AI_MODELS.filter(() => {
-    if (!projectBridge) return true
-    return true
-  })
+  const { models: availableModels } = useAgentModels()
   
   const resolvedSessionId = activeSessionId
 
@@ -1395,7 +1376,7 @@ const ChatInput = memo(function ChatInput({ onSend, disabled, isRunning, isCance
   selectedSpeed?: string
   onModelChange: (modelId: string) => void
   onSpeedChange?: (speed: string) => void
-  availableModels?: typeof AI_MODELS
+  availableModels?: AIModel[]
   modelDisabled?: boolean
 }) {
   const [input, setInput] = useState('')
@@ -1517,7 +1498,7 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
   selectedSpeed?: string
   onModelChange: (modelId: string) => void
   onSpeedChange?: (speed: string) => void
-  availableModels?: typeof AI_MODELS
+  availableModels?: AIModel[]
   onRefreshFiles?: () => void
   onFileSelect?: (path: string) => void
   workspaceDisabled?: boolean
@@ -2167,14 +2148,6 @@ function saveSessionPreference(projectId: string | undefined, sessionId: string)
   } catch { /* ignore localStorage errors (e.g. quota exceeded) */ }
 }
 
-function isModelAvailable(modelId: string, projectBridge: string | undefined): boolean {
-  const model = AI_MODELS.find(m => m.id === modelId)
-  if (!model) return false
-  if (!projectBridge) return true
-  const prefix = projectBridge === 'kiro' ? 'kiro/' : 'opencode/'
-  return model.id.startsWith(prefix)
-}
-
 export default function WorkspacePage() {
   const { projectId } = useParams<{ projectId: string }>()
   const { project, isLoading, updateProject } = useProject(projectId ?? '')
@@ -2212,39 +2185,28 @@ export default function WorkspacePage() {
   const [expandedIssues, setExpandedIssues] = useState<Set<string>>(new Set())
   const [autoFixModalOpen, setAutoFixModalOpen] = useState(false)
 
-  // Load persisted model preference or fall back to default
-  const [selectedModel, setSelectedModel] = useState(() => {
-    const saved = loadModelPreference(projectId)
-    if (saved && isModelAvailable(saved.model, project?.bridge)) {
-      return saved.model
-    }
-    return DEFAULT_MODEL_ID
-  })
-  const [selectedSpeed, setSelectedSpeed] = useState(() => {
-    const saved = loadModelPreference(projectId)
-    return saved?.speed ?? 'fast'
-  })
+  // Agent models (DB-driven, tier-filtered). The selected model id is an ai_models row id.
+  const { models: agentModels } = useAgentModels()
+
+  // Load persisted model preference (resolved against the live model list below).
+  const [selectedModel, setSelectedModel] = useState(() => loadModelPreference(projectId)?.model ?? DEFAULT_MODEL_ID)
+  const [selectedSpeed, setSelectedSpeed] = useState(() => loadModelPreference(projectId)?.speed ?? 'fast')
 
   // Persist model/speed whenever they change
   useEffect(() => {
     saveModelPreference(projectId, selectedModel, selectedSpeed)
   }, [projectId, selectedModel, selectedSpeed])
 
-  // When project loads, validate saved model is still valid for this project's bridge
+  // Once models load, ensure the selection is valid; otherwise pick the first usable model.
   useEffect(() => {
-    if (!project) return
-    if (!isModelAvailable(selectedModel, project.bridge)) {
-      // Fallback to first available model for this bridge
-      const available = AI_MODELS.filter(m => {
-        if (!project.bridge) return true
-        return project.bridge === 'kiro' ? m.id.startsWith('kiro/') : m.id.startsWith('opencode/')
-      })
-      if (available.length > 0 && available[0].id !== selectedModel) {
-        setSelectedModel(available[0].id)
-        setSelectedSpeed('fast')
-      }
+    if (agentModels.length === 0) return
+    if (selectedModel && agentModels.some(m => m.id === selectedModel)) return
+    const first = agentModels.find(m => !m.disabled) ?? agentModels[0]
+    if (first) {
+      setSelectedModel(first.id)
+      setSelectedSpeed(first.typeTag || 'fast')
     }
-  }, [project?.bridge, selectedModel])
+  }, [agentModels, selectedModel])
 
   const [selectedIssues, setSelectedIssues] = useState<Array<{ reviewId: string; issueIdx: number }>>([])
   const [autoFixPayload, setAutoFixPayload] = useState<{ prompt: string; model: string; nimJobId?: string } | null>(null)
@@ -2259,7 +2221,7 @@ export default function WorkspacePage() {
 
   // ── NIM Prompt Enhancer ─────────────────────────────────────────────
   const hasNimKey = useHasNimKey()
-  const { models: nimModels, defaultId: nimDefault } = useNimModels()
+  const { enhancerModels, errorMakerModels, defaultEnhancerId, defaultErrorMakerId } = useNimModels()
   const nim = useNimMutations(projectId ?? '')
   const [enhPhase, setEnhPhase] = useState<EnhancerPhase | null>(null)
   const [enhJobId, setEnhJobId] = useState<string | null>(null)
@@ -2429,8 +2391,8 @@ export default function WorkspacePage() {
 
 const openInBuiltAutoFix = () => {
     if (!project) return
-    // Default the picker to the current workspace model; the modal lists the full
-    // AI_MODELS set (same as the workspace selector). Does not mutate the global model.
+    // Default the picker to the current workspace model; the modal lists the same
+    // agent models as the workspace selector. Does not mutate the global model.
     setInBuiltModel(selectedModel)
     setAutoFixModalOpen(true)
   }
@@ -2861,8 +2823,8 @@ const openInBuiltAutoFix = () => {
         <PromptEnhancerModal
           phase={enhPhase}
           job={enhJob}
-          models={nimModels}
-          defaultModelId={nimDefault}
+          models={enhancerModels}
+          defaultModelId={defaultEnhancerId}
           onSendAsIs={() => {
             const d = enhDeliverRef.current; const p = enhPending
             enhDeliverRef.current = null; setEnhPhase(null); setEnhPending('')
@@ -2899,9 +2861,9 @@ const openInBuiltAutoFix = () => {
       {/* Error Prompt Maker — 2-option window (AI Prompt Maker vs In-Built) */}
       {showErrorMaker && (
         <ErrorPromptMakerModal
-          nimModels={nimModels}
-          nimDefault={nimDefault}
-          agentModels={AI_MODELS}
+          nimModels={errorMakerModels}
+          nimDefault={defaultErrorMakerId}
+          agentModels={agentModels}
           defaultAgentModel={selectedModel}
           onClose={() => setShowErrorMaker(false)}
           onPickInBuilt={() => { setShowErrorMaker(false); openInBuiltAutoFix() }}
@@ -3625,7 +3587,7 @@ const openInBuiltAutoFix = () => {
             </p>
             
             <div className="space-y-2 mb-6">
-              {AI_MODELS.map((model) => (
+              {agentModels.map((model) => (
                 <button
                   key={model.id}
                   onClick={() => setInBuiltModel(model.id)}
@@ -4377,7 +4339,7 @@ const openInBuiltAutoFix = () => {
             </p>
             
             <div className="space-y-2 mb-6">
-              {AI_MODELS.map((model) => (
+              {agentModels.map((model) => (
                 <button
                   key={model.id}
                   onClick={() => setInBuiltModel(model.id)}

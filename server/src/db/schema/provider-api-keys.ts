@@ -1,11 +1,19 @@
 import { pgTable, uuid, varchar, boolean, timestamp, text, bigint } from 'drizzle-orm/pg-core'
 import { users } from './users.js'
 import { agentSessions } from './agent-sessions.js'
+import { aiProviders } from './ai-providers.js'
+import { mcps } from './mcps.js'
 
+// A per-user secret. Exactly one of (providerId, mcpId) identifies what it unlocks:
+//   providerId → an AI model provider's API key (used to call its models)
+//   mcpId      → an `api`-type MCP's API key (substituted for `MCP-API-Key`)
+// `provider` (legacy string) is kept nullable for backward-compat with pre-migration rows.
 export const providerApiKeys = pgTable('provider_api_keys', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => users.id),
-  provider: varchar('provider', { length: 50 }).notNull(),
+  provider: varchar('provider', { length: 50 }),
+  providerId: uuid('provider_id').references(() => aiProviders.id, { onDelete: 'cascade' }),
+  mcpId: uuid('mcp_id').references(() => mcps.id, { onDelete: 'cascade' }),
   apiKey: text('api_key').notNull(),
   isActive: boolean('is_active').default(true),
   createdBy: uuid('created_by').references(() => users.id),
