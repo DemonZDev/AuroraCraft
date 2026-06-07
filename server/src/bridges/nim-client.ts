@@ -17,11 +17,18 @@ export interface NimToolCall {
   function: { name: string; arguments: string }
 }
 
+export interface NimUsage {
+  promptTokens: number
+  completionTokens: number
+  cachedTokens: number
+}
+
 export interface NimChatResult {
   content: string
   reasoning: string
   toolCalls: NimToolCall[]
   finishReason: string | null
+  usage: NimUsage
 }
 
 export class NimError extends Error {
@@ -93,6 +100,11 @@ export async function nimChat(opts: {
         message?: { content?: string | null; reasoning_content?: string | null; tool_calls?: NimToolCall[] }
         finish_reason?: string | null
       }>
+      usage?: {
+        prompt_tokens?: number
+        completion_tokens?: number
+        prompt_tokens_details?: { cached_tokens?: number }
+      }
     }
     const choice = json.choices?.[0]
     return {
@@ -100,6 +112,11 @@ export async function nimChat(opts: {
       reasoning: choice?.message?.reasoning_content ?? '',
       toolCalls: choice?.message?.tool_calls ?? [],
       finishReason: choice?.finish_reason ?? null,
+      usage: {
+        promptTokens: json.usage?.prompt_tokens ?? 0,
+        completionTokens: json.usage?.completion_tokens ?? 0,
+        cachedTokens: json.usage?.prompt_tokens_details?.cached_tokens ?? 0,
+      },
     }
   } catch (err) {
     if (err instanceof NimError) throw err

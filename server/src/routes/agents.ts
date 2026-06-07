@@ -15,9 +15,9 @@ import { agentExecutor } from '../agents/executor.js'
 import { opencodeBridge, sessionEventBus } from '../bridges/index.js'
 import { processManager } from '../bridges/opencode-process-manager.js'
 import { generateOpenCodeKnowledge } from '../utils/opencode-knowledge.js'
-import { resolveModelById, listModelsForUsage, listModelsForLiteLLM, canUseModel, getUserProviderKeyMap, type ResolvedModel } from '../utils/ai-runtime.js'
+import { resolveModelById, listModelsForUsage, listModelsForLiteLLM, canUseModel, getUserProviderKeyMap, getUserRoutedKeysByProvider, type ResolvedModel } from '../utils/ai-runtime.js'
 import { buildUserMcpServers } from '../utils/mcp-runtime.js'
-import { getUserTokens, hasEnoughTokens, deductTokens, estimateMessageCost, calculateMaxOutputTokens, MIN_PREMIUM_BALANCE } from '../utils/token-service.js'
+import { getUserTokens, calculateMaxOutputTokens, MIN_PREMIUM_BALANCE } from '../utils/token-service.js'
 import { generateProviderConfig, generateLiteLLMProviderConfig, generateMinimalProjectConfig, writeProjectConfig, writeIsolatedProjectConfig, writeZenAuthJson } from '../utils/provider-config.js'
 import { generateLiteLLMConfig, writeLiteLLMConfig } from '../utils/litellm-config.js'
 import { litellmProcessManager } from '../bridges/litellm-process-manager.js'
@@ -357,7 +357,6 @@ export async function agentRoutes(app: FastifyInstance) {
     let resolvedModel: ResolvedModel | undefined
     let litellmUrl: string | undefined
     let providerChanged = false
-    let deductResult: { deducted: number; remainingBalance: number; balanceExhausted: boolean } | undefined
     let maxOutputTokens: number | undefined
 
     const [user] = await db.select().from(users).where(eq(users.id, request.user!.id)).limit(1)
@@ -366,6 +365,8 @@ export async function agentRoutes(app: FastifyInstance) {
 
     // slug → apiKey for the user's AI-provider keys (the built-in Zen provider's slug is 'opencode').
     const userKeys = await getUserProviderKeyMap(request.user!.id)
+    // providerId → ordered usable keys (weight asc) for building the multi-key LiteLLM routing.
+    const routedKeysByProvider = await getUserRoutedKeysByProvider(request.user!.id)
 
     if (requestedModelId) {
       resolvedModel = (await resolveModelById(requestedModelId)) ?? undefined
@@ -383,44 +384,29 @@ export async function agentRoutes(app: FastifyInstance) {
       providerId = provider.slug
       const requiresApiKey = provider.kind !== 'zen'
       const billable = !provider.isFree
-      const userApiKey = userKeys[provider.slug]
+      // Ordered, usable keys for this provider (weight asc). Empty for Zen (native).
+      const usableKeys = requiresApiKey ? (routedKeysByProvider[provider.id] ?? []) : []
+      const userApiKey = usableKeys[0]?.apiKey
 
       // Zen resolves `opencode/<id>` natively; others use the raw model id
       // (rewritten to `openai/<uuid>` below when routed through LiteLLM).
       resolvedModelId = resolvedModel.realName
 
-      if (requiresApiKey && !userApiKey) {
-        return rejectSend(503, `You don't have an API key for ${provider.name}. Please contact an administrator to set one up.`)
+      if (requiresApiKey && usableKeys.length === 0) {
+        return rejectSend(503, `You don't have a usable API key for ${provider.name}. Please contact an administrator to set one up.`)
       }
 
       if (billable) {
+        // No pre-charge / estimation anymore: billing happens in real time, per upstream
+        // call, via the LiteLLM meter (routing.md §8). Just gate entry on a usable balance.
         const currentBalance = await getUserTokens(request.user!.id)
         if (currentBalance < MIN_PREMIUM_BALANCE) {
           return rejectSend(402, `Your token balance is too low for premium models. Minimum required: ${MIN_PREMIUM_BALANCE} tokens. You have ${currentBalance} tokens. Please purchase more tokens or use a free model.`)
         }
-
-        estimatedCost = estimateMessageCost(parsed.data.content, resolvedModel.pricing)
-        const hasTokens = await hasEnoughTokens(request.user!.id, estimatedCost)
-        if (!hasTokens) {
-          return rejectSend(402, `Insufficient AI tokens. Estimated cost: ${estimatedCost} tokens. Please purchase more tokens or use a free model.`)
-        }
-
-        deductResult = await deductTokens(
-          request.user!.id,
-          estimatedCost,
-          `Pre-charge for ${resolvedModel.showName} (${provider.slug})`,
-          sessionId,
-        )
-        if (deductResult.deducted < estimatedCost) {
-          app.log.warn({ userId: request.user!.id, requested: estimatedCost, deducted: deductResult.deducted, remaining: deductResult.remainingBalance }, 'Partial token deduction — race condition or concurrent usage')
-        }
-      }
-
-      // Hard-cap output generation to what the user can afford.
-      {
-        const totalAvailableBalance = (deductResult?.deducted ?? 0) + (deductResult?.remainingBalance ?? await getUserTokens(request.user!.id))
-        maxOutputTokens = calculateMaxOutputTokens(totalAvailableBalance, parsed.data.content, resolvedModel.pricing)
-        app.log.info({ userId: request.user!.id, maxOutputTokens, totalAvailableBalance, model: resolvedModel.id }, 'Calculated max output tokens')
+        // Coarse secondary guard: cap a single response to what the balance can afford.
+        // The real stop is the per-call meter + force-stop when the balance hits zero.
+        maxOutputTokens = calculateMaxOutputTokens(currentBalance, parsed.data.content, resolvedModel.pricing)
+        app.log.info({ userId: request.user!.id, maxOutputTokens, currentBalance, model: resolvedModel.id }, 'Calculated max output tokens (real-time billing)')
       }
 
       let litellmMasterKey: string | undefined
@@ -435,10 +421,10 @@ export async function agentRoutes(app: FastifyInstance) {
           const userTokenBalance = await getUserTokens(request.user!.id)
           // Collect all non-Zen agent models the user has keys for, not just billable ones.
           const allModels = await listModelsForLiteLLM('agent')
-          const llmConfig = await generateLiteLLMConfig(projectDir, allModels, userKeys, userTokenBalance)
+          const llmConfig = await generateLiteLLMConfig(projectDir, allModels, routedKeysByProvider, userTokenBalance)
           const configPath = await writeLiteLLMConfig(projectDir, llmConfig)
           try {
-            litellmUrl = await litellmProcessManager.acquire({ directory: projectDir, configPath })
+            litellmUrl = await litellmProcessManager.acquire({ directory: projectDir, configPath, userId: request.user!.id })
             litellmMasterKey = llmConfig.general_settings.master_key
             // The workspace + isolated configs must agree on `openai/<uuid>`.
             resolvedModelId = `openai/${resolvedModel.id}`

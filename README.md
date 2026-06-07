@@ -5,14 +5,15 @@ AI-powered Minecraft plugin development platform. Describe what you want and an 
 ## Features
 
 - **AI Plugin Generation** — Chat with an AI coding agent (OpenCode) that writes, edits, and scaffolds Minecraft plugins
-- **Multi-Model Support** — Choose from 9 AI models across free and paid tiers (DeepSeek V4 Flash Free, Nemotron 3 Super Free, GLM-5.1, MiniMax M2.7, Kimi K2.6, Qwen3.6, and more)
-- **Token-Based Pricing** — Precise per-message cost calculation with per-provider pricing differentiation, cached-input discounts, and automatic reconciliation (refunds when actual < estimated, capped overage when actual > estimated)
-- **Web Search via Firecrawl MCP** — Paid users get real-time web search, scraping, and crawling via Firecrawl's Model Context Protocol (MCP) server
+- **Admin-Managed AI Runtime** — **Providers, models, and MCP servers are NOT hardcoded.** Admins add and configure them at runtime from **Admin Panel → AI Runtime** (no code edits, no redeploy). A fresh install ships with the built-in **OpenCode Zen** free provider (two free models) working out of the box; admins add any OpenAI-compatible provider (Fireworks, Bluesminds, OpenRouter, NVIDIA NIM, …), its models, and per-user API keys from the UI. See [AI Runtime (Admin-Managed)](#ai-runtime-admin-managed-providers-models--mcps)
+- **Multi-Key Routing & Per-Key Budgets** — A user can hold **multiple API keys per paid provider**, each with a **weight** (priority) and a **dollar limit**. Keys form a primary→fallback chain: on rate-limit/error the request retries then falls back; on budget exhaustion the key auto-disables and the next key takes over. See [API Key Routing](#api-key-routing--real-time-billing)
+- **Real-Time Per-Call Billing** — Cost is metered **per upstream LLM call** (not estimated up front) through a local LiteLLM proxy. Each call debits the user's AuroraCraft token balance (with the 20% commission) **and** the serving key's dollar limit (raw provider cost). If the balance hits zero mid-run, the agent is stopped immediately. The Prompt Enhancer and Error Prompt Maker are billed the same way
+- **MCP Servers (Admin-Managed)** — Admins add any Model Context Protocol server (web search, scraping, custom tools) from **Admin Panel → AI Runtime → MCPs**. `api`-type MCPs take a per-user key (e.g. Firecrawl); `non_api` MCPs run for everyone. No longer Firecrawl-only or hardcoded
 - **Graphify Token Savings** — Paid users can build a per-project code knowledge graph (`graph.json` + `graph.html`) with **zero AI/token cost** (AST-only). The AI agent then queries the graph (`graphify query/path/explain`) instead of re-reading files, and an interactive graph viewer renders inside the workspace editor
 - **Project Management** — Create, configure, and manage multiple plugin projects
 - **Real-Time Streaming** — Live streaming of AI responses with thinking blocks, file operations, and progress tracking
 - **Monaco Code Editor** — Built-in code editor with syntax highlighting and file tree navigation
-- **Admin Panel** — User management, project oversight, and AI runtime configuration
+- **Admin Panel** — User management, project oversight, per-user multi-key configuration, and full **AI Runtime** management (providers / models / MCPs)
 - **Multi-User** — Role-based access control (admin / user)
 - **CodeRabbit Integration** — AI-powered code review for uncommitted changes
 - **Dynamic Rules & Skills** — Per-project AI rules and skills auto-generated from platform-specific knowledge base (14 sections, 8 skills) covering Paper, Spigot, Folia, Velocity, BungeeCord, and 13 more platforms
@@ -90,7 +91,7 @@ Run all commands as `root` unless noted.
 apt update && apt install -y curl ca-certificates build-essential git unzip sqlite3 postgresql postgresql-contrib python3 python3-venv python3-pip
 ```
 
-> `python3-venv` and `python3-pip` are required for the optional **Graphify** feature (Step 15.6). They are not installed by default on a minimal Ubuntu image, and `python3 -m venv` fails without `python3-venv`. Install them now to avoid a mid-deploy error.
+> `python3-venv` and `python3-pip` are required for **LiteLLM** (Step 15.7 — needed for all paid AI providers) and the optional **Graphify** feature (Step 15.6). They are not installed by default on a minimal Ubuntu image, and `python3 -m venv` fails without `python3-venv`. Install them now to avoid a mid-deploy error.
 
 ### Step 2 — Node.js 24
 
@@ -251,6 +252,15 @@ OPENCODE_PORT_MIN=9000
 OPENCODE_PORT_MAX=9999
 OPENCODE_IDLE_TIMEOUT=120000
 
+# LiteLLM proxy settings (required for paid providers)
+LITELLM_PORT_MIN=8000
+LITELLM_PORT_MAX=8999
+LITELLM_IDLE_TIMEOUT=120000
+LITELLM_NUM_RETRIES=10
+# Shared secret the per-project LiteLLM meter uses to call an internal backend route.
+# Optional — the server falls back to SESSION_SECRET when this is unset.
+# LITELLM_INTERNAL_SECRET=your-random-secret-here
+
 # GitHub OAuth — configured for codeaurora.online
 # See Post-Deployment Setup below for GitHub App configuration steps
 GITHUB_CLIENT_ID=Ov23liWP6laGMwXuXAm6
@@ -285,17 +295,32 @@ DATABASE_URL="postgresql://auroracraft:auroracraft@localhost:5432/auroracraft" n
 
 Expected output: `Migrations complete`
 
-> **Migration set includes Graphify (0017).** Migration `0017_uneven_giant_man.sql` adds three columns to `projects` (`graphify_enabled`, `graphify_status`, `graphify_built_at`) for the "Save tokens using Graphify" feature. It is written to be **idempotent** (`CREATE TYPE … EXCEPTION WHEN duplicate_object` + `ADD COLUMN IF NOT EXISTS`), so it is safe to re-run and safe on databases where the columns already exist.
+> **On a fresh database, just run the migrator — all migrations apply cleanly in order and there is nothing else to do.** The notes below only matter when re-deploying onto a database whose migration tracking has drifted.
 >
-> **Note:** If you see errors about missing tables or columns, the Drizzle journal may be out of sync with the actual `.sql` files. Check `drizzle/meta/_journal.json` against the files in `drizzle/` and apply any missing files manually via `psql -f`.
+> **AI Runtime migrations (0019–0021) — what they create.** These power the admin-managed AI Runtime + API key routing:
+> - `0019_ai_runtime_admin.sql` — creates `ai_providers`, `ai_models`, `mcps`; adds `provider_id` / `mcp_id` FKs to `provider_api_keys`; **seeds the built-in OpenCode Zen provider + its two free models** (DeepSeek V4 Flash, Nemotron 3 Super).
+> - `0020_builtin_providers.sql` — seeds two more built-in providers (paid **OpenRouter**, free **NVIDIA NIM**) with **no models** — admins add models from the UI.
+> - `0021_api_key_routing.sql` — adds `label`, `weight`, `limit_usd`, `used_usd`, `exhausted_at` to `provider_api_keys`, and **drops the legacy `UNIQUE(user_id, provider)` index** so a user can hold multiple keys per paid provider. **This DROP INDEX is required** — without it, adding a second key to any provider fails.
 >
-> **Knowledge — drizzle migration tracking drift.** The migrator decides what to run from `MAX(created_at)` in `drizzle.__drizzle_migrations`. If earlier migrations were applied manually via `psql` (bypassing the migrator), that tracking table can lag behind the real schema, and a later `npx tsx src/db/migrate.ts` may try to re-run already-applied migrations and fail with "already exists". If that happens: apply the new migration directly with `psql -1 -f drizzle/<file>.sql`, then record it so the migrator skips it:
+> All three are **idempotent** (`CREATE TYPE … EXCEPTION WHEN duplicate_object`, `ADD COLUMN IF NOT EXISTS`, `DROP INDEX IF EXISTS`, `INSERT … ON CONFLICT DO NOTHING`), so they are safe to re-run and safe to apply by hand via `psql -1 -f`.
+>
+> **What ships seeded vs. empty:** After migrations, the database contains **only the built-in providers** (Zen + its 2 models, OpenRouter, NVIDIA NIM). There are **no paid models and no API keys** — admins add those at runtime from **Admin Panel → AI Runtime** and **Admin Panel → Users → Provider Keys** (see Post-Deployment Setup). A fresh install can immediately use the free Zen models with no further configuration.
+>
+> **Note:** If you see errors about missing tables or columns, the Drizzle journal may be out of sync with the actual `.sql` files. Check `drizzle/meta/_journal.json` against the files in `drizzle/` and apply any missing files manually via `psql -1 -f`.
+>
+> **Knowledge — drizzle migration tracking drift (re-deploys only).** The migrator decides what to run from `MAX(created_at)` in `drizzle.__drizzle_migrations`. If earlier migrations were applied manually via `psql` (bypassing the migrator), that tracking table can lag behind the real schema, and a later `npx tsx src/db/migrate.ts` may try to re-run already-applied migrations and fail with "already exists". If that happens: apply each missing migration directly with `psql -1 -f drizzle/<file>.sql` (they are all idempotent), then backfill the tracking rows so the migrator skips them. Compute each file's hash with `sha256sum` and use the `when` value from `drizzle/meta/_journal.json`:
 > ```bash
-> # after applying drizzle/0017_*.sql by hand:
-> sudo -u postgres psql -d auroracraft -c "INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) SELECT COALESCE(MAX(id),0)+1, '<sha256-of-file>', <journal_when_ms> FROM drizzle.__drizzle_migrations;"
-> sudo -u postgres psql -d auroracraft -c "SELECT setval(pg_get_serial_sequence('drizzle.__drizzle_migrations','id'), (SELECT MAX(id) FROM drizzle.__drizzle_migrations));"
+> # Example: backfill tracking for 0019–0021 after applying them by hand.
+> # hash = sha256sum of the .sql file; created_at = the matching "when" in _journal.json.
+> sudo -u postgres psql -d auroracraft -c "INSERT INTO drizzle.__drizzle_migrations (hash, created_at)
+>   SELECT v.hash, v.ts FROM (VALUES
+>     ('<sha256 of 0019_ai_runtime_admin.sql>', 1780600000000::bigint),
+>     ('<sha256 of 0020_builtin_providers.sql>', 1780736000000::bigint),
+>     ('<sha256 of 0021_api_key_routing.sql>',  1780900000000::bigint)
+>   ) AS v(hash, ts)
+>   WHERE NOT EXISTS (SELECT 1 FROM drizzle.__drizzle_migrations m WHERE m.hash = v.hash);"
 > ```
-> On a **fresh** database this never happens — all migrations (including 0017) apply cleanly in order.
+> After backfilling, re-run `npx tsx src/db/migrate.ts` — it should print `Migrations complete` with nothing to apply. On a **fresh** database none of this is needed.
 >
 > If the `0014_fix_token_transactions_fk.sql` migration is missing from your database, apply it manually:
 >
@@ -443,6 +468,47 @@ runuser -l auroracraft-admin -c '
 - **Never set `GEMINI_API_KEY` / `GOOGLE_API_KEY`** in the server environment — those are the only keys Graphify reads, and their presence would switch on the paid LLM semantic pass. Builds must stay AST-only (0 tokens). Code-only plugin projects skip the LLM pass automatically.
 - If `/usr/local/bin/graphify` is absent, the feature simply degrades: enabling Graphify sets status `failed`; everything else works.
 - The graphify-navigation skill is written per-project to `~/.config/opencode/skills/graphify-navigation/` and is **never** merged into the platform `AGENTS.md` or the 8 Minecraft skills.
+
+### Step 15.7 — Initialize LiteLLM (Required for Paid Providers)
+
+**LiteLLM is not optional.** Any paid provider (OpenAI-compatible, non-Zen) routes through a per-project LiteLLM proxy. Without it, every paid-model message will fail. LiteLLM also hosts the real-time meter (`aurora_litellm_callback.py`) that reports per-call token usage back to the backend so users and API keys are billed in real time.
+
+LiteLLM is installed to a shared Python venv (exactly like Graphify; see Step 15.6):
+
+```bash
+# Shared venv + global symlink
+mkdir -p /var/lib/litellm/shared
+python3 -m venv /var/lib/litellm/shared/venv
+/var/lib/litellm/shared/venv/bin/pip install --upgrade pip
+/var/lib/litellm/shared/venv/bin/pip install 'litellm[proxy]'
+ln -sf /var/lib/litellm/shared/venv/bin/litellm /usr/local/bin/litellm
+chmod -R 755 /var/lib/litellm/shared
+
+# Verify (must work as root and as any auroracraft-* user)
+/usr/local/bin/litellm --version
+runuser -l auroracraft-admin -c '/usr/local/bin/litellm --version'
+
+# The meter module (embedded Python shipped per-project) requires httpx.
+# It's usually installed as a transitive dep; if not:
+/var/lib/litellm/shared/venv/bin/pip install httpx
+```
+
+**Notes:**
+- **Requires `python3-venv`** (Step 1). If `python3 -m venv` errors, install it: `apt install -y python3-venv`.
+- **`httpx` is required** by the embedded Python meter (`aurora_litellm_callback.py`). If the proxy crashes with `ModuleNotFoundError: httpx`, install it to the shared venv as shown above.
+- LiteLLM is spawned per-project on demand (ports `LITELLM_PORT_MIN`–`LITELLM_PORT_MAX`). No per-user symlinks are needed.
+- **Production note:** LiteLLM's cold-start model validation can take up to 90s on the first request. Subsequent requests reuse the warm proxy.
+
+**Env vars (add to `.env`):**
+```env
+LITELLM_PORT_MIN=8000
+LITELLM_PORT_MAX=8999
+LITELLM_IDLE_TIMEOUT=120000
+LITELLM_NUM_RETRIES=10
+# Optional — shared secret the meter uses to authenticate its usage reports.
+# Falls back to SESSION_SECRET when unset. Generate: openssl rand -hex 24
+# LITELLM_INTERNAL_SECRET=
+```
 
 ### Step 16 — Verify OpenCode Accessibility
 
@@ -619,6 +685,21 @@ else
 fi
 
 echo ""
+echo "16. LiteLLM (required for paid providers):"
+if [ -x /var/lib/litellm/shared/venv/bin/litellm ]; then
+  /var/lib/litellm/shared/venv/bin/litellm --version 2>&1 | head -1
+  /var/lib/litellm/shared/venv/bin/python -c "import httpx; print('httpx OK (meter dependency)')" 2>&1
+else
+  echo "MISSING — paid-provider models will fail. See Step 15.7. (Free Zen models still work.)"
+fi
+
+echo ""
+echo "17. AI Runtime schema (providers/models/keys):"
+sudo -u postgres psql -d auroracraft -tc "SELECT 'ai_providers='||count(*) FROM ai_providers;"
+sudo -u postgres psql -d auroracraft -tc "SELECT 'key routing cols OK' FROM information_schema.columns WHERE table_name='provider_api_keys' AND column_name='used_usd';"
+sudo -u postgres psql -d auroracraft -tc "SELECT CASE WHEN to_regclass('idx_provider_api_keys_user_provider') IS NULL THEN 'legacy unique index dropped OK (multi-key enabled)' ELSE 'WARNING: legacy unique index present — apply migration 0021' END;"
+
+echo ""
 echo "All checks complete."
 ```
 
@@ -638,7 +719,38 @@ Login with:
 
 **Immediately change the admin password** via the UI.
 
-### 2. Configure GitHub OAuth (Optional)
+### 2. Configure the AI Runtime (Providers, Models, API Keys)
+
+> This is the step that makes paid models work. A fresh install can already use the free **OpenCode Zen** models with no configuration; everything else (Fireworks, Bluesminds, OpenRouter, NVIDIA NIM, …) is added here at runtime — **no code changes, no redeploy**.
+
+Everything below is done in the browser as the `admin` user. See [AI Runtime (Admin-Managed)](#ai-runtime-admin-managed-providers-models--mcps) for the full feature reference.
+
+**a) Add a provider** — **Admin Panel → AI Runtime → Providers → Add Provider**
+- **Name** (e.g. `Fireworks AI`) — a `slug` is auto-derived for configs/keys.
+- **Base URL** — the provider's OpenAI-compatible endpoint, e.g. `https://api.fireworks.ai/inference/v1` or `https://api.bluesminds.com/v1`.
+- **Free?** — leave **off** for paid providers (models bill tokens; keys require paid users). Turn **on** only for genuinely free endpoints (models cost 0 tokens; any user may hold a key, but **only one key per user**).
+- Built-in providers (Zen, OpenRouter, NVIDIA NIM) are seeded already; you can't delete them or change their endpoint, but you can disable them and add models to them.
+
+**b) Add models** — **Admin Panel → AI Runtime → Models → Add Model**
+- **Show name** (what users see, e.g. `Kimi K2.6`) and **Real name** (the exact upstream model id, e.g. `accounts/fireworks/models/kimi-k2.6` or `gemini-3.1-pro`). The Real name must match the provider's model id exactly — check the provider's `/v1/models`.
+- **Usages** — any of `agent` (workspace coding), `prompt_enhancer`, `error_prompt_maker`.
+- **Type tag** (`fast` / `slow` / …) disambiguates the same show-name across providers. **Within the same (show name, overlapping usage), both the type tag and the weight must be unique** — the form rejects duplicates.
+- **Weight** — lower sorts higher in the model picker.
+- **Pricing** (paid providers only) — `input` / `output` / optional `cached input` per **1,000,000 tokens**, in **provider dollars**. This drives both billing ledgers (see [Token Pricing](#token-pricing-system)). Free-provider models ignore pricing.
+
+**c) Add per-user API keys** — **Admin Panel → Users → (a user) → Provider Keys**
+- For a **paid** provider you can add **multiple keys**, each with a **Label**, a **Weight** (lower = higher priority = tried first), and an optional **Limit ($)** (the provider-dollar budget that key may spend; blank = unlimited). The keys form the routing chain described in [API Key Routing](#api-key-routing--real-time-billing).
+- For a **free** provider, only **one key per user** is allowed (a second add replaces the first).
+- Keys are stored on the backend and **never shown in full** — only a masked preview. Paid-provider keys can only be assigned to **paid** users.
+- A user must have **tokens** to use paid models (see step 4) — keys alone aren't enough.
+
+**d) (Optional) Add MCP servers** — **Admin Panel → AI Runtime → MCPs → Add MCP**
+- Paste the raw OpenCode MCP JSON config. Choose **`non_api`** (runs for every user, no key) or **`api`** (per-user key; the literal `MCP-API-Key` placeholder in the config is replaced with each user's key at runtime).
+- `api` MCP keys are assigned per-user under **Users → (user) → MCP Keys**, the same place as provider keys. Example: Firecrawl web search.
+
+**Smoke test:** grant a paid user some tokens (step 4), assign them a paid provider key, open a workspace, pick the paid model, and send a message. The first request cold-starts the LiteLLM proxy (~up to 90s), then bills per call. Watch `pm2 logs auroracraft-server` for `Realtime usage` lines and the user's balance decreasing.
+
+### 3. Configure GitHub OAuth (Optional)
 
 1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
 2. Create a new OAuth App
@@ -661,14 +773,14 @@ GITHUB_CALLBACK_URL=https://codeaurora.online/api/auth/github/callback
 
 **Note:** The callback URL must match exactly what you configured in the GitHub OAuth App. If your domain uses HTTP instead of HTTPS, update accordingly.
 
-### 3. Configure CodeRabbit (Optional)
+### 4. Configure CodeRabbit (Optional)
 
 1. Go to [CodeRabbit Settings](https://app.coderabbit.ai/settings/api-keys)
 2. Generate an API key
 3. In AuroraCraft Admin Panel → Users → click "Grant Access" on any user
 4. Paste the API key
 
-### 4. Configure User Token Balances (Optional)
+### 5. Configure User Token Balances (Optional)
 
 New users start with 0 AI tokens. To let users access premium models, administrators must grant tokens via the Admin Panel:
 
@@ -681,7 +793,7 @@ Administrators can also **-Deduct** tokens from any user. If the deduction amoun
 
 **Note:** Free models (DeepSeek V4 Flash Free, Nemotron 3 Super Free) do not consume tokens and can be used without any token balance.
 
-### 5. Set Up HTTPS / Reverse Proxy (Recommended for Production)
+### 6. Set Up HTTPS / Reverse Proxy (Recommended for Production)
 
 Use Nginx or Caddy to terminate SSL and proxy to port 3000:
 
@@ -722,7 +834,7 @@ CLIENT_URL=https://your-domain.com
 
 Restart: `./auroracraft.sh restart`
 
-### 6. Firewall
+### 7. Firewall
 
 ```bash
 ufw allow 22/tcp
@@ -772,9 +884,57 @@ SIGTERM → SIGKILL → Port released
 - **Ports are reused after release**
 - **1000 concurrent projects max** (9000-9999 range)
 
+### AI Runtime (Admin-Managed: Providers, Models & MCPs)
+
+AuroraCraft's AI providers, models, and MCP servers are **stored in the database and managed at runtime from the Admin Panel** — they are not hardcoded. There is nothing to edit in source and nothing to redeploy when adding a new provider or model. (Earlier versions hardcoded a fixed list in `server/src/config/ai-models.ts`; that file now holds only pricing math.)
+
+**Database tables** (migrations 0019–0021):
+
+| Table | What it holds |
+|-------|---------------|
+| `ai_providers` | `slug`, `base_url`, `kind` (`openai_compatible` \| `zen`), `is_free`, `is_active`, `is_builtin` |
+| `ai_models` | `provider_id` (FK), `show_name`, `real_name` (upstream id), `usages` (`agent`/`prompt_enhancer`/`error_prompt_maker`), `type_tag`, `weight`, per-1M pricing |
+| `mcps` | `name`, raw OpenCode MCP `config`, `api_type` (`non_api` \| `api`) |
+| `provider_api_keys` | per-user secrets, linked by `provider_id` **or** `mcp_id` (+ routing fields, see below) |
+
+**Built-in (seeded) vs. admin-added:**
+- **Built-in** (`is_builtin = true`, cannot delete or change endpoint): **OpenCode Zen** (free, two seeded models) · **OpenRouter** (paid, no models) · **NVIDIA NIM** (free, no models).
+- **Everything else** is admin-added from **Admin Panel → AI Runtime**: any OpenAI-compatible provider, its models, and MCP servers.
+
+**Key rules enforced by the backend:**
+- A provider's `is_free` flag decides everything downstream: free → models cost **0 tokens**, any user may hold a key, but only **one key per user**. Paid → models bill tokens, keys require **paid** users, and **multiple keys per user** are allowed (the routing chain).
+- Within the same (`show_name`, overlapping usage), both `type_tag` and `weight` must be **unique** (validated on create/edit).
+- Disabling a provider hides **all** its models from every selector.
+- A user cannot be downgraded to free while they hold **any** paid-provider key.
+
+**Execution paths** (single source of truth: `server/src/utils/ai-runtime.ts`):
+- **Zen** models resolve natively in OpenCode via the `opencode/<id>` format (optionally with a per-user Zen key in `auth.json`).
+- **All other (paid/free OpenAI-compatible)** providers route through a per-project **LiteLLM proxy** (see [API Key Routing](#api-key-routing--real-time-billing)).
+- **MCPs**: every active MCP is registered on the user's OpenCode instance; `api`-type configs get their `MCP-API-Key` placeholder substituted with the user's key (`server/src/utils/mcp-runtime.ts`).
+
+### API Key Routing & Real-Time Billing
+
+For **paid providers**, a user can hold several API keys, and AuroraCraft routes across them while billing **per upstream call in real time** (no up-front estimate, no end-of-run reconcile).
+
+**Routing chain.** Each key has a **weight** (lower = higher priority), a **dollar limit** (`limit_usd`, blank = unlimited), live spend (`used_usd`), and an `is_active` flag. At request time the usable keys (active, under-budget) are ordered by weight into a primary→fallback chain and emitted as one LiteLLM **deployment per key** (`order` = position). Behavior:
+- **Transient failure / rate-limit** on the current key → retry (`LITELLM_NUM_RETRIES`), then fall back to the next key. The failed key stays **enabled** (the failure was transient).
+- **Budget exhaustion** (a call pushes `used_usd ≥ limit_usd`) → the key is **auto-disabled** (`is_active=false`, `exhausted_at` set) and the chain falls back. Subsequent messages skip it entirely.
+- **Whole chain unusable** → the request is refused (`503`, "no usable API key") before any spend.
+
+**Real-time, dual-ledger billing.** A small Python meter (`aurora_litellm_callback.py`, shipped into each project's LiteLLM config dir) fires after every successful call and POSTs the real token usage to an internal backend route (`POST /internal/litellm/usage`, shared-secret auth). Each call debits **two independent ledgers from the same usage numbers**:
+
+| Ledger | Unit | Multiplier | On exhaustion |
+|--------|------|-----------|---------------|
+| User's AuroraCraft token balance | tokens | × 1.2 commission, × 1000 tokens/$ | run is **force-stopped** mid-flight |
+| The serving key's `used_usd` | provider $ | × 1.0 (raw cost) | key **auto-disabled**, chain falls back |
+
+If the balance hits zero, the meter's pre-call hook refuses further calls **and** the backend force-stops the OpenCode instance — so a user who runs out cannot make another upstream call. The same metering covers the **Prompt Enhancer** and **Error Prompt Maker** (which call providers directly via the key chain, not through LiteLLM).
+
+**Key files:** `server/src/utils/ai-runtime.ts` (key resolver), `server/src/utils/token-service.ts` (`chargeRealtimeUsage`), `server/src/utils/litellm-config.ts` (multi-deployment config + embedded meter), `server/src/routes/internal.ts` (usage endpoint), `server/src/routes/admin.ts` (per-user multi-key CRUD).
+
 ### API Key Isolation (Per-Project)
 
-Provider API keys (Fireworks, Blueminds, Modal) are **never stored in the workspace tree**. They are isolated per-project to prevent exposure through the code editor:
+Provider API keys are **never stored in the workspace tree**. They are isolated per-project to prevent exposure through the code editor:
 
 | Location | Contents | Permissions | Visibility |
 |----------|----------|-------------|------------|
@@ -818,26 +978,20 @@ OpenCode reads this auth file automatically. Without a Zen key, the model falls 
 
 **Important:** Zen models use the `opencode/{model_id}` format (e.g., `opencode/deepseek-v4-flash-free`), not a separate `zen/` provider prefix.
 
-#### Firecrawl Search MCP (Paid Users Only)
+#### MCP Servers (Admin-Managed) — Firecrawl Web Search as an Example
 
-Firecrawl MCP provides web search, scraping, and crawling capabilities to the AI agent. It is a **paid-only feature** — admins must set a Firecrawl API key per user, and the user must be on the **paid tier**.
+MCP servers are **admin-managed from Admin Panel → AI Runtime → MCPs** (not hardcoded, no longer Firecrawl-only). Each row carries a raw OpenCode MCP `config` and an `api_type`:
+- **`non_api`** — registered for every user's OpenCode instance, no key needed.
+- **`api`** — registered only for users who hold a key for that MCP; the literal `MCP-API-Key` placeholder in the config is replaced with the user's key at runtime. Keys are assigned under **Users → (user) → MCP Keys**.
 
-| Condition | Result |
-|-----------|--------|
-| Paid user + Firecrawl API key configured | ✅ MCP server auto-registered on OpenCode startup; AI can search the web |
-| Paid user + no Firecrawl key | ❌ No search capability; normal code generation only |
-| Free user | ❌ Cannot have Firecrawl key assigned; admin gets 403 error |
-| Admin tries to downgrade paid→free while key exists | ❌ Blocked (HTTP 409) — must delete the Firecrawl key first |
+**Firecrawl web search** is the canonical `api`-type example. To enable it: add an MCP whose config invokes the Firecrawl MCP server with `MCP-API-Key` where the key goes, then assign each paid user a Firecrawl key. Then:
+1. When the user sends an AI message, the backend resolves their active MCPs and substitutes keys.
+2. It registers each server on the running OpenCode instance via the HTTP API (`POST /mcp`), exposing the MCP's tools (Firecrawl exposes ~20: search, scrape, crawl, map, extract).
+3. If a key is removed, the stale registration is disconnected on the next message.
 
-**How it works:**
-1. Admin adds `firecrawl:fc-xxx` key for a paid user in the Admin Panel → Users → API Keys
-2. When the user sends any AI message, the backend checks their tier
-3. If paid + key exists, the backend calls OpenCode's HTTP API (`POST /mcp`) to register `firecrawl-mcp` on the running instance
-4. OpenCode connects to Firecrawl's MCP server, exposing 20+ tools (search, scrape, crawl, map, extract)
-5. The AI agent can now invoke `firecrawl_search`, `firecrawl_scrape`, etc. during conversations
-6. If the key is removed, the backend calls `POST /mcp/firecrawl/disconnect` to clean up
+**Note:** MCP servers are **never** written into `opencode.json` — they are registered dynamically via the OpenCode HTTP API after the instance starts. Writing `mcpServers` into the config would cause `ConfigInvalidError: Unrecognized key: mcpServers`.
 
-**Note:** Firecrawl MCP is **not** configured in `opencode.json` — it is registered dynamically via the OpenCode HTTP API after the instance starts. This prevents config validation errors (`Unrecognized key: mcpServers`).
+> **Paid-gating an MCP is a product choice, not built in.** The DB model doesn't force `api` MCPs to be paid-only. If you want "web search = paid only", restrict it by only assigning those MCP keys to paid users. Demotion to free is still blocked while a user holds any paid **provider** key.
 
 ### Dynamic Rules & Skills System
 
@@ -938,33 +1092,22 @@ Cost($) = ((uncached_input / 1M × inputPer1M)
 Tokens = ceil(Cost($) × 1000)
 ```
 
-**Example — DeepSeek V4 Pro via Fireworks:**
-| Token Type | Per-1M Price | Cached Price |
-|-----------|--------------|--------------|
-| Input | $1.74 | $0.145 |
-| Output | $3.48 | — |
+**Per-model pricing is set by the admin** when adding/editing the model (per-1M input / output / optional cached input, in provider dollars). The same show-name on two different providers can carry different prices — they are simply two `ai_models` rows. Free-provider models always cost **0 tokens** regardless of stored numbers.
 
-**Per-provider pricing:** The same model may have different prices on different providers:
-| Model | Fireworks | Blueminds |
-|-------|-----------|-----------|
-| Kimi K2.6 | $0.95 / $4.00 | $0.28 / $0.154 |
-| Qwen3.6 Plus | $0.50 / $3.00 | $1.20 / $2.88 |
-
-**Free models** (DeepSeek V4 Flash Free, Nemotron 3 Super Free) consume **0 tokens**.
-
-**Automatic reconciliation:** After each AI session completes, the system reconciles estimated vs actual token usage:
-- **Refund:** If actual < estimated, the difference is refunded to the user's balance
-- **Cap:** If actual > estimated, the user is charged at most 2× the estimate (prevents runaway costs)
+**Billing is real-time and per-call** (this replaced the older estimate→pre-charge→reconcile cycle). There is no up-front estimate and no end-of-run reconciliation:
+1. On send, the backend only **gates entry** — refuse if the user has no usable key, or a balance below the premium minimum.
+2. A local **LiteLLM proxy** runs the model; after **every upstream call**, the meter reports real usage and the backend charges the exact `calculateTokenCost(...)` to the user **and** the raw provider cost to the serving key (see [API Key Routing](#api-key-routing--real-time-billing)).
+3. If the balance reaches zero mid-run, generation is **stopped immediately** — the user pays only for calls actually made (the boundary call is clamped, so the balance never goes negative).
 
 **Admin token management:** Administrators can grant or deduct tokens from any user via the Admin Panel → Users page:
-- **Grant tokens:** Click the **+Grant** button next to a user's balance to add tokens
-- **Deduct tokens:** Click the **-Deduct** button to remove tokens. If the deduction amount exceeds the user's current balance, the operation is rejected with an error showing the available balance
-- All token transactions (grants, deductions, pre-charges, refunds) are logged in the `token_transactions` table for audit purposes
+- **Grant tokens:** Click **+Grant** next to a user's balance to add tokens.
+- **Deduct tokens:** Click **-Deduct** to remove tokens; deductions larger than the balance are rejected with the available amount.
+- Every per-call charge, grant, deduction, and refund is logged in `token_transactions` for audit. (Note: on a zero-balance boundary call the transaction records the call's full computed cost while the balance is clamped at 0 — so "sum of transactions" is the true cost incurred, not necessarily the balance delta.)
 
 **Token enforcement on message sending:**
-- **Free models** (e.g., `opencode-deepseek-v4-flash-free`, `opencode-nemotron-3-super-free`) do not require tokens and can be used even with a 0 balance
-- **Premium models** require a positive token balance. When a user attempts to send a message to a premium model with insufficient tokens, the server returns HTTP 402 with the estimated cost
-- The token check happens after the provider API key validation, so missing API keys return 503 before the token check is reached
+- **Free-provider models** do not require tokens and can be used with a 0 balance.
+- **Paid models** require a balance at/above the premium minimum; otherwise the server returns HTTP 402.
+- The key check happens **before** the token check — a user with no usable provider key gets `503` first.
 
 ### Graphify Token Savings (Paid-Only)
 
@@ -1207,45 +1350,26 @@ sudo cat /var/lib/auroracraft/configs/auroracraft-{username}/{linkId}/.local/sha
 
 **Note:** Zen is not a separate provider. Zen models always use the `opencode/` prefix (e.g., `opencode/deepseek-v4-flash-free`). The Zen API key is stored in `auth.json`, not in the provider config.
 
-### AI model returns "Provider not available"
+### Paid model fails / "no usable API key" or LiteLLM errors
 
-Some models have only a single provider with a non-`fast` speed (e.g. `glm-5.1-free` → Modal, speed `rate_limited`). If the frontend sends `speed: 'fast'` and no matching provider is found, you get:
+Paid (non-Zen) models route through the per-project LiteLLM proxy. Work through these:
+1. **LiteLLM installed?** `runuser -l auroracraft-admin -c '/usr/local/bin/litellm --version'`. If missing, do Step 15.7. Without it, every paid-model message fails.
+2. **`httpx` in the venv?** `/var/lib/litellm/shared/venv/bin/python -c "import httpx"`. The embedded meter needs it; if it errors, `…/venv/bin/pip install httpx`.
+3. **The user has a usable key?** Admin Panel → Users → (user) → Provider Keys. A `503 "no usable API key"` means none are active/under-budget. A key shows **exhausted** once `used_usd ≥ limit_usd` — raise its limit or hit **Reset usage** (after topping up the real provider card).
+4. **Real name correct?** The model's **Real name** must be the provider's exact upstream id. Verify against the provider's `/v1/models` (e.g. `curl -H "Authorization: Bearer <key>" https://api.bluesminds.com/v1/models`).
+5. **First request is slow.** LiteLLM cold-start validation can take up to ~90s; the proxy is reused warm afterward. A genuine timeout usually means a wrong base URL or key.
 
-```
-Provider not available for GLM-5.1 at fast speed
-```
-
-**Fix:** The backend now falls back to any available provider when the exact speed doesn't match. If you still see this, the `getProviderForModel()` function in `server/src/config/ai-models.ts` may need updating.
-
-### Modal API returns 429 (Too many concurrent requests)
-
-Modal's `zai-org/GLM-5.1-FP8` model is heavily rate-limited. The API key is valid, but you may see:
-
-```json
-{"error": "Too many concurrent requests for this model"}
-```
-
-This is a provider-side limitation, not a configuration bug. Retry after a few minutes or switch to a different model.
-
-### Blueminds model returns upstream error
-
-The `moonshotai/kimi-k2.6` model on Blueminds may return:
-
-```json
-{"error":{"message":"openai_error","type":"bad_response_status_code"}}
-```
-
-This is an upstream provider error. Use the Fireworks provider for `kimi-k2.6` instead (it works reliably).
-
-### DeepSeek V4 Pro via Bluesminds uses Fireworks routing
-
-Blueminds routes some models through Fireworks under the hood. The model ID for DeepSeek V4 Pro on Blueminds is:
+### Adding a second API key fails with a unique-constraint error
 
 ```
-accounts/fireworks/models/deepseek-v4-pro
+duplicate key value violates unique constraint "idx_provider_api_keys_user_provider"
 ```
 
-Not `deepseek-v4-pro` (the official DeepSeek route, which is currently unavailable). This is configured automatically in `server/src/config/ai-models.ts`.
+Migration `0021_api_key_routing.sql` **drops** that legacy `UNIQUE(user_id, provider)` index to allow multiple keys per paid provider. If you see this, 0021 wasn't applied (or its DROP INDEX didn't run). Apply it: `sudo -u postgres psql -d auroracraft -1 -f server/drizzle/0021_api_key_routing.sql`, then confirm: `sudo -u postgres psql -d auroracraft -c "SELECT to_regclass('idx_provider_api_keys_user_provider');"` should print empty.
+
+### A paid model's upstream returns an error / 429
+
+Upstream provider errors (rate limits, `bad_response_status_code`, etc.) are **provider-side**, not config bugs. With multi-key routing, a rate-limited key is retried then the chain falls back to the next key automatically. If a specific model id is unavailable on one provider, add the same show-name on another provider (a second `ai_models` row with that provider's real name) — the model picker shows both, disambiguated by type tag.
 
 ### Thinking badges not showing / raw reasoning text in chat
 
@@ -1337,14 +1461,16 @@ for f in sys.argv[1:]:
 If you see:
 
 ```
-Cannot downgrade to free tier. User has paid-only API keys configured for: firecrawl. Delete these keys first.
+Cannot downgrade to free tier. User has paid-provider API keys configured for: <provider names>. Delete these keys first.
 ```
 
-This is by design. Firecrawl is a paid-only provider. Remove the Firecrawl key first:
+This is by design — a free user may not hold keys for **paid** providers. Remove them first:
 
-1. Admin Panel → Users → click the user
-2. API Keys → delete `firecrawl`
+1. Admin Panel → Users → click the user → **Provider Keys**
+2. Delete every key under the listed paid provider(s)
 3. Then change tier to **free**
+
+(Separately: flipping a **provider** itself from paid → free in AI Runtime is destructive — it prunes every user's keys for that provider down to the single highest-priority one, since free providers allow only one key per user. The UI warns before doing this.)
 
 ### Java compilation fails / "java: command not found"
 
@@ -1372,19 +1498,25 @@ The AI agent requires Java to compile plugins. If the AI reports that compilatio
 
 The system prompt explicitly instructs the AI to compile after writing code. If the AI still says compilation is unavailable, the `JAVA_HOME` or `MAVEN_OPTS` environment variables may not be set correctly in `opencode-process-manager.ts`.
 
-### Token balance went negative / unexpected charges
+### Unexpected token charges / balance dropped fast
 
-**Check 1 — Was the model priced correctly?**
+Billing is now real-time per upstream call (no estimate, no reconciliation), so a multi-step agent run produces **several** `token_transactions` rows — that is expected, not a bug.
+
+**Check 1 — Was the model priced correctly?** Pricing lives in the DB, not in code. Verify it in **Admin Panel → AI Runtime → Models** (per-1M input/output/cached), or:
 ```bash
-# Check actual pricing in ai-models.ts
-grep -A5 "deepseek-v4-pro" /root/AuroraCraft/server/src/config/ai-models.ts
+sudo -u postgres psql -d auroracraft -c \
+  "SELECT show_name, input_per_1m, output_per_1m, cached_input_per_1m FROM ai_models WHERE show_name ILIKE '%<name>%';"
 ```
+A surprisingly high charge almost always means the per-1M price is set too high. Cost = `((uncached_in/1M·in) + (cached_in/1M·cached) + (out/1M·out)) × 1.2`, tokens = `ceil(cost × 1000)`.
 
-**Check 2 — Reconciliation log:**
-Check server logs for "Reconciling tokens" — if actual usage was lower than estimated, a refund should have been issued automatically.
+**Check 2 — The per-call charge trail:**
+```bash
+sudo -u postgres psql -d auroracraft -c \
+  "SELECT amount, description, created_at FROM token_transactions WHERE user_id='<uuid>' AND description LIKE 'Realtime%' ORDER BY created_at DESC LIMIT 20;"
+```
+Each row is one upstream call. **Balance never goes negative** — it's clamped at 0, and the run is force-stopped when it hits 0. On the boundary call the transaction may show a cost larger than what was debitable (the platform absorbs that one call's overage); this is intended.
 
-**Check 3 — Provider mismatch:**
-If the frontend selected one provider but the backend used another, the pricing may differ. Verify `providerPricing` is set correctly in `ai-models.ts` for the model/provider combination.
+**Check 3 — Which key paid?** The user is billed in commissioned tokens; the **serving key** is billed in raw provider dollars (`used_usd`). Compare under **Users → (user) → Provider Keys**.
 
 ### Model selection resets after page refresh
 
@@ -1456,7 +1588,7 @@ AuroraCraft/
 │   │   ├── components/       # Shared UI components
 │   │   ├── pages/            # Route pages (dashboard, admin, projects)
 │   │   ├── stores/           # Zustand state stores
-│   │   ├── types/            # TypeScript types & AI model definitions
+│   │   ├── types/            # TypeScript types (AI models/providers are fetched from the API, not static)
 │   │   └── ...
 │   ├── dist/                 # Production build (served by backend)
 │   └── package.json
@@ -1472,7 +1604,10 @@ AuroraCraft/
 │   │   ├── utils/            # Provider config, token service, MCP helpers
 │   │   │   ├── graphify-service.ts    # Graphify build/remove/skill + lifecycle reconcilers
 │   │   │   ├── opencode-mcp.ts        # OpenCode MCP HTTP API helpers (add/remove/list)
+│   │   │   ├── ai-runtime.ts          # DB-driven providers/models/keys + multi-key routing resolver
 │   │   │   ├── provider-config.ts     # Per-project isolated config generation
+│   │   │   ├── litellm-config.ts      # Multi-deployment LiteLLM config + embedded real-time meter
+│   │   │   ├── mcp-runtime.ts         # Admin-managed MCP resolution + per-user key substitution
 │   │   │   └── token-service.ts       # Token balance & cost estimation
 │   │   └── index.ts          # Server entry point
 │   ├── drizzle.config.ts

@@ -20,6 +20,7 @@ import { githubRoutes } from './routes/github.js'
 import coderabbitRoutes from './routes/coderabbit.js'
 import { graphifyRoutes } from './routes/graphify.js'
 import { nimRoutes } from './routes/nim.js'
+import { internalRoutes } from './routes/internal.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -52,6 +53,7 @@ await app.register(githubRoutes)
 await app.register(coderabbitRoutes)
 await app.register(graphifyRoutes)
 await app.register(nimRoutes)
+await app.register(internalRoutes)
 
 // Serve built client in production
 const clientDist = path.resolve(__dirname, '../../client/dist')

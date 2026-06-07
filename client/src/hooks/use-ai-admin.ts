@@ -150,6 +150,17 @@ export function useMcpMutations() {
 }
 
 // ── Per-user keys (used by the Users page) ───────────────────────────────
+// A paid provider can hold many keys (routing chain); a free provider holds one.
+export interface UserProviderKey {
+  id: string
+  maskedKey: string
+  label?: string | null
+  weight?: number
+  limitUsd?: number | null
+  usedUsd?: number
+  isActive?: boolean
+  exhaustedAt?: string | null
+}
 export interface UserProviderKeyRow {
   providerId: string
   name: string
@@ -157,8 +168,7 @@ export interface UserProviderKeyRow {
   isFree: boolean
   isActive: boolean
   isBuiltin: boolean
-  hasKey: boolean
-  maskedKey: string | null
+  keys: UserProviderKey[]
 }
 export interface UserMcpKeyRow {
   mcpId: string
@@ -184,17 +194,29 @@ export function useUserKeys(userId: string | null) {
 export function useUserKeyMutations(userId: string | null) {
   const qc = useQueryClient()
   const invalidate = () => qc.invalidateQueries({ queryKey: ['ai-admin', 'user-keys', userId] })
+  // Add a provider key (paid: append; free: upsert) or an MCP key, with optional routing fields.
   const setKey = useMutation({
-    mutationFn: (body: { providerId?: string; mcpId?: string; apiKey: string }) =>
+    mutationFn: (body: { providerId?: string; mcpId?: string; apiKey: string; label?: string; weight?: number; limitUsd?: number | null }) =>
       api.post(`/admin/users/${userId}/keys`, body),
     onSuccess: invalidate,
   })
+  // Update one paid key's routing fields (label / weight / limit / enabled).
+  const updateKey = useMutation({
+    mutationFn: ({ keyId, ...body }: { keyId: string; label?: string | null; weight?: number; limitUsd?: number | null; isActive?: boolean }) =>
+      api.patch(`/admin/users/${userId}/keys/${keyId}`, body),
+    onSuccess: invalidate,
+  })
+  // Reset a key's accumulated usage (usedUsd → 0, re-enable).
+  const resetUsage = useMutation({
+    mutationFn: (keyId: string) => api.post(`/admin/users/${userId}/keys/${keyId}/reset-usage`, {}),
+    onSuccess: invalidate,
+  })
   const removeKey = useMutation({
-    mutationFn: (target: { providerId?: string; mcpId?: string }) => {
-      const q = target.providerId ? `providerId=${target.providerId}` : `mcpId=${target.mcpId}`
+    mutationFn: (target: { keyId?: string; providerId?: string; mcpId?: string }) => {
+      const q = target.keyId ? `keyId=${target.keyId}` : target.providerId ? `providerId=${target.providerId}` : `mcpId=${target.mcpId}`
       return api.delete(`/admin/users/${userId}/keys?${q}`)
     },
     onSuccess: invalidate,
   })
-  return { setKey, removeKey }
+  return { setKey, updateKey, resetUsage, removeKey }
 }

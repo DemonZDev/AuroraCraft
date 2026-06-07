@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, boolean, timestamp, text, bigint } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, varchar, boolean, timestamp, text, bigint, integer, doublePrecision } from 'drizzle-orm/pg-core'
 import { users } from './users.js'
 import { agentSessions } from './agent-sessions.js'
 import { aiProviders } from './ai-providers.js'
@@ -15,6 +15,17 @@ export const providerApiKeys = pgTable('provider_api_keys', {
   providerId: uuid('provider_id').references(() => aiProviders.id, { onDelete: 'cascade' }),
   mcpId: uuid('mcp_id').references(() => mcps.id, { onDelete: 'cascade' }),
   apiKey: text('api_key').notNull(),
+  // ── Multi-key routing fields (paid providers only; see routing.md) ──
+  // Admin label to tell a user's keys apart, e.g. "Fireworks #4 — $6 card".
+  label: varchar('label', { length: 100 }),
+  // Lower weight = higher priority. Primary first, then fallbacks in weight order.
+  weight: integer('weight').notNull().default(100),
+  // Provider-dollar budget allotted to this key. null = unlimited.
+  limitUsd: doublePrecision('limit_usd'),
+  // Live accumulated provider spend (raw $, no commission). remaining = limitUsd - usedUsd.
+  usedUsd: doublePrecision('used_usd').notNull().default(0),
+  // Set when usedUsd >= limitUsd auto-disables the key (distinguishes auto-exhausted from admin-disabled).
+  exhaustedAt: timestamp('exhausted_at', { withTimezone: true }),
   isActive: boolean('is_active').default(true),
   createdBy: uuid('created_by').references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),

@@ -16,6 +16,11 @@ const envSchema = z.object({
   LITELLM_PORT_MIN: z.coerce.number().default(8000),
   LITELLM_PORT_MAX: z.coerce.number().default(8999),
   LITELLM_IDLE_TIMEOUT: z.coerce.number().default(120000),
+  // Shared secret the per-project LiteLLM meter uses to call the internal usage
+  // endpoint. Optional — falls back to SESSION_SECRET when unset (see routing.md §10).
+  LITELLM_INTERNAL_SECRET: z.string().min(16).optional(),
+  // How many times LiteLLM retries a deployment before falling back (routing.md §7/§13).
+  LITELLM_NUM_RETRIES: z.coerce.number().default(10),
   GITHUB_CLIENT_ID: z.string().optional(),
   GITHUB_CLIENT_SECRET: z.string().optional(),
   GITHUB_CALLBACK_URL: z.string().url().optional(),

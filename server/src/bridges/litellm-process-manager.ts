@@ -1,5 +1,6 @@
 import { spawn, execFile, type ChildProcess } from 'child_process'
 import { mkdir, writeFile, readFile, chown, access, chmod } from 'fs/promises'
+import { createHash } from 'crypto'
 import { constants } from 'fs'
 import { promisify } from 'util'
 import { env } from '../env.js'
@@ -16,6 +17,8 @@ interface LiteLLMInstance {
   lastActivity: Date
   status: 'starting' | 'ready' | 'stopping' | 'stopped'
   idleTimer?: ReturnType<typeof setTimeout>
+  // Hash of the config the proxy was started with; a change forces a reload restart.
+  configHash: string
 }
 
 // ── User ID resolution (cached) ─────────────────────────────────────
@@ -64,15 +67,24 @@ export class LiteLLMProcessManager {
   }
 
   async acquire(options: LiteLLMAcquireOptions): Promise<string> {
-    const { directory, configPath } = options
+    const { directory, configPath, userId } = options
+
+    // Hash the config so we can detect when the routing key-set / pricing changed
+    // (e.g. a key exhausted and dropped out) and restart the warm proxy to load it.
+    let configHash = ''
+    try { configHash = createHash('sha256').update(await readFile(configPath, 'utf8')).digest('hex') } catch { /* ignore */ }
 
     const existing = this.instances.get(directory)
     if (existing && existing.status === 'ready') {
-      this.cancelIdleTimer(existing)
-      existing.refCount++
-      existing.lastActivity = new Date()
-      console.log(`[LiteLLM] Reusing instance for ${directory} on port ${existing.port} (refCount: ${existing.refCount})`)
-      return existing.url
+      if (existing.configHash === configHash) {
+        this.cancelIdleTimer(existing)
+        existing.refCount++
+        existing.lastActivity = new Date()
+        console.log(`[LiteLLM] Reusing instance for ${directory} on port ${existing.port} (refCount: ${existing.refCount})`)
+        return existing.url
+      }
+      console.log(`[LiteLLM] Config changed for ${directory} — restarting proxy to load new routing`)
+      await this.stopInstance(directory)
     }
 
     const pending = this.startPromises.get(directory)
@@ -85,7 +97,7 @@ export class LiteLLMProcessManager {
       return instance.url
     }
 
-    const startPromise = this.startInstance(directory, configPath)
+    const startPromise = this.startInstance(directory, configPath, userId, configHash)
     this.startPromises.set(directory, startPromise)
 
     try {
@@ -149,7 +161,7 @@ export class LiteLLMProcessManager {
     this.usedPorts.delete(port)
   }
 
-  private async startInstance(directory: string, configPath: string): Promise<LiteLLMInstance> {
+  private async startInstance(directory: string, configPath: string, userId?: string, configHash = ''): Promise<LiteLLMInstance> {
     const port = this.allocatePort()
     const url = `http://localhost:${port}`
 
@@ -185,13 +197,19 @@ export class LiteLLMProcessManager {
       env: (() => {
         // Strip DATABASE_URL and any other AuroraCraft env vars that
         // might confuse LiteLLM into thinking a database is configured.
-        const env = { ...process.env }
-        delete env.DATABASE_URL
-        delete env.DATABASE_CONNECTION_POOL_URL
-        delete env.POSTGRES_URL
-        delete env.POSTGRES_PRISMA_URL
-        env.PYTHONUNBUFFERED = '1'
-        return env
+        const childEnv: NodeJS.ProcessEnv = { ...process.env }
+        delete childEnv.DATABASE_URL
+        delete childEnv.DATABASE_CONNECTION_POOL_URL
+        delete childEnv.POSTGRES_URL
+        delete childEnv.POSTGRES_PRISMA_URL
+        childEnv.PYTHONUNBUFFERED = '1'
+        // Real-time meter identity (read by aurora_litellm_callback.py). One proxy
+        // == one project == one user, so these stay valid across warm reuse.
+        if (userId) childEnv.AURORA_USER_ID = userId
+        childEnv.AURORA_PROJECT_DIR = directory
+        childEnv.AURORA_CALLBACK_BASE = `http://127.0.0.1:${env.PORT}`
+        childEnv.AURORA_INTERNAL_SECRET = env.LITELLM_INTERNAL_SECRET ?? env.SESSION_SECRET
+        return childEnv
       })()
     })
 
@@ -203,6 +221,7 @@ export class LiteLLMProcessManager {
       refCount: 0,
       lastActivity: new Date(),
       status: 'starting',
+      configHash,
     }
 
     this.instances.set(directory, instance)

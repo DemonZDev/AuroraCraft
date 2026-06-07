@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Loader2, CheckCircle2, XCircle, Terminal, Shield, Coins, User as UserIcon, KeyRound, Plus, Trash2, Pencil, Check, X } from 'lucide-react'
 import { useAdminUsers } from '@/hooks/use-admin'
-import { useUserKeys, useUserKeyMutations } from '@/hooks/use-ai-admin'
+import { useUserKeys, useUserKeyMutations, type UserProviderKeyRow, type UserProviderKey } from '@/hooks/use-ai-admin'
 import { api } from '@/lib/api'
 import { GlassyConfirmModal, GlassyPromptModal } from '@/components/ui/glassy'
 import type { KiroAuthStatus } from '@/types'
@@ -607,15 +607,159 @@ function KeyRow({ label, badge, hasKey, masked, locked, lockedReason, onSet, onR
   )
 }
 
+// A paid provider's key list: the ordered routing chain (weight asc) with per-key
+// dollar limit + live usage, plus an add form. Free providers use KeyRow instead.
+function PaidProviderKeys({ provider, onAdd, onUpdate, onReset, onRemove }: {
+  provider: UserProviderKeyRow
+  onAdd: (body: { apiKey: string; label?: string; weight?: number; limitUsd?: number | null }) => Promise<unknown>
+  onUpdate: (keyId: string, body: { label?: string | null; weight?: number; limitUsd?: number | null; isActive?: boolean }) => Promise<unknown>
+  onReset: (keyId: string) => Promise<unknown>
+  onRemove: (keyId: string) => Promise<unknown>
+}) {
+  const [adding, setAdding] = useState(false)
+  const [apiKey, setApiKey] = useState('')
+  const [label, setLabel] = useState('')
+  const [weight, setWeight] = useState('100')
+  const [limit, setLimit] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  const add = async () => {
+    if (!apiKey.trim()) return
+    setBusy(true); setErr('')
+    try {
+      await onAdd({
+        apiKey: apiKey.trim(),
+        label: label.trim() || undefined,
+        weight: weight.trim() ? Number(weight) : undefined,
+        limitUsd: limit.trim() ? Number(limit) : null,
+      })
+      setApiKey(''); setLabel(''); setWeight('100'); setLimit(''); setAdding(false)
+    } catch (e: any) { setErr(e?.message || 'Failed to add key') }
+    finally { setBusy(false) }
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-background p-3">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-text">{provider.name}</span>
+          <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">paid</span>
+          <span className="text-[10px] text-text-dim">{provider.keys.length} key{provider.keys.length === 1 ? '' : 's'}</span>
+        </div>
+        {!adding && (
+          <button onClick={() => { setAdding(true); setErr('') }} className="flex items-center gap-1 text-[11px] text-primary hover:text-primary/80">
+            <Plus className="h-3 w-3" /> Add key
+          </button>
+        )}
+      </div>
+
+      {provider.keys.length === 0 && !adding && (
+        <p className="text-xs text-text-dim py-1">No keys — the user can't use this provider until one is added.</p>
+      )}
+
+      <div className="space-y-1.5">
+        {provider.keys.map((k) => (
+          <PaidKeyItem key={k.id}
+            k={k}
+            onUpdate={(body) => onUpdate(k.id, body)}
+            onReset={() => onReset(k.id)}
+            onRemove={() => onRemove(k.id)} />
+        ))}
+      </div>
+
+      {adding && (
+        <div className="mt-2 space-y-2 rounded border border-border bg-surface p-2">
+          <input type="password" value={apiKey} autoFocus onChange={(e) => setApiKey(e.target.value)} placeholder="Paste API key…"
+            className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-text placeholder:text-text-dim focus:border-primary focus:outline-none" />
+          <div className="flex gap-2">
+            <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label (optional)"
+              className="flex-1 rounded border border-border bg-background px-2 py-1 text-xs text-text placeholder:text-text-dim focus:border-primary focus:outline-none" />
+            <input value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="Weight" type="number" title="Lower = higher priority"
+              className="w-20 rounded border border-border bg-background px-2 py-1 text-xs text-text placeholder:text-text-dim focus:border-primary focus:outline-none" />
+            <input value={limit} onChange={(e) => setLimit(e.target.value)} placeholder="Limit $" type="number" step="0.01" title="Provider-dollar budget (blank = unlimited)"
+              className="w-24 rounded border border-border bg-background px-2 py-1 text-xs text-text placeholder:text-text-dim focus:border-primary focus:outline-none" />
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            {err && <span className="mr-auto text-[11px] text-destructive">{err}</span>}
+            <button onClick={() => { setAdding(false); setApiKey(''); setErr('') }} className="text-xs text-text-dim hover:text-text-muted px-2 py-1">Cancel</button>
+            <button onClick={add} disabled={!apiKey.trim() || busy} className="flex items-center gap-1 rounded bg-primary px-2 py-1 text-xs text-white disabled:opacity-50">
+              {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />} Add
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// One paid key row: shows used/limit, weight, enabled state + inline edit / reset / remove.
+function PaidKeyItem({ k, onUpdate, onReset, onRemove }: {
+  k: UserProviderKey
+  onUpdate: (body: { label?: string | null; weight?: number; limitUsd?: number | null; isActive?: boolean }) => Promise<unknown>
+  onReset: () => Promise<unknown>
+  onRemove: () => Promise<unknown>
+}) {
+  const [editing, setEditing] = useState(false)
+  const [label, setLabel] = useState(k.label ?? '')
+  const [weight, setWeight] = useState(String(k.weight ?? 100))
+  const [limit, setLimit] = useState(k.limitUsd != null ? String(k.limitUsd) : '')
+  const [busy, setBusy] = useState(false)
+
+  const exhausted = !!k.exhaustedAt
+  const used = k.usedUsd ?? 0
+  const limitNum = k.limitUsd
+  const run = async (fn: () => Promise<unknown>) => { setBusy(true); try { await fn() } finally { setBusy(false) } }
+  const save = () => run(async () => {
+    await onUpdate({ label: label.trim() || null, weight: Number(weight), limitUsd: limit.trim() ? Number(limit) : null })
+    setEditing(false)
+  })
+
+  return (
+    <div className={`rounded border px-2 py-1.5 ${exhausted ? 'border-warning/40 bg-warning/5' : k.isActive ? 'border-border bg-surface' : 'border-border bg-background opacity-60'}`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="rounded bg-background px-1 py-0.5 text-[10px] font-mono text-text-dim" title="weight (lower = higher priority)">w{k.weight ?? 100}</span>
+          <code className="text-[11px] font-mono text-text-muted truncate">{k.maskedKey}</code>
+          {k.label && <span className="text-[10px] text-text-dim truncate">· {k.label}</span>}
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-[10px] text-text-dim">${used.toFixed(2)}{limitNum != null ? ` / $${limitNum.toFixed(2)}` : ' / ∞'}</span>
+          {exhausted
+            ? <span className="rounded-full bg-warning/15 px-1.5 py-0.5 text-[9px] text-warning">exhausted</span>
+            : !k.isActive && <span className="rounded-full bg-text-dim/15 px-1.5 py-0.5 text-[9px] text-text-dim">disabled</span>}
+          <button onClick={() => setEditing(v => !v)} disabled={busy} className="text-text-dim hover:text-primary p-0.5" title="Edit"><Pencil className="h-3 w-3" /></button>
+          {(used > 0 || exhausted || !k.isActive) && (
+            <button onClick={() => run(onReset)} disabled={busy} className="text-text-dim hover:text-success p-0.5 text-xs" title="Reset usage & re-enable">↺</button>
+          )}
+          <button onClick={() => run(onRemove)} disabled={busy} className="text-red-500 hover:text-red-400 p-0.5" title="Remove key"><Trash2 className="h-3 w-3" /></button>
+        </div>
+      </div>
+      {editing && (
+        <div className="mt-1.5 flex items-center gap-2">
+          <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label"
+            className="flex-1 rounded border border-border bg-background px-2 py-1 text-[11px] text-text placeholder:text-text-dim focus:border-primary focus:outline-none" />
+          <input value={weight} onChange={(e) => setWeight(e.target.value)} type="number" title="Weight"
+            className="w-16 rounded border border-border bg-background px-2 py-1 text-[11px] text-text focus:border-primary focus:outline-none" />
+          <input value={limit} onChange={(e) => setLimit(e.target.value)} type="number" step="0.01" placeholder="$ limit"
+            className="w-20 rounded border border-border bg-background px-2 py-1 text-[11px] text-text placeholder:text-text-dim focus:border-primary focus:outline-none" />
+          <button onClick={save} disabled={busy} className="text-success hover:text-success/80 p-0.5">{busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3.5 w-3.5" />}</button>
+          <button onClick={() => setEditing(false)} className="text-text-dim hover:text-text-muted p-0.5"><X className="h-3.5 w-3.5" /></button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function UserKeysModal({ userId, username, onClose }: { userId: string; username: string; onClose: () => void }) {
   const { keys, isLoading } = useUserKeys(userId)
-  const { setKey, removeKey } = useUserKeyMutations(userId)
+  const { setKey, updateKey, resetUsage, removeKey } = useUserKeyMutations(userId)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div className="w-full max-w-xl rounded-lg border border-border bg-surface p-6 shadow-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-lg font-semibold text-text mb-1">API Keys — {username}</h2>
-        <p className="text-sm text-text-muted mb-4">Keys are stored on the backend and never shown in full. Paid-provider keys require a paid user.</p>
+        <p className="text-sm text-text-muted mb-4">Keys are stored on the backend and never shown in full. Paid providers support multiple keys with weight (lower = higher priority) and a per-key dollar limit; free providers allow one key.</p>
 
         {isLoading || !keys ? (
           <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-text-dim" /></div>
@@ -627,17 +771,24 @@ function UserKeysModal({ userId, username, onClose }: { userId: string; username
                 <p className="text-sm text-text-dim py-2">No providers configured. Add some in AI Runtime.</p>
               ) : (
                 <div className="space-y-2">
-                  {keys.providers.map((p) => (
+                  {keys.providers.map((p) => p.isFree ? (
                     <KeyRow
                       key={p.providerId}
                       label={p.name}
-                      badge={p.isFree
-                        ? <span className="rounded-full bg-success/10 px-1.5 py-0.5 text-[10px] text-success">free</span>
-                        : <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">paid</span>}
-                      hasKey={p.hasKey}
-                      masked={p.maskedKey}
+                      badge={<span className="rounded-full bg-success/10 px-1.5 py-0.5 text-[10px] text-success">free</span>}
+                      hasKey={p.keys.length > 0}
+                      masked={p.keys[0]?.maskedKey ?? null}
                       onSet={(apiKey) => setKey.mutateAsync({ providerId: p.providerId, apiKey })}
                       onRemove={() => removeKey.mutateAsync({ providerId: p.providerId })}
+                    />
+                  ) : (
+                    <PaidProviderKeys
+                      key={p.providerId}
+                      provider={p}
+                      onAdd={(body) => setKey.mutateAsync({ providerId: p.providerId, ...body })}
+                      onUpdate={(keyId, body) => updateKey.mutateAsync({ keyId, ...body })}
+                      onReset={(keyId) => resetUsage.mutateAsync(keyId)}
+                      onRemove={(keyId) => removeKey.mutateAsync({ keyId })}
                     />
                   ))}
                 </div>

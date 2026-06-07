@@ -36,6 +36,28 @@ export function calculateTokenCost(
   return Math.ceil(totalCost)
 }
 
+/**
+ * Raw provider dollar cost for a request — NO commission, NO token conversion.
+ * This is the unit the admin sets a per-key limit in (real provider credit), and is
+ * what a serving API key's dollar budget is decremented by. Contrast with
+ * calculateTokenCost(), which is the user-facing charge (× commission × 1000, ceil).
+ * Both derive from the same token counts; only the multiplier differs (see routing.md §5).
+ */
+export function calculateProviderCostUsd(
+  inputTokens: number,
+  outputTokens: number,
+  pricing: ModelPricing,
+  cachedInputTokens?: number,
+): number {
+  const uncachedInputTokens = Math.max(0, inputTokens - (cachedInputTokens ?? 0))
+  const inputCost = (uncachedInputTokens / 1_000_000) * pricing.inputPer1M
+  const cachedCost = cachedInputTokens && pricing.cachedInputPer1M
+    ? (cachedInputTokens / 1_000_000) * pricing.cachedInputPer1M
+    : 0
+  const outputCost = (outputTokens / 1_000_000) * pricing.outputPer1M
+  return inputCost + cachedCost + outputCost
+}
+
 /** Rough token estimate from text length (≈4 chars/token). */
 export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4)

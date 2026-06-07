@@ -145,13 +145,73 @@ export function canUseModel(model: ResolvedModel, tier: UserTier): boolean {
  * (The built-in Zen provider's slug is 'opencode'.)
  */
 export async function getUserProviderKeyMap(userId: string): Promise<Record<string, string>> {
+  // With multi-key routing a user may hold several keys per provider; this map keeps
+  // the single highest-priority USABLE key per slug (for Zen auth.json, the direct
+  // provider-config fallback, and "does the user have a key?" checks).
   const rows = await db
-    .select({ slug: aiProviders.slug, apiKey: providerApiKeys.apiKey })
+    .select({ slug: aiProviders.slug, apiKey: providerApiKeys.apiKey, weight: providerApiKeys.weight, usedUsd: providerApiKeys.usedUsd, limitUsd: providerApiKeys.limitUsd })
     .from(providerApiKeys)
     .innerJoin(aiProviders, eq(providerApiKeys.providerId, aiProviders.id))
     .where(and(eq(providerApiKeys.userId, userId), eq(providerApiKeys.isActive, true)))
+  const usable = rows
+    .filter((r) => r.limitUsd == null || (r.usedUsd ?? 0) < r.limitUsd)
+    .sort((a, b) => a.weight - b.weight)
   const out: Record<string, string> = {}
-  for (const r of rows) out[r.slug] = r.apiKey
+  for (const r of usable) if (!(r.slug in out)) out[r.slug] = r.apiKey
+  return out
+}
+
+// ── Multi-key routing (paid providers) — see routing.md §6.2/§7 ──────────────
+
+export interface RoutedKey {
+  id: string
+  apiKey: string
+  weight: number
+  limitUsd: number | null
+  usedUsd: number
+  remainingUsd: number | null // null = unlimited
+}
+
+function toRoutedKey(r: { id: string; apiKey: string; weight: number; limitUsd: number | null; usedUsd: number | null }): RoutedKey {
+  const used = r.usedUsd ?? 0
+  return {
+    id: r.id,
+    apiKey: r.apiKey,
+    weight: r.weight,
+    limitUsd: r.limitUsd ?? null,
+    usedUsd: used,
+    remainingUsd: r.limitUsd == null ? null : Math.max(0, r.limitUsd - used),
+  }
+}
+
+/** Usable = active, this provider, and (no limit OR not yet spent up). */
+function isUsableKeyRow(r: { isActive: boolean | null; limitUsd: number | null; usedUsd: number | null }): boolean {
+  return r.isActive === true && (r.limitUsd == null || (r.usedUsd ?? 0) < r.limitUsd)
+}
+
+/** Ordered usable keys for one (user, provider): weight asc, then oldest first. */
+export async function getRoutedKeysForProvider(userId: string, providerId: string): Promise<RoutedKey[]> {
+  const rows = await db
+    .select()
+    .from(providerApiKeys)
+    .where(and(eq(providerApiKeys.userId, userId), eq(providerApiKeys.providerId, providerId)))
+  return rows
+    .filter(isUsableKeyRow)
+    .sort((a, b) => (a.weight - b.weight) || ((a.createdAt?.getTime() ?? 0) - (b.createdAt?.getTime() ?? 0)))
+    .map(toRoutedKey)
+}
+
+/** providerId → ordered usable keys, for building the whole LiteLLM config in one query. */
+export async function getUserRoutedKeysByProvider(userId: string): Promise<Record<string, RoutedKey[]>> {
+  const rows = await db
+    .select()
+    .from(providerApiKeys)
+    .where(eq(providerApiKeys.userId, userId))
+  const usable = rows
+    .filter((r) => !!r.providerId && isUsableKeyRow(r))
+    .sort((a, b) => (a.weight - b.weight) || ((a.createdAt?.getTime() ?? 0) - (b.createdAt?.getTime() ?? 0)))
+  const out: Record<string, RoutedKey[]> = {}
+  for (const r of usable) (out[r.providerId!] ??= []).push(toRoutedKey(r))
   return out
 }
 

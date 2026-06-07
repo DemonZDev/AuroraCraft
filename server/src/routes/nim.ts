@@ -7,17 +7,19 @@ import { codeReviews } from '../db/schema/code-reviews.js'
 import { nimJobs, NIM_TERMINAL_STATUSES, type NimJob, type NimJobStatus } from '../db/schema/nim-jobs.js'
 import { authMiddleware } from '../middleware/auth.js'
 import { users } from '../db/schema/users.js'
-import { nimEngine, type EnhanceStyle, type NimTarget } from '../agents/nim-engine.js'
-import { resolveModelById, listModelsForUsage, getUserProviderKeyMap, type ModelUsage } from '../utils/ai-runtime.js'
+import { nimEngine, type EnhanceStyle, type NimTarget, type NimBilling } from '../agents/nim-engine.js'
+import { resolveModelById, listModelsForUsage, getUserProviderKeyMap, getRoutedKeysForProvider, type ModelUsage } from '../utils/ai-runtime.js'
 
 type NimResolution =
-  | { ok: true; target: NimTarget; apiKey: string }
+  | { ok: true; target: NimTarget; billing: NimBilling }
   | { ok: false; status: number; message: string }
 
 /**
  * Resolve a model id (for the Prompt Enhancer / Error Prompt Maker) into a concrete
- * call target + the user's provider key. Enforces usage, tier, and key presence.
- * These features call chat-completions directly, so a Zen model (no base URL) is rejected.
+ * call target + a routed key chain + billing context. Enforces usage, tier, and key
+ * presence. These features call chat-completions directly, so a Zen model (no base URL)
+ * is rejected. Paid providers route over the user's full ordered key chain; free
+ * providers resolve their single key.
  */
 async function resolveNimTarget(
   userId: string,
@@ -35,12 +37,23 @@ async function resolveNimTarget(
   if (!model.provider.isFree && tier !== 'paid') {
     return { ok: false, status: 403, message: `${model.showName} requires a paid subscription.` }
   }
-  const keys = await getUserProviderKeyMap(userId)
-  const apiKey = keys[model.provider.slug]
-  if (!apiKey) {
-    return { ok: false, status: 403, message: `No API key configured for ${model.provider.name}. Ask an admin to add one.` }
+  // Ordered, usable keys for this provider (weight asc). Paid: full chain; free: one key.
+  const keys = await getRoutedKeysForProvider(userId, model.provider.id)
+  if (keys.length === 0) {
+    return { ok: false, status: 403, message: `No usable API key configured for ${model.provider.name}. Ask an admin to add one.` }
   }
-  return { ok: true, target: { baseUrl: model.provider.baseUrl, slug: model.realName }, apiKey }
+  return {
+    ok: true,
+    target: { baseUrl: model.provider.baseUrl, slug: model.realName },
+    billing: {
+      userId,
+      modelId: model.id,
+      providerSlug: model.provider.slug,
+      pricing: model.pricing,
+      isFree: model.provider.isFree,
+      keys,
+    },
+  }
 }
 
 async function getUserTier(userId: string): Promise<'free' | 'paid'> {
@@ -202,7 +215,7 @@ export async function nimRoutes(app: FastifyInstance) {
       nimModel: modelId, style: parsed.data.style, inputJson: { prompt: parsed.data.prompt },
     }).returning()
 
-    void nimEngine.runEnhance(job.id, resolved.apiKey, parsed.data.style as EnhanceStyle, resolved.target, {
+    void nimEngine.runEnhance(job.id, { ...resolved.billing, projectId: id }, parsed.data.style as EnhanceStyle, resolved.target, {
       prompt: parsed.data.prompt, projectName: project.name, software: project.software, language: project.language,
     }).catch((err) => app.log.error({ err, jobId: job.id }, 'enhance job crashed'))
 
@@ -229,7 +242,7 @@ export async function nimRoutes(app: FastifyInstance) {
     const current = (job.resultJson as { prompt?: string })?.prompt ?? ''
     const history = (job.historyJson as unknown[]) ?? []
     await db.update(nimJobs).set({ status: 'running', updatedAt: new Date() }).where(eq(nimJobs.id, jobId))
-    void nimEngine.runRefine(jobId, resolved.apiKey, resolved.target, current, parsed.data.changeRequest, history)
+    void nimEngine.runRefine(jobId, { ...resolved.billing, projectId: id }, resolved.target, current, parsed.data.changeRequest, history)
       .catch((err) => app.log.error({ err, jobId }, 'refine job crashed'))
     return reply.status(202).send({ jobId })
   })
@@ -305,7 +318,7 @@ export async function nimRoutes(app: FastifyInstance) {
       inputJson: { issueRefs: parsed.data.reviewIssueRefs, sessionId: parsed.data.sessionId ?? null },
     }).returning()
 
-    void nimEngine.runErrorFix(job.id, resolved.apiKey, resolved.target, {
+    void nimEngine.runErrorFix(job.id, { ...resolved.billing, projectId: id }, resolved.target, {
       issues, projectName: project.name, software: project.software, language: project.language,
     }).catch((err) => app.log.error({ err, jobId: job.id }, 'error-fix job crashed'))
 

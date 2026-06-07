@@ -279,12 +279,12 @@ export async function adminRoutes(app: FastifyInstance) {
     const apiMcps = await db.select().from(mcps).where(eq(mcps.apiType, 'api')).orderBy(asc(mcps.name))
     const userKeys = await db.select().from(providerApiKeys).where(eq(providerApiKeys.userId, id))
 
-    const byProvider = new Map(userKeys.filter(k => k.providerId).map(k => [k.providerId, k]))
     const byMcp = new Map(userKeys.filter(k => k.mcpId).map(k => [k.mcpId, k]))
 
     return {
       providers: allProviders.map(p => {
-        const k = byProvider.get(p.id)
+        const userKeysForProvider = userKeys.filter(k => k.providerId === p.id)
+        // Free providers: exactly one key (flat mask). Paid: list all keys with their accounting.
         return {
           providerId: p.id,
           name: p.name,
@@ -292,8 +292,20 @@ export async function adminRoutes(app: FastifyInstance) {
           isFree: p.isFree,
           isActive: p.isActive,
           isBuiltin: p.isBuiltin,
-          hasKey: !!k,
-          maskedKey: k ? maskKey(k.apiKey) : null,
+          keys: p.isFree
+            ? (userKeysForProvider.length
+                ? [{ id: userKeysForProvider[0].id, maskedKey: maskKey(userKeysForProvider[0].apiKey) }]
+                : [])
+            : userKeysForProvider.sort((a, b) => a.weight - b.weight).map(k => ({
+                id: k.id,
+                maskedKey: maskKey(k.apiKey),
+                label: k.label ?? null,
+                weight: k.weight,
+                limitUsd: k.limitUsd ?? null,
+                usedUsd: k.usedUsd ?? 0,
+                isActive: k.isActive,
+                exhaustedAt: k.exhaustedAt ?? null,
+              })),
         }
       }),
       mcps: apiMcps.map(m => {
@@ -310,9 +322,12 @@ export async function adminRoutes(app: FastifyInstance) {
   })
 
   // Set or replace a key for an AI provider OR an MCP (exactly one of providerId/mcpId).
+  // Paid providers allow multiple keys per user; free providers reject a second key (§6.3).
   app.post('/api/admin/users/:id/keys', async (request, reply) => {
     const { id } = request.params as { id: string }
-    const { providerId, mcpId, apiKey } = request.body as { providerId?: string; mcpId?: string; apiKey?: string }
+    const { providerId, mcpId, apiKey, label, weight, limitUsd } = request.body as {
+      providerId?: string; mcpId?: string; apiKey?: string; label?: string; weight?: number; limitUsd?: number | null
+    }
 
     if (!apiKey || !apiKey.trim()) {
       return reply.status(400).send({ message: 'API key is required', statusCode: 400 })
@@ -334,11 +349,27 @@ export async function adminRoutes(app: FastifyInstance) {
             statusCode: 403,
           })
         }
+        // Append — paid providers allow multiple keys per user.
+        await db.insert(providerApiKeys).values({
+          userId: id,
+          providerId,
+          provider: provider.slug,
+          apiKey: apiKey.trim(),
+          createdBy: request.user!.id,
+          isActive: true,
+          label: label?.trim() || null,
+          weight: weight ?? 100,
+          limitUsd: limitUsd ?? null,
+          usedUsd: 0,
+        })
+        return { success: true }
       }
 
+      // Free provider: reject if the user already holds a key for it.
       const [existing] = await db.select().from(providerApiKeys)
         .where(and(eq(providerApiKeys.userId, id), eq(providerApiKeys.providerId, providerId))).limit(1)
       if (existing) {
+        // Replace the existing row's key (upsert semantics for the single-key free provider).
         await db.update(providerApiKeys)
           .set({ apiKey: apiKey.trim(), isActive: true, updatedAt: new Date() })
           .where(eq(providerApiKeys.id, existing.id))
@@ -350,7 +381,7 @@ export async function adminRoutes(app: FastifyInstance) {
       return { success: true }
     }
 
-    // MCP key
+    // MCP key (unchanged)
     const [mcp] = await db.select().from(mcps).where(eq(mcps.id, mcpId!)).limit(1)
     if (!mcp) return reply.status(404).send({ message: 'MCP not found', statusCode: 404 })
     if (mcp.apiType !== 'api') return reply.status(400).send({ message: 'This MCP does not use an API key', statusCode: 400 })
@@ -369,16 +400,64 @@ export async function adminRoutes(app: FastifyInstance) {
     return { success: true }
   })
 
-  // Remove a key for an AI provider OR an MCP (query: ?providerId=… or ?mcpId=…).
+  // Per-key update (paid providers only): label, weight, limit, enabled state.
+  app.patch('/api/admin/users/:id/keys/:keyId', async (request, reply) => {
+    const { id, keyId } = request.params as { id: string; keyId: string }
+    const { label, weight, limitUsd, isActive } = request.body as {
+      label?: string | null; weight?: number; limitUsd?: number | null; isActive?: boolean
+    }
+    const [existing] = await db.select().from(providerApiKeys)
+      .where(and(eq(providerApiKeys.id, keyId), eq(providerApiKeys.userId, id)))
+      .limit(1)
+    if (!existing || !existing.providerId) {
+      return reply.status(404).send({ message: 'Key not found', statusCode: 404 })
+    }
+    const [provider] = await db.select().from(aiProviders).where(eq(aiProviders.id, existing.providerId)).limit(1)
+    if (!provider || provider.isFree) {
+      return reply.status(400).send({ message: 'Free providers do not support per-key routing fields.', statusCode: 400 })
+    }
+    const updates: Record<string, unknown> = { updatedAt: new Date() }
+    if (label !== undefined) updates.label = label?.trim() || null
+    if (weight !== undefined) updates.weight = weight
+    if (limitUsd !== undefined) updates.limitUsd = limitUsd
+    if (isActive !== undefined) updates.isActive = isActive
+    // If re-enabled, clear the exhaustion marker so a "power-cycled" key is routable again.
+    if (isActive === true) updates.exhaustedAt = null
+    await db.update(providerApiKeys).set(updates).where(eq(providerApiKeys.id, keyId))
+    return { success: true }
+  })
+
+  // Reset usage for a key: usedUsd → 0, exhaustedAt → null, isActive → true.
+  // Used when an admin tops up the underlying provider card.
+  app.post('/api/admin/users/:id/keys/:keyId/reset-usage', async (request, reply) => {
+    const { id, keyId } = request.params as { id: string; keyId: string }
+    const [existing] = await db.select().from(providerApiKeys)
+      .where(and(eq(providerApiKeys.id, keyId), eq(providerApiKeys.userId, id)))
+      .limit(1)
+    if (!existing) return reply.status(404).send({ message: 'Key not found', statusCode: 404 })
+    await db.update(providerApiKeys)
+      .set({ usedUsd: 0, exhaustedAt: null, isActive: true, updatedAt: new Date() })
+      .where(eq(providerApiKeys.id, keyId))
+    return { success: true }
+  })
+
+  // Remove a key: for a paid provider, target it by keyId; for a free provider or an
+  // MCP, the old providerId/mcpId semantics still work (delete the (user,provider) or
+  // (user,mcp) row — which for free providers is always exactly one row).
   app.delete('/api/admin/users/:id/keys', async (request, reply) => {
     const { id } = request.params as { id: string }
-    const { providerId, mcpId } = request.query as { providerId?: string; mcpId?: string }
+    const { keyId, providerId, mcpId } = request.query as { keyId?: string; providerId?: string; mcpId?: string }
+    if (keyId) {
+      // Delete the specific key row — validated to belong to this user.
+      await db.delete(providerApiKeys).where(and(eq(providerApiKeys.id, keyId), eq(providerApiKeys.userId, id)))
+      return { success: true }
+    }
     if (providerId) {
       await db.delete(providerApiKeys).where(and(eq(providerApiKeys.userId, id), eq(providerApiKeys.providerId, providerId)))
     } else if (mcpId) {
       await db.delete(providerApiKeys).where(and(eq(providerApiKeys.userId, id), eq(providerApiKeys.mcpId, mcpId)))
     } else {
-      return reply.status(400).send({ message: 'Provide providerId or mcpId', statusCode: 400 })
+      return reply.status(400).send({ message: 'Provide keyId, providerId, or mcpId', statusCode: 400 })
     }
     return { success: true }
   })

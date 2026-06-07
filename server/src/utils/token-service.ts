@@ -2,7 +2,7 @@ import { db } from '../db/index.js'
 import { users } from '../db/schema/users.js'
 import { tokenTransactions, providerApiKeys } from '../db/schema/provider-api-keys.js'
 import { eq, sql, and } from 'drizzle-orm'
-import { calculateTokenCost, estimateTokens, TOKEN_MULTIPLIER, TOKENS_PER_USD } from '../config/ai-models.js'
+import { calculateTokenCost, calculateProviderCostUsd, estimateTokens, TOKEN_MULTIPLIER, TOKENS_PER_USD } from '../config/ai-models.js'
 import type { ModelPricing, UserTier } from '../config/ai-models.js'
 
 /** Minimum token balance required to send messages using premium (paid) models */
@@ -213,4 +213,99 @@ export async function reconcileTokens(
 export function canAccessTier(userTier: UserTier, requiredTier: UserTier): boolean {
   if (userTier === 'paid') return true
   return requiredTier === 'free'
+}
+
+// ── Real-time, per-call dual-budget billing (routing.md §8) ──────────────────
+
+export interface RealtimeChargeResult {
+  /** AuroraCraft tokens debited from the user (with the 1.2× commission). */
+  userTokensCharged: number
+  /** Raw provider dollars debited from the serving key (no commission). */
+  providerUsd: number
+  /** User's token balance after this charge. */
+  userBalanceRemaining: number
+  /** Serving key's remaining dollar budget (null = unlimited / no key). */
+  keyRemainingUsd: number | null
+  /** True when this charge exhausted the key (it was auto-disabled). */
+  keyExhausted: boolean
+  /** True when the user balance is now zero → the run must be stopped. */
+  killRun: boolean
+}
+
+/**
+ * Charge ONE upstream LLM call against both ledgers atomically:
+ *  - the user's AuroraCraft token balance (× commission), clamped at zero, and
+ *  - the serving API key's dollar limit (raw provider $), auto-disabling it on exhaustion.
+ * Both numbers derive from the same real token counts. Returns killRun when the user
+ * has run out of credit so the caller can force-stop the agent.
+ */
+export async function chargeRealtimeUsage(params: {
+  userId: string
+  keyId?: string | null
+  pricing: ModelPricing
+  inputTokens: number
+  outputTokens: number
+  cachedTokens?: number
+  modelName: string
+  providerSlug?: string
+  sessionId?: string
+}): Promise<RealtimeChargeResult> {
+  const { userId, keyId, pricing, inputTokens, outputTokens, cachedTokens, modelName, providerSlug, sessionId } = params
+  const providerUsd = calculateProviderCostUsd(inputTokens, outputTokens, pricing, cachedTokens)
+  const userTokens = calculateTokenCost(inputTokens, outputTokens, pricing, cachedTokens)
+
+  // 1) User ledger — atomic, clamped at zero; tokensUsed grows by the amount actually taken.
+  let userBalanceRemaining: number
+  if (userTokens > 0) {
+    const [row] = await db
+      .update(users)
+      .set({
+        aiTokens: sql`GREATEST(${users.aiTokens} - ${userTokens}, 0)`,
+        tokensUsed: sql`${users.tokensUsed} + LEAST(${userTokens}, ${users.aiTokens})`,
+      })
+      .where(eq(users.id, userId))
+      .returning({ aiTokens: users.aiTokens })
+    userBalanceRemaining = row?.aiTokens ?? 0
+    await db.insert(tokenTransactions).values({
+      userId,
+      amount: -userTokens,
+      type: 'deduct',
+      description: `Realtime usage: ${modelName}${providerSlug ? ` (${providerSlug})` : ''}`,
+      sessionId,
+    }).catch(() => {})
+  } else {
+    userBalanceRemaining = await getUserTokens(userId)
+  }
+
+  // 2) Key ledger — atomic raw-dollar increment; auto-disable when it reaches its limit.
+  let keyRemainingUsd: number | null = null
+  let keyExhausted = false
+  if (keyId && providerUsd > 0) {
+    const [krow] = await db
+      .update(providerApiKeys)
+      .set({ usedUsd: sql`${providerApiKeys.usedUsd} + ${providerUsd}`, updatedAt: new Date() })
+      .where(eq(providerApiKeys.id, keyId))
+      .returning({ usedUsd: providerApiKeys.usedUsd, limitUsd: providerApiKeys.limitUsd })
+    if (krow) {
+      const used = krow.usedUsd ?? 0
+      keyRemainingUsd = krow.limitUsd == null ? null : Math.max(0, krow.limitUsd - used)
+      if (krow.limitUsd != null && used >= krow.limitUsd) {
+        keyExhausted = true
+        await db
+          .update(providerApiKeys)
+          .set({ isActive: false, exhaustedAt: new Date(), updatedAt: new Date() })
+          .where(eq(providerApiKeys.id, keyId))
+          .catch(() => {})
+      }
+    }
+  }
+
+  return {
+    userTokensCharged: userTokens,
+    providerUsd,
+    userBalanceRemaining,
+    keyRemainingUsd,
+    keyExhausted,
+    killRun: userBalanceRemaining <= 0,
+  }
 }

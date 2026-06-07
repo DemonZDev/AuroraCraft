@@ -1,10 +1,11 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { asc, eq } from 'drizzle-orm'
+import { asc, eq, inArray } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { aiProviders } from '../db/schema/ai-providers.js'
 import { aiModels } from '../db/schema/ai-models.js'
 import { mcps } from '../db/schema/mcps.js'
+import { providerApiKeys } from '../db/schema/provider-api-keys.js'
 import { authMiddleware, adminGuard } from '../middleware/auth.js'
 import { parseUsages, type ModelUsage } from '../utils/ai-runtime.js'
 import { MCP_API_PLACEHOLDER } from '../utils/mcp-runtime.js'
@@ -144,11 +145,40 @@ export async function aiAdminRoutes(app: FastifyInstance) {
     if (parsed.data.name !== undefined) updates.name = parsed.data.name.trim()
     if (parsed.data.isActive !== undefined) updates.isActive = parsed.data.isActive
     // Built-in (Zen): endpoint + free/paid mode are locked; only name + active state can change.
+    let prunedToFree = false
     if (!existing.isBuiltin) {
       if (parsed.data.baseUrl !== undefined) updates.baseUrl = parsed.data.baseUrl.trim()
-      if (parsed.data.isFree !== undefined) updates.isFree = parsed.data.isFree
+      if (parsed.data.isFree !== undefined) {
+        updates.isFree = parsed.data.isFree
+        // paid → free: a free provider allows only ONE key per user (routing.md §6.3).
+        // Destructively prune every user's keys for this provider down to the single
+        // highest-priority one (lowest weight, oldest as tie-break).
+        prunedToFree = parsed.data.isFree === true && existing.isFree === false
+      }
     }
     await db.update(aiProviders).set(updates).where(eq(aiProviders.id, id))
+
+    if (prunedToFree) {
+      const keys = await db.select().from(providerApiKeys).where(eq(providerApiKeys.providerId, id))
+      const byUser = new Map<string, typeof keys>()
+      for (const k of keys) {
+        const arr = byUser.get(k.userId) ?? []
+        arr.push(k)
+        byUser.set(k.userId, arr)
+      }
+      const toDelete: string[] = []
+      for (const arr of byUser.values()) {
+        if (arr.length <= 1) continue
+        arr.sort((a, b) => (a.weight - b.weight) || ((a.createdAt?.getTime() ?? 0) - (b.createdAt?.getTime() ?? 0)))
+        // Keep arr[0] (highest priority); reset its routing fields so it's a clean free key.
+        await db.update(providerApiKeys)
+          .set({ isActive: true, exhaustedAt: null, weight: 100, limitUsd: null, usedUsd: 0, label: null, updatedAt: new Date() })
+          .where(eq(providerApiKeys.id, arr[0].id))
+        for (let i = 1; i < arr.length; i++) toDelete.push(arr[i].id)
+      }
+      if (toDelete.length) await db.delete(providerApiKeys).where(inArray(providerApiKeys.id, toDelete))
+      app.log.info({ providerId: id, removed: toDelete.length }, 'Provider switched to free — pruned extra per-user keys')
+    }
     return { success: true }
   })
 

@@ -38,6 +38,8 @@ AuroraCraft is an AI-powered Minecraft plugin development platform. Users descri
 
 **Tech Stack:** React 19 + Vite 7 frontend, Fastify 5 + Drizzle ORM + PostgreSQL backend, OpenCode AI agent bridge, PM2 process management, TypeScript strict mode throughout.
 
+**AI runtime is DB-driven, not hardcoded (read this first).** AI providers, models, and MCP servers live in the database (`ai_providers` / `ai_models` / `mcps`, migrations 0019–0021) and are managed at runtime from **Admin Panel → AI Runtime** — there is no hardcoded model list to edit. `server/src/config/ai-models.ts` now holds ONLY pricing math; the data source is `server/src/utils/ai-runtime.ts`. Paid providers route through a per-project **LiteLLM proxy** with **multi-key routing + real-time per-call billing** (a user can hold many keys per paid provider, each weighted with a dollar limit). See [API Key Routing & Real-Time Billing](#api-key-routing--real-time-billing) below. Built-in seeded providers: OpenCode Zen (free, 2 models), OpenRouter (paid), NVIDIA NIM (free).
+
 ## Development Commands
 
 ### Workspace Structure
@@ -112,12 +114,24 @@ Each AI message spawns a fresh OpenCode instance on a dynamic port (9000-9999). 
 - `server/src/bridges/opencode.ts` — SSE streaming, message parsing, thinking tag extraction
 - `server/src/routes/agents.ts` — `/api/agents/:sessionId/message` endpoint
 
+### AI Runtime (Admin-Managed: Providers, Models, MCPs)
+**Providers, models, and MCPs are DB-managed — never hardcoded.** Added/edited at runtime from Admin Panel → AI Runtime; no code edits, no redeploy. (Old hardcoded `config/ai-models.ts` data + `config/nim-models.ts` were removed in the AI Runtime redesign, migration 0019.)
+
+**Tables (migrations 0019–0021):**
+- `ai_providers` (`slug`, `base_url`, `kind` `openai_compatible|zen`, `is_free`, `is_active`, `is_builtin`) — `server/src/db/schema/ai-providers.ts`
+- `ai_models` (`provider_id` FK, `show_name`, `real_name` upstream id, `usages` jsonb `agent|prompt_enhancer|error_prompt_maker`, `type_tag`, `weight`, per-1M pricing) — `ai-models.ts`
+- `mcps` (`name`, raw OpenCode MCP `config`, `api_type` `non_api|api`) — `mcps.ts`
+
+**Rules:** provider `is_free` ⇒ models cost 0 tokens, any user may hold a key, **one key per user**; paid ⇒ keys require paid users and **multiple keys per user** allowed. Within (`show_name`, overlapping usage), `type_tag` AND `weight` must be unique. Built-ins (Zen/OpenRouter/NVIDIA NIM, `is_builtin`) can't be deleted and their endpoint can't be edited. Demotion to free blocked while a user holds any paid-provider key.
+
+**Single source of truth:** `server/src/utils/ai-runtime.ts` (`resolveModelById`, `listModelsForUsage`, `getRoutedKeysForProvider`, `getUserRoutedKeysByProvider`, `getUserProviderKeyMap`). MCP resolution: `server/src/utils/mcp-runtime.ts`. Admin CRUD: `server/src/routes/ai-admin.ts`.
+
 ### API Key Isolation (Per-Project)
-Provider API keys (Fireworks, Blueminds, Modal) are **never stored in the workspace tree**. They are isolated per-project to prevent exposure through the code editor.
+Provider API keys are **never stored in the workspace tree**. They are isolated per-project to prevent exposure through the code editor.
 
 **How it works:**
 1. Workspace `opencode.json` contains only a minimal stub (`$schema`, `permission`, `tools`, `model`) — no secrets
-2. Real provider config with API key is written to `/var/lib/auroracraft/configs/{user}/{linkId}/.config/opencode/opencode.json` (600 perms, user-only)
+2. Real provider config (with API key, or the LiteLLM master key) is written to `/var/lib/auroracraft/configs/{user}/{linkId}/.config/opencode/opencode.json` (600 perms, user-only)
 3. OpenCode is spawned with `HOME=/var/lib/auroracraft/configs/{user}/{linkId}` so it reads the isolated config
 4. Each project gets its own isolated `HOME`, preventing concurrent projects from interfering
 
@@ -125,49 +139,27 @@ Provider API keys (Fireworks, Blueminds, Modal) are **never stored in the worksp
 - `server/src/utils/provider-config.ts` — Generates isolated config files
 - `server/src/bridges/opencode-process-manager.ts` — Sets `HOME` env var before spawning
 
-**Special case — OpenCode Zen:** Zen API keys are written to `~/.local/share/opencode/auth.json` (not `opencode.json`). Zen models use the `opencode/{model_id}` format (e.g., `opencode/deepseek-v4-flash-free`).
+**Special case — OpenCode Zen:** Zen API keys are written to `~/.local/share/opencode/auth.json` (not `opencode.json`). Zen models use the `opencode/{model_id}` format (e.g., `opencode/deepseek-v4-flash-free`) and resolve natively in OpenCode — they do NOT go through LiteLLM.
 
-### Firecrawl MCP (Web Search for Paid Users)
-Firecrawl MCP provides web search, scraping, and crawling to the AI agent. It is a **paid-only feature** — admins must set a Firecrawl API key per user, and the user must be on the paid tier.
+### API Key Routing & Real-Time Billing
+For **paid providers**, a user can hold multiple keys and AuroraCraft routes across them while billing **per upstream call in real time** (this replaced the old estimate→pre-charge→reconcile cycle entirely).
 
-**How it works:**
-1. Admin adds `firecrawl:fc-xxx` key in Admin Panel → Users → API Keys
-2. When a paid user sends a message, backend calls OpenCode's HTTP API (`POST /mcp`) to register `firecrawl-mcp`
-3. OpenCode connects to Firecrawl's MCP server, exposing 20+ tools (`firecrawl_search`, `firecrawl_scrape`, etc.)
-4. AI agent can now search the web during conversations
+**Routing chain:** each key (`provider_api_keys`) has `weight` (lower = higher priority), `limit_usd` (null = unlimited), live `used_usd`, `exhausted_at`, `is_active`. Usable keys (active + under-budget) are ordered by weight and emitted as one LiteLLM **deployment per key** (`order` = position). On rate-limit/error → retry (`LITELLM_NUM_RETRIES`) then fall back, key stays enabled. On budget exhaustion (`used_usd ≥ limit_usd`) → key auto-disabled + chain falls back. No usable key → request refused (503) before spend. **Free providers do NOT route** — single key, no chain.
 
-**Key files:**
-- `server/src/utils/opencode-mcp.ts` — OpenCode MCP HTTP API helpers (add/remove/list)
-- `server/src/bridges/opencode-process-manager.ts` — Calls `addMCPServer()` after OpenCode starts
+**Real-time dual-ledger billing:** a Python meter (`aurora_litellm_callback.py`, embedded in `litellm-config.ts` and shipped into each project's LiteLLM config dir) fires after every successful call and POSTs real usage to `POST /internal/litellm/usage` (shared-secret, `server/src/routes/internal.ts`). Each call debits BOTH ledgers from the same usage: the **user's token balance** (`calculateTokenCost` = ×1.2 commission ×1000) and the **serving key's `used_usd`** (raw provider $, no commission). If balance hits 0 mid-run, the meter's pre-call hook refuses further calls AND the backend force-stops OpenCode. Balance is clamped at 0 (never negative). Same metering applies to the **Prompt Enhancer + Error Prompt Maker** (`nim-engine.ts` `meteredNimChat`, direct provider calls over the chain, not LiteLLM).
 
-**Important:** Firecrawl MCP is **not** configured in `opencode.json` — it is registered dynamically via HTTP API to avoid config validation errors.
-
-### Token Pricing System
-AuroraCraft uses a precise token-based pricing system with **per-provider pricing differentiation** and **cached-input discounts**.
-
-**Formula:**
-```
-$1 = 1000 tokens
-TOKEN_MULTIPLIER = 1.2 (20% platform commission)
-
-Cost($) = ((uncached_input / 1M × inputPer1M)
-        + (cached_input / 1M × cachedInputPer1M)
-        + (output / 1M × outputPer1M)) × 1.2
-Tokens = ceil(Cost($) × 1000)
-```
-
-**Per-provider pricing:** The same model may have different prices on different providers (e.g., Kimi K2.6 costs $0.95/$4.00 on Fireworks but $0.28/$0.154 on Blueminds).
-
-**Free models** (DeepSeek V4 Flash Free, Nemotron 3 Super Free) consume **0 tokens**.
-
-**Automatic reconciliation:** After each session, the system reconciles estimated vs actual token usage:
-- **Refund:** If actual < estimated, difference is refunded
-- **Cap:** If actual > estimated, user is charged at most 2× the estimate
+**Pricing math** (`server/src/config/ai-models.ts`): `$1 = 1000 tokens`, `TOKEN_MULTIPLIER = 1.2`. `calculateTokenCost(in,out,pricing,cached)` = user charge (×1.2 ×1000, ceil). `calculateProviderCostUsd(...)` = raw $ for the key ledger. Both from the same token counts; only the multiplier differs. Free-provider models always cost 0.
 
 **Key files:**
-- `server/src/config/ai-models.ts` — Model definitions, pricing, provider config
-- `server/src/utils/token-service.ts` — Token balance, cost estimation, reconciliation
-- `server/src/routes/agents.ts` — Pre-charge before message, reconcile after completion
+- `server/src/utils/ai-runtime.ts` — routed-key resolvers
+- `server/src/utils/token-service.ts` — `chargeRealtimeUsage` (atomic dual deduct, auto-disable, killRun)
+- `server/src/utils/litellm-config.ts` — multi-deployment config + embedded meter; `litellm-process-manager.ts` passes `AURORA_*` env + config-hash reload
+- `server/src/routes/internal.ts` — `POST /internal/litellm/usage`
+- `server/src/routes/agents.ts` — entry gate (≥1 usable key + min balance), no pre-charge/reconcile
+- `server/src/routes/admin.ts` — per-user multi-key CRUD (append/PATCH/reset-usage/delete-by-keyId)
+
+### MCP Servers (Admin-Managed — Firecrawl Is Just One Example)
+MCPs are DB-managed (Admin Panel → AI Runtime → MCPs), no longer Firecrawl-only or hardcoded. `non_api` MCPs run for everyone; `api` MCPs need a per-user key and substitute the literal `MCP-API-Key` placeholder in the config at runtime (`server/src/utils/mcp-runtime.ts`). Resolved per message in `agents.ts` (`buildUserMcpServers`) and registered on the OpenCode instance via the HTTP API (`server/src/utils/opencode-mcp.ts`). **Never** write `mcpServers` into `opencode.json` — OpenCode's schema rejects it; register via HTTP API after start. Firecrawl web search is the canonical `api` example.
 
 ### AI Agent Sandbox
 All AI-generated commands run through a sandboxed wrapper (`/usr/local/bin/aurora-sandbox`) that enforces security boundaries.
@@ -238,7 +230,8 @@ OpenCode plugins, Gradle dependencies, and Maven artifacts are shared across all
 - **Projects:** `server/src/db/schema/projects.ts` — Project metadata, software type, language, compiler, bridge, visibility, Graphify state (`graphifyEnabled`, `graphifyStatus`, `graphifyBuiltAt`)
 - **Agent Sessions:** `server/src/db/schema/agent-sessions.ts` — OpenCode session tracking, model, provider, speed
 - **Agent Messages:** `server/src/db/schema/agent-messages.ts` — Chat history, role (user/assistant), parts (text/thinking/tool)
-- **Provider API Keys:** `server/src/db/schema/provider-api-keys.ts` — Per-user API keys for Fireworks, Blueminds, Modal, Firecrawl, Zen
+- **AI Providers / Models / MCPs:** `server/src/db/schema/ai-providers.ts`, `ai-models.ts`, `mcps.ts` — admin-managed AI runtime (DB-driven, not hardcoded)
+- **Provider API Keys:** `server/src/db/schema/provider-api-keys.ts` — per-user secrets linked by `provider_id` OR `mcp_id`; multi-key routing fields (`weight`, `limit_usd`, `used_usd`, `exhausted_at`, `label`). One key/user for free providers; many for paid (the routing chain)
 
 **Migrations:** SQL files in `server/drizzle/` are applied in order. The journal (`server/drizzle/meta/_journal.json`) tracks which migrations have been applied.
 
@@ -247,13 +240,17 @@ OpenCode plugins, Gradle dependencies, and Maven artifacts are shared across all
 - **Projects:** `client/src/hooks/use-projects.ts` — TanStack Query hooks for project CRUD
 - **Agent:** `client/src/hooks/use-agent.ts` — SSE streaming, message sending, session management
 - **Admin:** `client/src/hooks/use-admin.ts` — Admin panel data fetching (users, projects, stats)
+- **AI Runtime (admin):** `client/src/hooks/use-ai-admin.ts` — providers/models/MCPs CRUD + per-user multi-key mutations (used by `pages/admin/ai-runtime.tsx` and the `UserKeysModal` in `pages/admin/users.tsx`); `use-ai-models.ts` — model list for the workspace picker (model ids are `ai_models` UUIDs, not slugs)
 - **Graphify:** `client/src/hooks/use-graphify.ts` — Enable/remove/status with build polling (paid-only); buttons + viewer in `client/src/components/graphify-controls.tsx`
 
 ### API Routes
 - **Auth:** `server/src/routes/auth.ts` — Login, register, logout, GitHub OAuth
 - **Projects:** `server/src/routes/projects.ts` — CRUD, file tree, download, fork, community features
-- **Agents:** `server/src/routes/agents.ts` — Create session, send message (SSE), stop session
-- **Admin:** `server/src/routes/admin.ts` — User management, token grants/deductions, API key management, stats
+- **Agents:** `server/src/routes/agents.ts` — Create session, send message (SSE), stop session; resolves model + routed keys, provisions LiteLLM
+- **Admin:** `server/src/routes/admin.ts` — User management, token grants/deductions, **per-user multi-key CRUD** (provider keys with weight/limit/label, reset-usage, delete-by-keyId; MCP keys), stats
+- **AI Runtime (admin):** `server/src/routes/ai-admin.ts` — CRUD for providers / models / MCPs (`/api/admin/ai/...`); paid→free provider toggle prunes extra keys
+- **Internal (machine-to-machine):** `server/src/routes/internal.ts` — `POST /internal/litellm/usage` real-time meter (shared-secret, not auth-middleware)
+- **NIM (enhancer/maker):** `server/src/routes/nim.ts` — Prompt Enhancer + Error Prompt Maker jobs (now billed per call over the key chain)
 - **CodeRabbit:** `server/src/routes/coderabbit.ts` — AI code review for uncommitted changes
 - **GitHub:** `server/src/routes/github.ts` — OAuth callback, repo import
 - **Graphify:** `server/src/routes/graphify.ts` — Enable/remove/status + `graph.html` viewer (paid-only)
@@ -288,27 +285,27 @@ OpenCode must be installed in a globally accessible location (`/usr/local/bin/op
 ### Project Deletion Foreign Key
 `token_transactions.session_id` must reference `agent_sessions(id)` with `ON DELETE SET NULL` (not `ON DELETE NO ACTION`). Otherwise, deleting a project fails because sessions are cascade-deleted but transactions still reference them. Migration `0014_fix_token_transactions_fk.sql` fixes this.
 
-### Firecrawl MCP Config Validation
-Never write `mcpServers` into `opencode.json` — OpenCode's schema rejects it. Instead, register MCP servers via the HTTP API (`POST /mcp`) after the instance starts.
+### MCP Config Validation
+Never write `mcpServers` into `opencode.json` — OpenCode's schema rejects it (`ConfigInvalidError: Unrecognized key: mcpServers`). Register MCP servers via the HTTP API (`POST /mcp`) after the instance starts. Applies to every MCP, not just Firecrawl.
 
 ### Zen Model ID Format
 Zen models always use the `opencode/` prefix (e.g., `opencode/deepseek-v4-flash-free`). Never use `opencode/opencode/` or `zen/` prefixes.
 
-### LiteLLM Integration
-AuroraCraft uses LiteLLM as a proxy for premium external providers (Fireworks, Blueminds, Modal) to enable unified model routing, per-project budget enforcement, and custom pricing.
+### LiteLLM Integration (Multi-Key Routing + Real-Time Meter)
+LiteLLM proxies **all paid (non-Zen) OpenAI-compatible providers** — it handles `/responses`→`/chat/completions` translation, ordered multi-key routing, and hosts the real-time billing meter. Zen bypasses it (native `opencode/<id>`).
 
 **How it works:**
-1. When a user sends a message with a premium model, the backend generates a LiteLLM config (`litellm.yaml`) with model mappings and API keys
-2. LiteLLM is spawned as a separate process on a dynamic port (similar to OpenCode)
-3. OpenCode is configured to route through the LiteLLM proxy instead of hitting the provider directly
-4. LiteLLM enforces budget limits (converted from tokens → USD) and provides unified cost tracking
+1. On a paid-model message, the backend builds a per-project `litellm.yaml` with **one deployment per usable key** (ordered by weight via `order`), each carrying `model_info.aurora_key_id` + raw per-token pricing, plus `num_retries` and the meter callback.
+2. The meter (`aurora_litellm_callback.py`) is shipped into the project's config dir; `litellm-process-manager` passes `AURORA_USER_ID/PROJECT_DIR/CALLBACK_BASE/INTERNAL_SECRET` env so it can POST usage back.
+3. LiteLLM is spawned per-project on a dynamic port; OpenCode routes through it. The proxy is restarted when the config hash changes (e.g. a key exhausted and dropped out).
+4. After each call the meter reports usage → backend bills user + key in real time (see [API Key Routing & Real-Time Billing](#api-key-routing--real-time-billing)). There is **no** LiteLLM-level `max_budget` / token-USD safety net anymore — the meter is the enforcement.
 
 **Key files:**
-- `server/src/bridges/litellm-process-manager.ts` — Process spawning, port allocation, lifecycle
-- `server/src/utils/litellm-config.ts` — Config generation, master key persistence
-- `server/src/routes/agents.ts` — Starts LiteLLM proxy before OpenCode for premium models
+- `server/src/bridges/litellm-process-manager.ts` — process lifecycle, `AURORA_*` env, config-hash reload
+- `server/src/utils/litellm-config.ts` — multi-deployment config gen + embedded Python meter + master key persistence
+- `server/src/routes/agents.ts` — starts LiteLLM before OpenCode for paid models (passes the routed key set)
 
-**Installation:** LiteLLM is installed in a shared Python venv at `/var/lib/litellm/shared/venv/bin/litellm` (globally accessible).
+**Installation:** shared Python venv at `/var/lib/litellm/shared/venv/bin/litellm` (globally accessible). **Requires `httpx`** in that venv for the meter (README Step 15.7). Env: `LITELLM_PORT_MIN/MAX`, `LITELLM_IDLE_TIMEOUT`, `LITELLM_NUM_RETRIES`, optional `LITELLM_INTERNAL_SECRET` (falls back to `SESSION_SECRET`).
 
 ### Dynamic Rules & Skills System
 Every AuroraCraft project gets a custom `AGENTS.md` rule file and 8 skill files auto-generated based on the selected platform, compiler, and language.
@@ -361,8 +358,11 @@ The Graphify build command is `graphify update . --force` (the no-LLM path) and 
 ### aurora-sandbox Is Not Currently Wired
 See Architecture → AI Agent Sandbox. The wrapper is declared but not passed to the OpenCode spawn, so editing it does **not** change runtime behavior. Don't rely on it for command gating.
 
+### Multi-Key Requires the Legacy Unique Index Dropped
+There was a `UNIQUE(user_id, provider)` index on `provider_api_keys` (migration 0012) that blocks a second key per provider. Migration `0021_api_key_routing.sql` **drops it** (`DROP INDEX IF EXISTS idx_provider_api_keys_user_provider`) so paid providers can hold multiple keys. If adding a 2nd key fails with `duplicate key value violates unique constraint "idx_provider_api_keys_user_provider"`, 0021 wasn't applied — apply it via `psql -1 -f`. Single-key-per-user for **free** providers is now enforced in the admin route (`admin.ts`), not the DB.
+
 ### Drizzle Migration Tracking Drift
-`drizzle.__drizzle_migrations` tracks applied migrations by `created_at`; the migrator decides what to run from `MAX(created_at)`. On this deployment some migrations were applied manually via `psql`, so the tracking lagged behind the real schema and `pnpm db:migrate` could try to re-run them and fail with "already exists". New migrations (e.g. `0017`) are written **idempotent** (`DO $$ … duplicate_object` + `ADD COLUMN IF NOT EXISTS`); when tracking is drifted, apply via `psql -1 -f` and insert a tracking row manually. Fresh databases are unaffected. (See README Step 12.)
+`drizzle.__drizzle_migrations` tracks applied migrations by `created_at`; the migrator decides what to run from `MAX(created_at)`. On this deployment some migrations were applied manually via `psql`, so the tracking lagged behind the real schema and `pnpm db:migrate` could try to re-run them and fail with "already exists". All recent migrations (AI Runtime `0019`/`0020`/`0021`, Graphify `0017`) are written **idempotent** (`DO $$ … duplicate_object`, `ADD COLUMN IF NOT EXISTS`, `DROP INDEX IF EXISTS`, `INSERT … ON CONFLICT DO NOTHING`); when tracking is drifted, apply via `psql -1 -f` and backfill tracking rows manually (hash = `sha256sum` of the file, `created_at` = the `when` in `_journal.json`). Fresh databases are unaffected. (See README Step 12.)
 
 ## Deployment Notes
 
@@ -376,7 +376,7 @@ See Architecture → AI Agent Sandbox. The wrapper is declared but not passed to
 - **OpenCode cleanup requires sqlite3** — used to delete conversation history when projects are deleted
 - **Java, Maven, Gradle must be installed** for plugin compilation (supports Java 8/11/17/21/25)
 - **CodeRabbit CLI is optional** but required for code review feature (installed at `/usr/local/bin/coderabbit`)
-- **LiteLLM is optional** but required for premium model routing (installed at `/var/lib/litellm/shared/venv/bin/litellm`)
+- **LiteLLM is required for ALL paid providers** (installed at `/var/lib/litellm/shared/venv/bin/litellm`; needs `httpx` in that venv for the real-time meter). Without it, paid-model messages fail; free Zen models still work. See README Step 15.7.
 - **Graphify is optional** but required for the "Save tokens using Graphify" feature (shared Python venv at `/var/lib/graphify/shared/venv`, symlinked to `/usr/local/bin/graphify`; needs `python3-venv`). See README Step 15.6. If absent, enabling Graphify just sets status `failed` — everything else works.
 - **Knowledge base must be present** at `/root/AuroraCraft/opencode-knowledge/` (ships with source code, no manual setup needed)
 

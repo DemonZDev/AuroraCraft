@@ -5,7 +5,6 @@ import { agentMessages } from '../db/schema/agent-messages.js'
 import { agentLogs } from '../db/schema/agent-logs.js'
 import { bridgeRegistry } from '../bridges/index.js'
 import type { AgentExecutionContext, AgentStreamCallback, AgentExecutionResult } from './types.js'
-import { calculateActualCost, reconcileTokens } from '../utils/token-service.js'
 
 function cleanBadgeMarkers(text: string): string {
   if (!text) return text
@@ -121,33 +120,8 @@ export class AgentExecutor {
         metadata: result.metadata?.parts ? { parts: result.metadata.parts } : undefined,
       })
 
-      // Reconcile pre-charged tokens against actual usage
-      if (context.userId && context.estimatedCost && context.estimatedCost > 0 && context.billingModelId) {
-        try {
-          const { resolveModelById } = await import('../utils/ai-runtime.js')
-          const resolved = await resolveModelById(context.billingModelId)
-          if (resolved) {
-            const actualCost = calculateActualCost(
-              context.prompt,
-              result.output,
-              resolved.pricing,
-            )
-            const reconcileResult = await reconcileTokens(
-              context.userId,
-              context.estimatedCost,
-              actualCost,
-              resolved.showName,
-              resolved.provider.slug,
-              context.sessionId,
-            )
-            if (reconcileResult.balanceExhausted) {
-              await this.addLog(context.sessionId, 'warning', 'Token balance exhausted during generation. AI output may have been truncated to available credits.')
-            }
-          }
-        } catch (reconcileErr) {
-          console.warn('[AgentExecutor] Token reconciliation failed:', reconcileErr)
-        }
-      }
+      // Billing is handled in real time, per upstream call, by the LiteLLM meter
+      // (routing.md §8) — there is no end-of-run estimate to reconcile anymore.
 
       // Store bridge session IDs for future message reuse
       await db
