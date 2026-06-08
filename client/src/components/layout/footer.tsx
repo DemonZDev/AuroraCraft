@@ -50,7 +50,7 @@ export function Footer() {
         </div>
         <div className="mt-12 border-t border-border pt-6">
           <p className="text-center text-xs text-text-dim">
-            &copy; {new Date().getFullYear()} AuroraCraft. All rights reserved.
+            &copy; 2026 AuroraCraft. All rights reserved.
           </p>
         </div>
       </div>

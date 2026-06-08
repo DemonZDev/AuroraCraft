@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Sparkles, Loader2, X, RefreshCw, Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { NimJobView, NimModelOption } from '@/hooks/use-nim'
+import type { PromptToolJobView, ToolModelOption } from '@/hooks/use-prompt-tools'
 
 export type EnhancerPhase = 'confirm' | 'options' | 'working' | 'result'
 
@@ -26,12 +26,12 @@ function Shell({ children, maxW = 'max-w-lg' }: { children: React.ReactNode; max
 
 export function PromptEnhancerModal(props: {
   phase: EnhancerPhase
-  job: NimJobView | null
-  models: NimModelOption[]
+  job: PromptToolJobView | null
+  models: ToolModelOption[]
   defaultModelId: string
   onSendAsIs: () => void
   onEnhanceClicked: () => void
-  onStart: (style: string, nimModel: string) => void
+  onStart: (style: string, toolModel: string) => void
   onConfirmSend: () => void
   onRefine: (changeRequest: string) => void
   onCancel: () => void

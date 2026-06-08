@@ -9,7 +9,7 @@ import { db } from '../db/index.js'
 import { aiProviders, type AiProvider } from '../db/schema/ai-providers.js'
 import { aiModels, type AiModel, type ModelUsage } from '../db/schema/ai-models.js'
 import { providerApiKeys } from '../db/schema/provider-api-keys.js'
-import type { ModelPricing } from '../config/ai-models.js'
+import type { ModelPricing } from '../config/pricing.js'
 
 export type { ModelUsage } from '../db/schema/ai-models.js'
 export type UserTier = 'free' | 'paid'

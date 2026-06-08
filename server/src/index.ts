@@ -19,7 +19,7 @@ import { communityRoutes } from './routes/community.js'
 import { githubRoutes } from './routes/github.js'
 import coderabbitRoutes from './routes/coderabbit.js'
 import { graphifyRoutes } from './routes/graphify.js'
-import { nimRoutes } from './routes/nim.js'
+import { promptToolRoutes } from './routes/prompt-tools.js'
 import { internalRoutes } from './routes/internal.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -52,7 +52,7 @@ await app.register(communityRoutes)
 await app.register(githubRoutes)
 await app.register(coderabbitRoutes)
 await app.register(graphifyRoutes)
-await app.register(nimRoutes)
+await app.register(promptToolRoutes)
 await app.register(internalRoutes)
 
 // Serve built client in production

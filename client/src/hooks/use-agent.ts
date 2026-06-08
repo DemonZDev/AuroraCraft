@@ -70,8 +70,8 @@ export function useAgentSession(projectId: string, sessionId: string) {
   }, [queryClient, projectId, sessionId, refetch])
 
   const sendMessageMutation = useMutation({
-    mutationFn: ({ content, model, bridge, speed, displayContent, nimJobId }: { content: string; model?: string; bridge?: 'opencode' | 'kiro'; speed?: string; displayContent?: string; nimJobId?: string }) =>
-      api.post<AgentMessage>(`/projects/${projectId}/agent/sessions/${sessionId}/messages`, { content, model, bridge, speed, displayContent, nimJobId }),
+    mutationFn: ({ content, model, bridge, speed, displayContent, promptToolJobId }: { content: string; model?: string; bridge?: 'opencode' | 'kiro'; speed?: string; displayContent?: string; promptToolJobId?: string }) =>
+      api.post<AgentMessage>(`/projects/${projectId}/agent/sessions/${sessionId}/messages`, { content, model, bridge, speed, displayContent, promptToolJobId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'agent', 'sessions', sessionId] })
     },

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react'
 import { PromptEnhancerModal, type EnhancerPhase } from '@/components/prompt-enhancer-modal'
 import { ErrorPromptMakerModal } from '@/components/error-prompt-maker-modal'
-import { useNimModels, useHasNimKey, useNimMutations, useNimJob, useActiveNimJob, isTerminal } from '@/hooks/use-nim'
+import { useToolModels, useHasToolKey, usePromptToolMutations, usePromptToolJob, useActivePromptToolJob, isTerminal } from '@/hooks/use-prompt-tools'
 import { SOFTWARE_LABELS } from '@/lib/software-options'
 import { CustomSelect } from '@/components/ui/custom-select'
 import { Link, useParams } from 'react-router'
@@ -1263,7 +1263,7 @@ function ChatPanel({ projectId, selectedModel, selectedSpeed, onModelChange, onS
   onSpeedChange?: (speed: string) => void
   onRefreshFiles?: () => void
   onFileSelect?: (path: string) => void
-  autoFixPayload?: { prompt: string; model: string; nimJobId?: string } | null
+  autoFixPayload?: { prompt: string; model: string; promptToolJobId?: string } | null
   onAutoFixComplete?: () => void
   workspaceDisabled?: boolean
   onAiRunningChange?: (running: boolean) => void
@@ -1279,7 +1279,7 @@ function ChatPanel({ projectId, selectedModel, selectedSpeed, onModelChange, onS
     }
     return null
   })
-  const [pendingMessage, setPendingMessage] = useState<{ content: string; model: string; nimJobId?: string } | null>(null)
+  const [pendingMessage, setPendingMessage] = useState<{ content: string; model: string; promptToolJobId?: string } | null>(null)
   
   const { models: availableModels } = useAgentModels()
   
@@ -1315,17 +1315,17 @@ function ChatPanel({ projectId, selectedModel, selectedSpeed, onModelChange, onS
 
   useEffect(() => {
     if (!autoFixPayload) return
-    const key = autoFixPayload.nimJobId ?? `${autoFixPayload.prompt}::${autoFixPayload.model}`
+    const key = autoFixPayload.promptToolJobId ?? `${autoFixPayload.prompt}::${autoFixPayload.model}`
     if (autoFixProcessedRef.current === key) return
     autoFixProcessedRef.current = key
 
     if (resolvedSessionId) {
-      setPendingMessage({ content: autoFixPayload.prompt, model: autoFixPayload.model, nimJobId: autoFixPayload.nimJobId })
+      setPendingMessage({ content: autoFixPayload.prompt, model: autoFixPayload.model, promptToolJobId: autoFixPayload.promptToolJobId })
     } else {
       const bridge = getBridgeFromModel(autoFixPayload.model)
       createSession({ bridge }).then((session) => {
         setActiveSessionId(session.id)
-        setPendingMessage({ content: autoFixPayload.prompt, model: autoFixPayload.model, nimJobId: autoFixPayload.nimJobId })
+        setPendingMessage({ content: autoFixPayload.prompt, model: autoFixPayload.model, promptToolJobId: autoFixPayload.promptToolJobId })
       })
     }
     onAutoFixComplete?.()
@@ -1492,7 +1492,7 @@ function ChatEmptyState({ onSessionCreated, createSession, selectedModel, select
 function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSent, selectedModel, selectedSpeed, onModelChange, onSpeedChange, availableModels, onRefreshFiles, onFileSelect, workspaceDisabled, onAiRunningChange, stopAiRef, onBeforeSend }: {
   projectId: string
   sessionId: string
-  pendingMessage?: { content: string; model: string; nimJobId?: string } | null
+  pendingMessage?: { content: string; model: string; promptToolJobId?: string } | null
   onPendingMessageSent?: () => void
   selectedModel: string
   selectedSpeed?: string
@@ -1540,7 +1540,7 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
       resetStream()
       streamStartMessageCountRef.current = messages.length
       completionHandledRef.current = false
-      void sendMessage({ content: pendingMessage.content, model: pendingMessage.model, bridge: getBridgeFromModel(pendingMessage.model), speed: selectedSpeed, nimJobId: pendingMessage.nimJobId }).catch(() => setAwaitingStream(false))
+      void sendMessage({ content: pendingMessage.content, model: pendingMessage.model, bridge: getBridgeFromModel(pendingMessage.model), speed: selectedSpeed, promptToolJobId: pendingMessage.promptToolJobId }).catch(() => setAwaitingStream(false))
       onPendingMessageSent?.()
     }
   }, [pendingMessage, isConnected, sendMessage, onPendingMessageSent, resetStream, messages.length, selectedSpeed])
@@ -1554,7 +1554,7 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
         resetStream()
         streamStartMessageCountRef.current = messages.length
         completionHandledRef.current = false
-        void sendMessage({ content: pendingMessage.content, model: pendingMessage.model, bridge: getBridgeFromModel(pendingMessage.model), speed: selectedSpeed, nimJobId: pendingMessage.nimJobId }).catch(() => setAwaitingStream(false))
+        void sendMessage({ content: pendingMessage.content, model: pendingMessage.model, bridge: getBridgeFromModel(pendingMessage.model), speed: selectedSpeed, promptToolJobId: pendingMessage.promptToolJobId }).catch(() => setAwaitingStream(false))
         onPendingMessageSent?.()
       }
     }, 5000)
@@ -2209,7 +2209,7 @@ export default function WorkspacePage() {
   }, [agentModels, selectedModel])
 
   const [selectedIssues, setSelectedIssues] = useState<Array<{ reviewId: string; issueIdx: number }>>([])
-  const [autoFixPayload, setAutoFixPayload] = useState<{ prompt: string; model: string; nimJobId?: string } | null>(null)
+  const [autoFixPayload, setAutoFixPayload] = useState<{ prompt: string; model: string; promptToolJobId?: string } | null>(null)
   const [fixConfirmOpen, setFixConfirmOpen] = useState(false)
   // In-Built Prompt Maker: model chosen in its "Select AI Model" modal (does NOT mutate
   // the global workspace model). pendingInBuiltModel carries it across the re-fix confirm.
@@ -2219,22 +2219,22 @@ export default function WorkspacePage() {
   const [aiRunning, setAiRunning] = useState(false)
   const stopAiRef = useRef<(() => void) | null>(null)
 
-  // ── NIM Prompt Enhancer ─────────────────────────────────────────────
-  const hasNimKey = useHasNimKey()
-  const { enhancerModels, errorMakerModels, defaultEnhancerId, defaultErrorMakerId } = useNimModels()
-  const nim = useNimMutations(projectId ?? '')
+  // ── Prompt Enhancer ─────────────────────────────────────────────
+  const hasToolKey = useHasToolKey()
+  const { enhancerModels, errorMakerModels, defaultEnhancerId, defaultErrorMakerId } = useToolModels()
+  const promptTools = usePromptToolMutations(projectId ?? '')
   const [enhPhase, setEnhPhase] = useState<EnhancerPhase | null>(null)
   const [enhJobId, setEnhJobId] = useState<string | null>(null)
   const [enhPending, setEnhPending] = useState('')
   const enhDeliverRef = useRef<((finalPrompt: string) => void) | null>(null)
   const enhDismissedRef = useRef<Set<string>>(new Set())
-  const enhJob = useNimJob(projectId ?? '', enhJobId)
-  const { activeJob } = useActiveNimJob(projectId ?? '', hasNimKey)
+  const enhJob = usePromptToolJob(projectId ?? '', enhJobId)
+  const { activeJob } = useActivePromptToolJob(projectId ?? '', hasToolKey)
   const enhancerActive = enhPhase !== null
   // ── Error Prompt Maker (Option A) ───────────────────────────────────
   const [showErrorMaker, setShowErrorMaker] = useState(false)
   const [errFixJobId, setErrFixJobId] = useState<string | null>(null)
-  const errFixJob = useNimJob(projectId ?? '', errFixJobId)
+  const errFixJob = usePromptToolJob(projectId ?? '', errFixJobId)
   const errFixDispatchedRef = useRef<Set<string>>(new Set())
   // True from "prompt ready → handed to the Agent" until the agent run's own lock
   // (aiRunning) engages — bridges the gap so the workspace never briefly unlocks
@@ -2246,7 +2246,7 @@ export default function WorkspacePage() {
 
   // ── Prompt Enhancer dispatch (refresh-proof agent hand-off) ─────────
   const [agentDispatchJobId, setAgentDispatchJobId] = useState<string | null>(null)
-  const agentDispatchJob = useNimJob(projectId ?? '', agentDispatchJobId)
+  const agentDispatchJob = usePromptToolJob(projectId ?? '', agentDispatchJobId)
   const agentDispatchDispatchedRef = useRef<Set<string>>(new Set())
   // Bridges the brief gap between clearing agentDispatchJobId (after handing to the
   // Agent send path) and aiRunning actually engaging, so the workspace never unlocks.
@@ -2262,13 +2262,13 @@ export default function WorkspacePage() {
   const { addToast, ToastContainer } = useToasts()
 
   // ── Prompt Enhancer wiring ──────────────────────────────────────────
-  // Intercept a user-typed send: with a NIM key, open the enhancer; otherwise deliver as-is.
+  // Intercept a user-typed send: with a prompt-tools key, open the enhancer; otherwise deliver as-is.
   const requestEnhance = useCallback((rawPrompt: string, deliver: (finalPrompt: string) => void) => {
-    if (!hasNimKey) { deliver(rawPrompt); return }
+    if (!hasToolKey) { deliver(rawPrompt); return }
     enhDeliverRef.current = deliver
     setEnhPending(rawPrompt)
     setEnhPhase('confirm')
-  }, [hasNimKey])
+  }, [hasToolKey])
 
   // Drive the modal phase from the polled job.
   useEffect(() => {
@@ -2289,7 +2289,7 @@ export default function WorkspacePage() {
   }, [activeJob, enhJobId, enhPhase])
 
   // Error-fix: when the optimised prompt is READY, dispatch the FULL prompt to the Agent.
-  // The send carries nimJobId so the server claims the job atomically (ready→completed),
+  // The send carries promptToolJobId so the server claims the job atomically (ready→completed),
   // making dispatch idempotent + refresh-proof. We keep errFixJobId set (workspace stays
   // locked) until the send is initiated, then clear it (aiRunning takes over the lock).
   useEffect(() => {
@@ -2301,10 +2301,10 @@ export default function WorkspacePage() {
       const prompt = errFixJob.result.prompt
       const model = errFixJob.agentModel ?? selectedModel
       if (isMobile) setMobileTab('chat')
-      // Hand off to the agent send path (creates a session if needed). nimJobId makes it
+      // Hand off to the agent send path (creates a session if needed). promptToolJobId makes it
       // single-dispatch even if a refresh re-attaches and retries.
       setFixDispatching(true)
-      setAutoFixPayload({ prompt, model, nimJobId: jid })
+      setAutoFixPayload({ prompt, model, promptToolJobId: jid })
       // Release the generation lock; fixDispatching keeps the workspace locked until the
       // agent run's own lock (aiRunning) engages.
       setErrFixJobId(null)
@@ -2347,7 +2347,7 @@ export default function WorkspacePage() {
   }, [activeJob, agentDispatchJobId])
 
   // When the dispatch job is ready, hand the FULL enhanced prompt to the Agent send path
-  // with nimJobId so the server claims it atomically (prevents duplicate on refresh).
+  // with promptToolJobId so the server claims it atomically (prevents duplicate on refresh).
   useEffect(() => {
     if (!agentDispatchJobId || !agentDispatchJob) return
     if (agentDispatchJob.status === 'ready' && agentDispatchJob.result?.prompt) {
@@ -2358,7 +2358,7 @@ export default function WorkspacePage() {
       const model = agentDispatchJob.agentModel ?? selectedModel
       if (isMobile) setMobileTab('chat')
       setAgentDispatchBridging(true)
-      setAutoFixPayload({ prompt, model, nimJobId: jid })
+      setAutoFixPayload({ prompt, model, promptToolJobId: jid })
       setAgentDispatchJobId(null)
     } else if (isTerminal(agentDispatchJob.status)) {
       const jid = agentDispatchJobId
@@ -2402,8 +2402,8 @@ const openInBuiltAutoFix = () => {
       if (selectedIssues.length === 0) addToast('Please select at least one issue to fix', 'error')
       return
     }
-    // With a NIM key, offer AI Prompt Maker vs In-Built; otherwise go straight to in-built.
-    if (hasNimKey) { setShowErrorMaker(true); return }
+    // With a prompt-tools key, offer AI Prompt Maker vs In-Built; otherwise go straight to in-built.
+    if (hasToolKey) { setShowErrorMaker(true); return }
     openInBuiltAutoFix()
   }
 
@@ -2466,7 +2466,7 @@ const openInBuiltAutoFix = () => {
     // refresh-proof + single-dispatch, exactly like the AI flow. The dispatch effect
     // (driven by errFixJob 'ready') then hands it to the Agent.
     try {
-      const r = await nim.dispatch.mutateAsync({ prompt, agentModel })
+      const r = await promptTools.dispatch.mutateAsync({ prompt, agentModel })
       setErrFixJobId(r.jobId)
     } catch {
       addToast('Could not start the fix.', 'error')
@@ -2813,11 +2813,11 @@ const openInBuiltAutoFix = () => {
     )
   }
 
-  // NIM overlays (Prompt Enhancer + Error Prompt Maker) — rendered in BOTH the mobile
+  // Prompt-tool overlays (Prompt Enhancer + Error Prompt Maker) — rendered in BOTH the mobile
   // and desktop return trees below so the feature works on every layout.
-  const nimOverlays = (
+  const promptToolOverlays = (
     <>
-      {/* Prompt Enhancer (NVIDIA NIM) — interactive phases only (confirm/options/result).
+      {/* Prompt Enhancer — interactive phases only (confirm/options/result).
           The 'working' phase shows the top status banner instead of a centered modal. */}
       {enhPhase && enhPhase !== 'working' && (
         <PromptEnhancerModal
@@ -2832,7 +2832,7 @@ const openInBuiltAutoFix = () => {
           }}
           onEnhanceClicked={() => setEnhPhase('options')}
           onStart={(style, model) => {
-            nim.enhance.mutateAsync({ prompt: enhPending, style, nimModel: model })
+            promptTools.enhance.mutateAsync({ prompt: enhPending, style, toolModel: model })
               .then((r) => { setEnhJobId(r.jobId); setEnhPhase('working') })
               .catch(() => { setEnhPhase(null); addToast('Could not start the enhancer.', 'error') })
           }}
@@ -2844,16 +2844,16 @@ const openInBuiltAutoFix = () => {
             // Create a refresh-proof dispatch job (server marks enhance completed + creates
             // a ready agent_dispatch job). The agent send + atomic claim is handled by the
             // same dispatch effect used for the error-fix flow.
-            nim.enhanceDispatch.mutateAsync({ jobId: jid, agentModel: selectedModel })
+            promptTools.enhanceDispatch.mutateAsync({ jobId: jid, agentModel: selectedModel })
               .then((r: { jobId: string }) => setAgentDispatchJobId(r.jobId))
               .catch(() => addToast('Could not dispatch enhanced prompt to agent.', 'error'))
           }}
-          onRefine={(changeRequest) => { if (enhJobId) { void nim.refine.mutateAsync({ jobId: enhJobId, changeRequest }); setEnhPhase('working') } }}
+          onRefine={(changeRequest) => { if (enhJobId) { void promptTools.refine.mutateAsync({ jobId: enhJobId, changeRequest }); setEnhPhase('working') } }}
           onCancel={() => {
             const jid = enhJobId
             if (jid) enhDismissedRef.current.add(jid)
             enhDeliverRef.current = null; setEnhPhase(null); setEnhJobId(null); setEnhPending('')
-            if (jid) void nim.cancel.mutateAsync(jid)
+            if (jid) void promptTools.cancel.mutateAsync(jid)
           }}
         />
       )}
@@ -2861,13 +2861,13 @@ const openInBuiltAutoFix = () => {
       {/* Error Prompt Maker — 2-option window (AI Prompt Maker vs In-Built) */}
       {showErrorMaker && (
         <ErrorPromptMakerModal
-          nimModels={errorMakerModels}
-          nimDefault={defaultErrorMakerId}
+          toolModels={errorMakerModels}
+          toolDefault={defaultErrorMakerId}
           agentModels={agentModels}
           defaultAgentModel={selectedModel}
           onClose={() => setShowErrorMaker(false)}
           onPickInBuilt={() => { setShowErrorMaker(false); openInBuiltAutoFix() }}
-          onStartAI={(nimModel, agentModel) => {
+          onStartAI={(toolModel, agentModel) => {
             setShowErrorMaker(false)
             const refs = selectedIssues.map(s => ({ reviewId: s.reviewId, issueIdx: s.issueIdx }))
             // optimistically mark the issues fixed (parity with the in-built flow)
@@ -2879,7 +2879,7 @@ const openInBuiltAutoFix = () => {
                 body: JSON.stringify({ fixedIndices: idxs }),
               }).catch(() => {})
             )).finally(() => fetchReviewHistory())
-            nim.errorFix.mutateAsync({ reviewIssueRefs: refs, nimModel, agentModel })
+            promptTools.errorFix.mutateAsync({ reviewIssueRefs: refs, toolModel, agentModel })
               .then((r) => setErrFixJobId(r.jobId))
               .catch(() => addToast('Could not start the AI prompt maker.', 'error'))
             setReviewHistoryOpen(false)
@@ -2907,11 +2907,11 @@ const openInBuiltAutoFix = () => {
       message = 'Sending to AI Agent…'
     } else if (errorFixActive && errFixJob?.status === 'running') {
       message = 'AI is making optimized prompt'
-      onStop = () => { const j = errFixJobId; if (j) { errFixDispatchedRef.current.add(j); setErrFixJobId(null); void nim.cancel.mutateAsync(j) } }
+      onStop = () => { const j = errFixJobId; if (j) { errFixDispatchedRef.current.add(j); setErrFixJobId(null); void promptTools.cancel.mutateAsync(j) } }
       stopLabel = 'Force Stop'
     } else if (enhPhase === 'working') {
       message = 'AI is enhancing prompt'
-      onStop = () => { const j = enhJobId; if (j) { enhDismissedRef.current.add(j); enhDeliverRef.current = null; setEnhPhase(null); setEnhJobId(null); setEnhPending(''); void nim.cancel.mutateAsync(j) } }
+      onStop = () => { const j = enhJobId; if (j) { enhDismissedRef.current.add(j); enhDeliverRef.current = null; setEnhPhase(null); setEnhJobId(null); setEnhPending(''); void promptTools.cancel.mutateAsync(j) } }
       stopLabel = 'Force Stop'
     } else if (isReviewLocked) {
       message = 'AI is reviewing codes'
@@ -3667,7 +3667,7 @@ const openInBuiltAutoFix = () => {
           setDisconnectModalOpen(true)
         }}
       />
-      {nimOverlays}
+      {promptToolOverlays}
     </>
   )
 }
@@ -4422,7 +4422,7 @@ const openInBuiltAutoFix = () => {
         }}
       />
 
-      {nimOverlays}
+      {promptToolOverlays}
     </div>
   )
 }

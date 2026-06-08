@@ -11,7 +11,7 @@ import * as codeReviews from './schema/code-reviews.js'
 import * as providerApiKeys from './schema/provider-api-keys.js'
 import * as projectLikes from './schema/project-likes.js'
 import * as projectViews from './schema/project-views.js'
-import * as nimJobs from './schema/nim-jobs.js'
+import * as promptToolJobs from './schema/prompt-tool-jobs.js'
 import * as aiProviders from './schema/ai-providers.js'
 import * as aiModels from './schema/ai-models.js'
 import * as mcps from './schema/mcps.js'
@@ -19,7 +19,7 @@ import * as mcps from './schema/mcps.js'
 const client = postgres(env.DATABASE_URL)
 
 export const db = drizzle(client, {
-  schema: { ...users, ...sessions, ...projects, ...agentSessions, ...agentMessages, ...agentLogs, ...codeReviews, ...providerApiKeys, ...projectLikes, ...projectViews, ...nimJobs, ...aiProviders, ...aiModels, ...mcps },
+  schema: { ...users, ...sessions, ...projects, ...agentSessions, ...agentMessages, ...agentLogs, ...codeReviews, ...providerApiKeys, ...projectLikes, ...projectViews, ...promptToolJobs, ...aiProviders, ...aiModels, ...mcps },
 })
 
 export type Database = typeof db

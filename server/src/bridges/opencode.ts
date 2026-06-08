@@ -3,7 +3,7 @@ import { processManager } from './opencode-process-manager.js'
 import { AGENT_SYSTEM_PROMPT } from './system-prompt.js'
 import { existsSync } from 'fs'
 import { join } from 'path'
-import { estimateTokens } from '../config/ai-models.js'
+import { estimateTokens } from '../config/pricing.js'
 
 // No default model override — let OpenCode use its configured default
 

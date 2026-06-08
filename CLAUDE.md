@@ -38,7 +38,7 @@ AuroraCraft is an AI-powered Minecraft plugin development platform. Users descri
 
 **Tech Stack:** React 19 + Vite 7 frontend, Fastify 5 + Drizzle ORM + PostgreSQL backend, OpenCode AI agent bridge, PM2 process management, TypeScript strict mode throughout.
 
-**AI runtime is DB-driven, not hardcoded (read this first).** AI providers, models, and MCP servers live in the database (`ai_providers` / `ai_models` / `mcps`, migrations 0019–0021) and are managed at runtime from **Admin Panel → AI Runtime** — there is no hardcoded model list to edit. `server/src/config/ai-models.ts` now holds ONLY pricing math; the data source is `server/src/utils/ai-runtime.ts`. Paid providers route through a per-project **LiteLLM proxy** with **multi-key routing + real-time per-call billing** (a user can hold many keys per paid provider, each weighted with a dollar limit). See [API Key Routing & Real-Time Billing](#api-key-routing--real-time-billing) below. Built-in seeded providers: OpenCode Zen (free, 2 models), OpenRouter (paid), NVIDIA NIM (free).
+**AI runtime is DB-driven, not hardcoded (read this first).** AI providers, models, and MCP servers live in the database (`ai_providers` / `ai_models` / `mcps`, migrations 0019–0021) and are managed at runtime from **Admin Panel → AI Runtime** — there is no hardcoded model list to edit. `server/src/config/pricing.ts` now holds ONLY pricing math; the data source is `server/src/utils/ai-runtime.ts`. Paid providers route through a per-project **LiteLLM proxy** with **multi-key routing + real-time per-call billing** (a user can hold many keys per paid provider, each weighted with a dollar limit). See [API Key Routing & Real-Time Billing](#api-key-routing--real-time-billing) below. Built-in seeded providers: OpenCode Zen (free, 2 models), OpenRouter (paid), NVIDIA NIM (free).
 
 ## Development Commands
 
@@ -115,7 +115,7 @@ Each AI message spawns a fresh OpenCode instance on a dynamic port (9000-9999). 
 - `server/src/routes/agents.ts` — `/api/agents/:sessionId/message` endpoint
 
 ### AI Runtime (Admin-Managed: Providers, Models, MCPs)
-**Providers, models, and MCPs are DB-managed — never hardcoded.** Added/edited at runtime from Admin Panel → AI Runtime; no code edits, no redeploy. (Old hardcoded `config/ai-models.ts` data + `config/nim-models.ts` were removed in the AI Runtime redesign, migration 0019.)
+**Providers, models, and MCPs are DB-managed — never hardcoded.** Added/edited at runtime from Admin Panel → AI Runtime; no code edits, no redeploy. (Old hardcoded `config/ai-models.ts` data + `config/nim-models.ts` were removed in the AI Runtime redesign, migration 0019; the leftover pricing math now lives in `config/pricing.ts`.)
 
 **Tables (migrations 0019–0021):**
 - `ai_providers` (`slug`, `base_url`, `kind` `openai_compatible|zen`, `is_free`, `is_active`, `is_builtin`) — `server/src/db/schema/ai-providers.ts`
@@ -146,9 +146,9 @@ For **paid providers**, a user can hold multiple keys and AuroraCraft routes acr
 
 **Routing chain:** each key (`provider_api_keys`) has `weight` (lower = higher priority), `limit_usd` (null = unlimited), live `used_usd`, `exhausted_at`, `is_active`. Usable keys (active + under-budget) are ordered by weight and emitted as one LiteLLM **deployment per key** (`order` = position). On rate-limit/error → retry (`LITELLM_NUM_RETRIES`) then fall back, key stays enabled. On budget exhaustion (`used_usd ≥ limit_usd`) → key auto-disabled + chain falls back. No usable key → request refused (503) before spend. **Free providers do NOT route** — single key, no chain.
 
-**Real-time dual-ledger billing:** a Python meter (`aurora_litellm_callback.py`, embedded in `litellm-config.ts` and shipped into each project's LiteLLM config dir) fires after every successful call and POSTs real usage to `POST /internal/litellm/usage` (shared-secret, `server/src/routes/internal.ts`). Each call debits BOTH ledgers from the same usage: the **user's token balance** (`calculateTokenCost` = ×1.2 commission ×1000) and the **serving key's `used_usd`** (raw provider $, no commission). If balance hits 0 mid-run, the meter's pre-call hook refuses further calls AND the backend force-stops OpenCode. Balance is clamped at 0 (never negative). Same metering applies to the **Prompt Enhancer + Error Prompt Maker** (`nim-engine.ts` `meteredNimChat`, direct provider calls over the chain, not LiteLLM).
+**Real-time dual-ledger billing:** a Python meter (`aurora_litellm_callback.py`, embedded in `litellm-config.ts` and shipped into each project's LiteLLM config dir) fires after every successful call and POSTs real usage to `POST /internal/litellm/usage` (shared-secret, `server/src/routes/internal.ts`). Each call debits BOTH ledgers from the same usage: the **user's token balance** (`calculateTokenCost` = ×1.2 commission ×1000) and the **serving key's `used_usd`** (raw provider $, no commission). If balance hits 0 mid-run, the meter's pre-call hook refuses further calls AND the backend force-stops OpenCode. Balance is clamped at 0 (never negative). Same metering applies to the **Prompt Enhancer + Error Prompt Maker** (`prompt-tools-engine.ts` `meteredChatCompletion`, direct provider calls over the chain, not LiteLLM).
 
-**Pricing math** (`server/src/config/ai-models.ts`): `$1 = 1000 tokens`, `TOKEN_MULTIPLIER = 1.2`. `calculateTokenCost(in,out,pricing,cached)` = user charge (×1.2 ×1000, ceil). `calculateProviderCostUsd(...)` = raw $ for the key ledger. Both from the same token counts; only the multiplier differs. Free-provider models always cost 0.
+**Pricing math** (`server/src/config/pricing.ts`): `$1 = 1000 tokens`, `TOKEN_MULTIPLIER = 1.2`. `calculateTokenCost(in,out,pricing,cached)` = user charge (×1.2 ×1000, ceil). `calculateProviderCostUsd(...)` = raw $ for the key ledger. Both from the same token counts; only the multiplier differs. Free-provider models always cost 0.
 
 **Key files:**
 - `server/src/utils/ai-runtime.ts` — routed-key resolvers
@@ -250,7 +250,7 @@ OpenCode plugins, Gradle dependencies, and Maven artifacts are shared across all
 - **Admin:** `server/src/routes/admin.ts` — User management, token grants/deductions, **per-user multi-key CRUD** (provider keys with weight/limit/label, reset-usage, delete-by-keyId; MCP keys), stats
 - **AI Runtime (admin):** `server/src/routes/ai-admin.ts` — CRUD for providers / models / MCPs (`/api/admin/ai/...`); paid→free provider toggle prunes extra keys
 - **Internal (machine-to-machine):** `server/src/routes/internal.ts` — `POST /internal/litellm/usage` real-time meter (shared-secret, not auth-middleware)
-- **NIM (enhancer/maker):** `server/src/routes/nim.ts` — Prompt Enhancer + Error Prompt Maker jobs (now billed per call over the key chain)
+- **Prompt Tools (enhancer/maker):** `server/src/routes/prompt-tools.ts` — Prompt Enhancer + Error Prompt Maker jobs (now billed per call over the key chain)
 - **CodeRabbit:** `server/src/routes/coderabbit.ts` — AI code review for uncommitted changes
 - **GitHub:** `server/src/routes/github.ts` — OAuth callback, repo import
 - **Graphify:** `server/src/routes/graphify.ts` — Enable/remove/status + `graph.html` viewer (paid-only)
@@ -427,3 +427,28 @@ When the user types `/graphify`, invoke the `skill` tool with `skill: "graphify"
 - Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost)
 - Read `graphify-out/GRAPH_REPORT.md` only for broad architecture review or when query/path/explain do not surface enough context
+
+---
+
+## UI Generation — OpenDesign Skills
+
+Before building ANY UI component, page, or design:
+1. Read the relevant skill from ./skills/
+2. Read the design system from ./design-systems/
+3. Follow it strictly
+
+## Available Skills
+- ./skills/saas-landing/SKILL.md — landing pages
+- ./skills/dashboard/SKILL.md — admin panels
+- ./skills/mobile-app/SKILL.md — mobile screens
+- ./skills/web-prototype/SKILL.md — web apps
+- ./skills/deck/SKILL.md — presentations
+
+## Design System
+Always use: ./design-systems/linear-app/DESIGN.md
+
+## UI Rules
+- No generic Bootstrap/MUI components
+- No lorem ipsum
+- Production-ready, mobile responsive
+- Senior dev quality only

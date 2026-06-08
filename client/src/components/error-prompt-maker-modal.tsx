@@ -1,20 +1,20 @@
 import { useState } from 'react'
 import { Wand2, Hammer, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { NimModelOption } from '@/hooks/use-nim'
+import type { ToolModelOption } from '@/hooks/use-prompt-tools'
 import type { AIModel } from '@/types'
 
 export function ErrorPromptMakerModal(props: {
-  nimModels: NimModelOption[]
-  nimDefault: string
+  toolModels: ToolModelOption[]
+  toolDefault: string
   agentModels: AIModel[]
   defaultAgentModel: string
   onPickInBuilt: () => void
-  onStartAI: (nimModel: string, agentModel: string) => void
+  onStartAI: (toolModel: string, agentModel: string) => void
   onClose: () => void
 }) {
   const [step, setStep] = useState<'choose' | 'ai-models'>('choose')
-  const [nimModel, setNimModel] = useState(props.nimDefault)
+  const [toolModel, setToolModel] = useState(props.toolDefault)
   const [agentModel, setAgentModel] = useState(props.defaultAgentModel)
   const usableAgentModels = props.agentModels.filter((m) => !m.disabled)
 
@@ -35,7 +35,7 @@ export function ErrorPromptMakerModal(props: {
                 <Wand2 className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                 <div>
                   <div className="text-sm font-medium text-text">AI Prompt Maker</div>
-                  <div className="text-[11px] text-text-dim mt-0.5">NVIDIA NIM reads your files and builds an optimized fix prompt, then sends it to the Agent automatically.</div>
+                  <div className="text-[11px] text-text-dim mt-0.5">The AI reads your files and builds an optimized fix prompt, then sends it to the Agent automatically.</div>
                 </div>
               </button>
               <button onClick={props.onPickInBuilt} className="text-left rounded-xl border border-border/50 hover:bg-surface-hover px-4 py-3 flex gap-3 transition">
@@ -48,9 +48,9 @@ export function ErrorPromptMakerModal(props: {
             </div>
           ) : (
             <div>
-              <label className="block text-[11px] font-medium text-text-dim mb-1">Prompt-maker model (NVIDIA NIM)</label>
-              <select value={nimModel} onChange={(e) => setNimModel(e.target.value)} className="w-full mb-3 rounded-xl border border-border/60 bg-background/50 px-3 py-2 text-sm text-text focus:border-primary/60 focus:outline-none">
-                {props.nimModels.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+              <label className="block text-[11px] font-medium text-text-dim mb-1">Prompt-maker model</label>
+              <select value={toolModel} onChange={(e) => setToolModel(e.target.value)} className="w-full mb-3 rounded-xl border border-border/60 bg-background/50 px-3 py-2 text-sm text-text focus:border-primary/60 focus:outline-none">
+                {props.toolModels.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
               </select>
               <label className="block text-[11px] font-medium text-text-dim mb-1">Agent model (executes the fix)</label>
               <select value={agentModel} onChange={(e) => setAgentModel(e.target.value)} className="w-full mb-4 rounded-xl border border-border/60 bg-background/50 px-3 py-2 text-sm text-text focus:border-primary/60 focus:outline-none">
@@ -60,7 +60,7 @@ export function ErrorPromptMakerModal(props: {
               </select>
               <div className="flex gap-3">
                 <button onClick={() => setStep('choose')} className="flex-1 rounded-xl border border-border/60 px-4 py-2.5 text-sm font-medium text-text-muted hover:bg-surface-hover hover:text-text transition">Back</button>
-                <button onClick={() => props.onStartAI(nimModel, agentModel)} className={cn('flex-1 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary/90 transition')}>Start</button>
+                <button onClick={() => props.onStartAI(toolModel, agentModel)} className={cn('flex-1 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary/90 transition')}>Start</button>
               </div>
             </div>
           )}

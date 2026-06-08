@@ -90,18 +90,18 @@ notion of *which key paid*, and no way to stop mid-run when money runs out.
 
 ### 2.4 Prompt Enhancer & Error Prompt Maker (currently free)
 - These call the provider's `/chat/completions` **directly** (not through LiteLLM)
-  via `nimChat()` (`server/src/bridges/nim-client.ts:47`), orchestrated by
-  `nim-engine.ts`. They resolve a **single** key
-  (`resolveNimTarget` → `getUserProviderKeyMap`, `server/src/routes/nim.ts:38`).
-- `nimChat` today **ignores** the `usage` object the provider returns
-  (`server/src/bridges/nim-client.ts:91-103`) and **no tokens are charged**.
+  via `chatCompletion()` (`server/src/bridges/chat-completions-client.ts:47`), orchestrated by
+  `prompt-tools-engine.ts`. They resolve a **single** key
+  (`resolveToolTarget` → `getUserProviderKeyMap`, `server/src/routes/prompt-tools.ts:38`).
+- `chatCompletion` today **ignores** the `usage` object the provider returns
+  (`server/src/bridges/chat-completions-client.ts:91-103`) and **no tokens are charged**.
 
 ### 2.5 Pricing math (reused unchanged)
 - `$1 = 1000 tokens` (`TOKENS_PER_USD`) with a `1.2×` commission
-  (`TOKEN_MULTIPLIER`) in `server/src/config/ai-models.ts:16`.
+  (`TOKEN_MULTIPLIER`) in `server/src/config/pricing.ts:16`.
 - `calculateTokenCost(input, output, pricing, cached)` →
   `(inputCost + cachedCost + outputCost) × 1.2 × 1000`, rounded up to whole tokens
-  (`server/src/config/ai-models.ts:23`). This already encodes the user-facing price.
+  (`server/src/config/pricing.ts:23`). This already encodes the user-facing price.
 
 ---
 
@@ -331,7 +331,7 @@ numbers from the same counts with our own pricing helpers so the user charge and
 key decrement can never drift apart. Add a sibling to `calculateTokenCost`:
 
 ```ts
-// server/src/config/ai-models.ts
+// server/src/config/pricing.ts
 calculateProviderCostUsd(input, output, pricing, cached?): number  // raw $, no ×1.2, no ×1000, no ceil
 ```
 
@@ -413,17 +413,17 @@ This replaces the single-key emission in `generateLiteLLMConfig()`
 
 ## 9. Prompt Enhancer & Error Prompt Maker (Pillar C)
 
-These bypass LiteLLM and call `nimChat` directly, so they get a **lighter** version of
+These bypass LiteLLM and call `chatCompletion` directly, so they get a **lighter** version of
 the same logic (no proxy, single non-streaming call that already returns `usage`):
 
-1. **Route over the chain.** Replace the single-key `resolveNimTarget`
-   (`server/src/routes/nim.ts:38`) with `getRoutedKeysForProvider`. Try the primary
+1. **Route over the chain.** Replace the single-key `resolveToolTarget`
+   (`server/src/routes/prompt-tools.ts:38`) with `getRoutedKeysForProvider`. Try the primary
    key; on failure apply the same retry/fallback/circuit-breaker rules from §7.
-2. **Read usage.** Extend `nimChat` to return the `usage` block it currently discards
-   (`server/src/bridges/nim-client.ts:91-103`).
+2. **Read usage.** Extend `chatCompletion` to return the `usage` block it currently discards
+   (`server/src/bridges/chat-completions-client.ts:91-103`).
 3. **Charge both budgets** after each successful call via the shared §8.2 routine
    (user tokens ×1.2; serving key raw $). The enhancer makes **two** calls (draft +
-   finalize, `server/src/agents/nim-engine.ts:108-122`) and refine makes one more —
+   finalize, `server/src/agents/prompt-tools-engine.ts:108-122`) and refine makes one more —
    **each** is metered. The error-maker makes one call.
 4. **Gate + stop.** Refuse to start with a zero balance; if a mid-feature call would
    overrun the balance, stop and report it (these are short, bounded jobs, so a hard
@@ -462,14 +462,14 @@ Body:    { userId, sessionId, keyId, promptTokens, completionTokens, cachedToken
 | Schema | `server/src/db/schema/provider-api-keys.ts` | Add `label`, `weight`, `limitUsd`, `usedUsd`, `exhaustedAt`. |
 | Migration | `server/drizzle/0021_*.sql` | Idempotent `ADD COLUMN IF NOT EXISTS` (CLAUDE.md drift rule). |
 | Key resolver | `server/src/utils/ai-runtime.ts` (+ maybe new `key-router.ts`) | `getRoutedKeysForProvider`; keep `getUserProviderKeyMap` only where one key is fine. |
-| Pricing | `server/src/config/ai-models.ts` | Add `calculateProviderCostUsd` (raw $). |
+| Pricing | `server/src/config/pricing.ts` | Add `calculateProviderCostUsd` (raw $). |
 | Billing | `server/src/utils/token-service.ts` | Add `chargeRealtimeUsage(userId, keyId, usage, pricing)`; retire estimate/reconcile for the new path. |
 | LiteLLM config | `server/src/utils/litellm-config.ts` | Emit one deployment per (model×key), `order`=weight, `num_retries`, `model_info.aurora_key_id`, `always_include_stream_usage`. |
 | LiteLLM process | `server/src/bridges/litellm-process-manager.ts` | Pass `AURORA_USER_ID/SESSION_ID/CALLBACK_URL/INTERNAL_SECRET` env; ship the Python callback file. |
 | LiteLLM callback | new Python module in the shared venv | `async_pre_call_hook` (budget gate) + `async_log_success_event` (POST usage). |
 | Internal route | new `server/src/routes/internal.ts` | `POST /internal/litellm/usage` (shared-secret). |
 | Agent path | `server/src/routes/agents.ts`, `server/src/agents/executor.ts` | Remove pre-charge/reconcile; wire kill-on-exhaust; ≥1-usable-key gate. |
-| NIM path | `server/src/routes/nim.ts`, `server/src/agents/nim-engine.ts`, `server/src/bridges/nim-client.ts` | Chain routing + read `usage` + per-call dual charge. |
+| Prompt-tools path | `server/src/routes/prompt-tools.ts`, `server/src/agents/prompt-tools-engine.ts`, `server/src/bridges/chat-completions-client.ts` | Chain routing + read `usage` + per-call dual charge. |
 | Admin API (keys) | `server/src/routes/admin.ts` | Keys become a **list** per provider: create/edit/remove + weight/limit/label/enabled + **reset-usage**; show `usedUsd`/`limitUsd`. **Reject a 2nd key on a free provider** (§6.3). |
 | Admin API (providers) | `server/src/routes/ai-admin.ts:149` | On `isFree` false→true, **prune** every user's keys for that provider to the single highest-priority one (§6.3). |
 | Admin UI | `client/src/pages/admin/users.tsx`, `client/src/hooks/use-ai-admin.ts` | `UserKeysModal` → multi-row editor per **paid** provider (weight/limit/used/enabled); **single-row** for free providers. Warn before toggling a populated provider to free (§6.3 prune). |
@@ -529,7 +529,7 @@ where a product decision is needed. None block the design; each needs a choice.
 6. **Per-call cost trust.** We compute costs from `usage` with **our** pricing rather
    than trusting LiteLLM's `response_cost`, to avoid known streaming cost-extraction
    bugs (e.g. OpenRouter [#16021], Anthropic cache [#11789]). Keep it that way.
-7. **NIM hard-kill.** For the short Enhancer/Maker jobs, is finishing the in-flight call
+7. **Prompt-tools hard-kill.** For the short Enhancer/Maker jobs, is finishing the in-flight call
    then stopping acceptable, or must we hard-cap mid-call? Recommended: **finish then
    stop** (jobs are bounded; complexity not worth it).
 8. **Admin "reset usage" / rollover.** Confirm the operational model: do limits reset

@@ -886,7 +886,7 @@ SIGTERM → SIGKILL → Port released
 
 ### AI Runtime (Admin-Managed: Providers, Models & MCPs)
 
-AuroraCraft's AI providers, models, and MCP servers are **stored in the database and managed at runtime from the Admin Panel** — they are not hardcoded. There is nothing to edit in source and nothing to redeploy when adding a new provider or model. (Earlier versions hardcoded a fixed list in `server/src/config/ai-models.ts`; that file now holds only pricing math.)
+AuroraCraft's AI providers, models, and MCP servers are **stored in the database and managed at runtime from the Admin Panel** — they are not hardcoded. There is nothing to edit in source and nothing to redeploy when adding a new provider or model. (Earlier versions hardcoded a fixed list in `server/src/config/ai-models.ts`, since renamed to `server/src/config/pricing.ts`; it now holds only pricing math.)
 
 **Database tables** (migrations 0019–0021):
 

@@ -13,7 +13,7 @@ export const aiModels = pgTable('ai_models', {
   // Upstream model id sent to the provider, e.g. accounts/fireworks/models/glm-5p1.
   realName: varchar('real_name', { length: 200 }).notNull(),
   description: text('description').notNull().default(''),
-  // string[] subset of ModelUsage. jsonb (matches code-reviews/nim-jobs precedent);
+  // string[] subset of ModelUsage. jsonb (matches code-reviews/prompt-tool-jobs precedent);
   // filtered in JS since the model set is small + admin-curated.
   usages: jsonb('usages').notNull().default([]),
   // Discriminator across same-show-name models, e.g. "fast" / "slow".

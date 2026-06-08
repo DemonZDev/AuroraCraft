@@ -2,8 +2,8 @@ import { db } from '../db/index.js'
 import { users } from '../db/schema/users.js'
 import { tokenTransactions, providerApiKeys } from '../db/schema/provider-api-keys.js'
 import { eq, sql, and } from 'drizzle-orm'
-import { calculateTokenCost, calculateProviderCostUsd, estimateTokens, TOKEN_MULTIPLIER, TOKENS_PER_USD } from '../config/ai-models.js'
-import type { ModelPricing, UserTier } from '../config/ai-models.js'
+import { calculateTokenCost, calculateProviderCostUsd, estimateTokens, TOKEN_MULTIPLIER, TOKENS_PER_USD } from '../config/pricing.js'
+import type { ModelPricing, UserTier } from '../config/pricing.js'
 
 /** Minimum token balance required to send messages using premium (paid) models */
 export const MIN_PREMIUM_BALANCE = 30
