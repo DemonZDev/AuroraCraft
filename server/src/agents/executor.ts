@@ -53,7 +53,6 @@ export class AgentExecutor {
           prompt: context.prompt,
           context: {
             opencodeSessionId: context.opencodeSessionId,
-            kiroSessionId: context.kiroSessionId,
             model: context.model,
             username: context.username,
             projectLinkId: context.projectLinkId,
@@ -129,7 +128,6 @@ export class AgentExecutor {
         .set({
           status: 'completed',
           ...(result.metadata?.opencodeSessionId ? { opencodeSessionId: result.metadata.opencodeSessionId } : {}),
-          ...(result.metadata?.kiroSessionId ? { kiroSessionId: result.metadata.kiroSessionId } : {}),
           updatedAt: new Date(),
         })
         .where(eq(agentSessions.id, context.sessionId))

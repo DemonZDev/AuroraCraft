@@ -27,10 +27,11 @@ export function calculateTokenCost(
   cachedInputTokens?: number,
 ): number {
   const uncachedInputTokens = Math.max(0, inputTokens - (cachedInputTokens ?? 0))
+  // Cached input falls back to the full input rate when no cached price is set, so a
+  // provider that reports cached_tokens is never billed $0 for them (no silent undercharge).
+  const cachedRate = pricing.cachedInputPer1M ?? pricing.inputPer1M
   const inputCost = (uncachedInputTokens / 1_000_000) * pricing.inputPer1M
-  const cachedCost = cachedInputTokens && pricing.cachedInputPer1M
-    ? (cachedInputTokens / 1_000_000) * pricing.cachedInputPer1M
-    : 0
+  const cachedCost = (cachedInputTokens ?? 0) > 0 ? ((cachedInputTokens ?? 0) / 1_000_000) * cachedRate : 0
   const outputCost = (outputTokens / 1_000_000) * pricing.outputPer1M
   const totalCost = (inputCost + cachedCost + outputCost) * TOKEN_MULTIPLIER * TOKENS_PER_USD
   return Math.ceil(totalCost)
@@ -50,10 +51,9 @@ export function calculateProviderCostUsd(
   cachedInputTokens?: number,
 ): number {
   const uncachedInputTokens = Math.max(0, inputTokens - (cachedInputTokens ?? 0))
+  const cachedRate = pricing.cachedInputPer1M ?? pricing.inputPer1M
   const inputCost = (uncachedInputTokens / 1_000_000) * pricing.inputPer1M
-  const cachedCost = cachedInputTokens && pricing.cachedInputPer1M
-    ? (cachedInputTokens / 1_000_000) * pricing.cachedInputPer1M
-    : 0
+  const cachedCost = (cachedInputTokens ?? 0) > 0 ? ((cachedInputTokens ?? 0) / 1_000_000) * cachedRate : 0
   const outputCost = (outputTokens / 1_000_000) * pricing.outputPer1M
   return inputCost + cachedCost + outputCost
 }

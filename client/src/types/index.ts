@@ -25,7 +25,6 @@ export interface Project {
   language: 'java' | 'kotlin'
   javaVersion: string
   compiler: 'maven' | 'gradle' | 'both'
-  bridge: 'opencode' | 'kiro'
   visibility: 'public' | 'private'
   graphifyEnabled: boolean
   graphifyStatus: 'none' | 'building' | 'ready' | 'failed'
@@ -43,7 +42,6 @@ export interface CreateProjectInput {
   language?: 'java' | 'kotlin'
   javaVersion?: string
   compiler?: 'maven' | 'gradle' | 'both'
-  bridge?: 'opencode' | 'kiro'
   visibility?: 'public' | 'private'
 }
 
@@ -109,8 +107,6 @@ export interface AgentSession {
   projectId: string
   status: AgentStatus
   opencodeSessionId?: string | null
-  bridge?: 'opencode' | 'kiro'
-  kiroSessionId?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -150,16 +146,6 @@ export interface AgentLog {
   logType: string
   message: string
   createdAt: string
-}
-
-export interface KiroAuthStatus {
-  userId: string
-  username: string
-  systemUser: string
-  systemUserExists: boolean
-  authenticated: boolean
-  configDir: string
-  instructions?: string
 }
 
 export interface AdminStats {

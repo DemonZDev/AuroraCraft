@@ -22,8 +22,13 @@ export interface PromptToolBilling {
 }
 
 const JOB_DEADLINE_MS = 30 * 60 * 1000 // 30 minutes (spec)
-const ENHANCE_MAX_TOKENS = 12000
-const FIX_MAX_TOKENS = 16384
+// Output caps for the prompt tools. Kept modest: an enhanced/fix prompt is short text,
+// not a code dump, so large reservations only waste tokens and trip low TPM limits.
+// Groq's free tier reserves prompt_tokens + max_tokens against an 8000 TPM ceiling, so a
+// 12k/16k reservation 413s before generating a single token — 4k/6k stays under it while
+// still being far more than any real enhanced prompt needs.
+const ENHANCE_MAX_TOKENS = 4096
+const FIX_MAX_TOKENS = 6000
 const MAX_FIX_PROMPT_CHARS = 50000
 
 // Per-call routing for the prompt tools (lighter than the agent's LiteLLM path; these

@@ -1,6 +1,6 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { AdminStats, AdminProject, User, KiroAuthStatus } from '@/types'
+import type { AdminStats, AdminProject, User } from '@/types'
 
 export function useAdminStats() {
   const { data, isLoading } = useQuery({
@@ -27,26 +27,4 @@ export function useAdminProjects() {
   })
 
   return { projects: data ?? [], isLoading }
-}
-
-export function useKiroAuthStatus(userId: string) {
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ['admin', 'kiro', 'status', userId],
-    queryFn: () => api.get<KiroAuthStatus>(`/admin/kiro/status/${userId}`),
-    enabled: !!userId,
-  })
-
-  return { status: data ?? null, isLoading, refetch }
-}
-
-export function useKiroAuthenticate() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: (userId: string) =>
-      api.post<KiroAuthStatus>(`/admin/kiro/authenticate/${userId}`),
-    onSuccess: (_data, userId) => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'kiro', 'status', userId] })
-    },
-  })
 }

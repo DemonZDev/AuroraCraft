@@ -33,6 +33,8 @@ export interface LiteLLMConfig {
   }
   litellm_settings?: {
     callbacks?: string[]
+    // Drop request params an upstream provider doesn't support instead of 400-ing.
+    drop_params?: boolean
   }
   router_settings?: {
     num_retries?: number
@@ -126,7 +128,10 @@ export async function generateLiteLLMConfig(
   return {
     model_list: modelList,
     general_settings: { master_key: masterKey },
-    litellm_settings: { callbacks: [CALLBACK_INSTANCE] },
+    // drop_params: silently drop any *known* OpenAI param a given upstream doesn't
+    // support (so diverse custom providers don't 400). The meter's pre-call hook
+    // additionally strips OpenAI-only camelCase fields LiteLLM doesn't recognize.
+    litellm_settings: { callbacks: [CALLBACK_INSTANCE], drop_params: true },
     router_settings: {
       num_retries: env.LITELLM_NUM_RETRIES,
       routing_strategy: 'simple-shuffle',
@@ -179,10 +184,15 @@ function convertToYAML(config: LiteLLMConfig): string {
   lines.push('general_settings:')
   lines.push('  master_key: ' + config.general_settings.master_key)
 
-  if (config.litellm_settings?.callbacks?.length) {
+  if (config.litellm_settings?.callbacks?.length || config.litellm_settings?.drop_params !== undefined) {
     lines.push('litellm_settings:')
-    lines.push('  callbacks:')
-    for (const cb of config.litellm_settings.callbacks) lines.push('    - ' + cb)
+    if (config.litellm_settings?.drop_params !== undefined) {
+      lines.push('  drop_params: ' + config.litellm_settings.drop_params)
+    }
+    if (config.litellm_settings?.callbacks?.length) {
+      lines.push('  callbacks:')
+      for (const cb of config.litellm_settings.callbacks) lines.push('    - ' + cb)
+    }
   }
 
   if (config.router_settings) {
@@ -220,6 +230,17 @@ _USAGE_URL = _BASE.rstrip("/") + "/internal/litellm/usage"
 
 # Last known remaining AuroraCraft balance for this user (updated after each call).
 _balance = {}
+
+# OpenAI-only request fields OpenCode (via the Vercel AI SDK) injects that most
+# OpenAI-*compatible* providers (Fireworks, Together, DeepInfra, NVIDIA NIM, …) reject
+# with HTTP 400 "Extra inputs are not permitted". They are caching/identity hints, not
+# functional params, so dropping them is safe for every upstream (OpenAI/OpenRouter just
+# lose the optimization). LiteLLM only knows the snake_case OpenAI names, so the
+# camelCase variants the SDK sends pass straight through unless removed here.
+_STRIP_REQUEST_FIELDS = (
+    "promptCacheKey", "prompt_cache_key",
+    "safetyIdentifier", "safety_identifier",
+)
 
 
 def _model_info(kwargs):
@@ -295,6 +316,22 @@ class AuroraUsageLogger(CustomLogger):
             print("[aurora-meter] usage report failed:", e)
 
     async def async_pre_call_hook(self, user_api_key_dict, cache, data, call_type):
+        # Strip OpenAI-only passthrough fields (see _STRIP_REQUEST_FIELDS) that generic
+        # OpenAI-compatible providers reject with HTTP 400. They arrive at the top level
+        # of the request body; clean extra_body too as cheap insurance. This runs before
+        # the upstream call, so the offending key never reaches the provider.
+        if isinstance(data, dict):
+            stripped = []
+            containers = [data]
+            eb = data.get("extra_body")
+            if isinstance(eb, dict):
+                containers.append(eb)
+            for c in containers:
+                for f in _STRIP_REQUEST_FIELDS:
+                    if c.pop(f, None) is not None:
+                        stripped.append(f)
+            if stripped:
+                print("[aurora-meter] stripped incompatible request fields:", stripped)
         # Kill switch: once the user balance is known to be zero, refuse new calls so
         # the agent stops spending (belt-and-suspenders with the server-side force-stop).
         rem = _balance.get(_USER_ID)

@@ -42,7 +42,6 @@ const createProjectSchema = z.object({
   language: z.enum(['java', 'kotlin']).default('java'),
   javaVersion: z.string().max(8).default('21'),
   compiler: z.enum(['maven', 'gradle', 'both']).default('gradle'),
-  bridge: z.enum(['opencode', 'kiro']).default('opencode'),
   visibility: z.enum(['public', 'private']).default('private'),
 })
 

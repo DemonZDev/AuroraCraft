@@ -186,6 +186,9 @@ function ProviderForm({ provider, onClose, onSubmit }: {
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const builtin = provider?.isBuiltin
+  // Free/paid is editable for built-ins (OpenRouter, NVIDIA NIM) — only Zen is locked to free,
+  // since it bypasses LiteLLM and has no billing meter. The endpoint stays locked for all built-ins.
+  const freeLocked = provider?.kind === 'zen'
 
   const submit = () => {
     if (!name.trim()) return setError('Name is required')
@@ -201,10 +204,11 @@ function ProviderForm({ provider, onClose, onSubmit }: {
       <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Fireworks AI" />
       <label className={cn(labelCls, 'mt-3')}>OpenAI-compatible endpoint {builtin && <span className="text-text-dim">(locked for built-in)</span>}</label>
       <input className={cn(inputCls, builtin && 'opacity-50')} value={baseUrl} disabled={builtin} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.example.com/v1" />
-      <label className={cn('mt-4 flex items-center gap-2 text-sm text-text', builtin && 'opacity-50')}>
-        <input type="checkbox" checked={isFree} disabled={builtin} onChange={(e) => setIsFree(e.target.checked)} className="h-4 w-4 accent-primary" />
+      <label className={cn('mt-4 flex items-center gap-2 text-sm text-text', freeLocked && 'opacity-50')}>
+        <input type="checkbox" checked={isFree} disabled={freeLocked} onChange={(e) => setIsFree(e.target.checked)} className="h-4 w-4 accent-primary" />
         Free provider <span className="text-[11px] text-text-dim">(models cost 0 tokens; any user may hold its key)</span>
       </label>
+      {freeLocked && <p className="mt-1 text-[11px] text-text-dim">Zen is always free — it runs natively in OpenCode and has no billing meter.</p>}
       <p className="mt-2 text-[11px] text-text-dim">Do not set a global API key — keys are added per user in the Users page.</p>
       <div className="mt-5 flex gap-3">
         <button onClick={onClose} className="flex-1 rounded-xl border border-border/60 px-4 py-2.5 text-sm font-medium text-text-muted hover:bg-surface-hover">Cancel</button>
@@ -259,7 +263,7 @@ function ModelsTab({ addToast }: { addToast: (m: string, t?: 'success' | 'error'
                   <td className="px-4 py-3">{m.typeTag ? <span className="rounded bg-accent px-1.5 py-0.5 text-[10px] text-text-dim">{m.typeTag}</span> : <span className="text-text-dim">—</span>}</td>
                   <td className="px-4 py-3"><div className="flex flex-wrap gap-1">{m.usages.map((u) => <span key={u} className="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] text-primary">{USAGE_LABELS[u]}</span>)}</div></td>
                   <td className="px-4 py-3 text-text-muted">{m.weight}</td>
-                  <td className="px-4 py-3 text-text-dim text-xs">{m.providerIsFree ? '—' : `$${m.inputPer1m}/$${m.outputPer1m}`}</td>
+                  <td className="px-4 py-3 text-text-dim text-xs" title="Uncached input / Cached input / Output per 1M tokens">{m.providerIsFree ? '—' : `$${m.inputPer1m} / ${m.cachedInputPer1m != null ? '$' + m.cachedInputPer1m : '—'} / $${m.outputPer1m}`}</td>
                   <td className="px-4 py-3"><Toggle on={m.isActive} onClick={() => toggleActive(m)} /></td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -321,6 +325,7 @@ function ModelForm({ model, providers, onClose, onSubmit }: {
   const [typeTag, setTypeTag] = useState(model?.typeTag ?? '')
   const [weight, setWeight] = useState(String(model?.weight ?? 100))
   const [inputPrice, setInputPrice] = useState(String(model?.inputPer1m ?? 0))
+  const [cachedInputPrice, setCachedInputPrice] = useState(model?.cachedInputPer1m != null ? String(model.cachedInputPer1m) : '')
   const [outputPrice, setOutputPrice] = useState(String(model?.outputPer1m ?? 0))
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -344,6 +349,7 @@ function ModelForm({ model, providers, onClose, onSubmit }: {
       usages, typeTag: typeTag.trim(), weight: w,
       inputPer1m: isPaid ? parseFloat(inputPrice) || 0 : 0,
       outputPer1m: isPaid ? parseFloat(outputPrice) || 0 : 0,
+      cachedInputPer1m: isPaid && cachedInputPrice.trim() !== '' ? (parseFloat(cachedInputPrice) || 0) : null,
     }, (e) => { setError(e); setSaving(false) })
   }
 
@@ -383,24 +389,30 @@ function ModelForm({ model, providers, onClose, onSubmit }: {
         ))}
       </div>
 
-      <div className="mt-3 grid grid-cols-3 gap-3">
-        <div>
-          <label className={labelCls}>Weight (lower = higher)</label>
-          <input className={inputCls} type="number" value={weight} onChange={(e) => setWeight(e.target.value)} />
-        </div>
-        {isPaid && (
-          <>
+      <div className="mt-3">
+        <label className={labelCls}>Weight (lower = higher)</label>
+        <input className={cn(inputCls, 'max-w-[200px]')} type="number" value={weight} onChange={(e) => setWeight(e.target.value)} />
+      </div>
+      {isPaid && (
+        <>
+          <label className={cn(labelCls, 'mt-4')}>Pricing — USD per 1M tokens</label>
+          <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className={labelCls}>Input $/1M</label>
-              <input className={inputCls} type="number" step="0.001" value={inputPrice} onChange={(e) => setInputPrice(e.target.value)} />
+              <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-text-dim">Uncached Input</label>
+              <input className={inputCls} type="number" step="0.001" value={inputPrice} onChange={(e) => setInputPrice(e.target.value)} placeholder="0.30" />
             </div>
             <div>
-              <label className={labelCls}>Output $/1M</label>
+              <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-text-dim">Cached Input</label>
+              <input className={inputCls} type="number" step="0.001" value={cachedInputPrice} onChange={(e) => setCachedInputPrice(e.target.value)} placeholder="blank = same as input" />
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-text-dim">Output</label>
               <input className={inputCls} type="number" step="0.001" value={outputPrice} onChange={(e) => setOutputPrice(e.target.value)} />
             </div>
-          </>
-        )}
-      </div>
+          </div>
+          <p className="mt-1.5 text-[11px] text-text-dim">Cached Input is the discounted rate some providers (e.g. Fireworks) charge for cache-hit prompt tokens. Leave blank if the provider has no cached tier — cached tokens are then billed at the uncached input rate (never free).</p>
+        </>
+      )}
       {!isPaid && <p className="mt-2 text-[11px] text-text-dim">Free provider — pricing fields hidden (models cost 0 tokens).</p>}
 
       <div className="mt-5 flex gap-3">

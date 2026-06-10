@@ -5,7 +5,6 @@ export const projectStatusEnum = pgEnum('project_status', ['active', 'archived']
 export const languageEnum = pgEnum('project_language', ['java', 'kotlin'])
 export const compilerEnum = pgEnum('project_compiler', ['maven', 'gradle', 'both'])
 export const visibilityEnum = pgEnum('project_visibility', ['public', 'private'])
-export const bridgeEnum = pgEnum('project_bridge', ['opencode', 'kiro'])
 export const graphifyStatusEnum = pgEnum('graphify_status', ['none', 'building', 'ready', 'failed'])
 
 export const projects = pgTable('projects', {
@@ -22,7 +21,6 @@ export const projects = pgTable('projects', {
   language: languageEnum('language').default('java').notNull(),
   javaVersion: varchar('java_version', { length: 8 }).default('21').notNull(),
   compiler: compilerEnum('compiler').default('gradle').notNull(),
-  bridge: bridgeEnum('bridge').default('opencode').notNull(),
   visibility: visibilityEnum('visibility').default('private').notNull(),
   forkedFrom: uuid('forked_from').references((): any => projects.id, { onDelete: 'set null' }),
   repoUrl: text('repo_url'),

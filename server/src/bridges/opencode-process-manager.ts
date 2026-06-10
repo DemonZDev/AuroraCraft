@@ -325,7 +325,7 @@ export class OpenCodeProcessManager {
       throw new Error('OpenCode startup was aborted')
     }
 
-    // Spawn OpenCode as the project owner using runuser -l (consistent with the Kiro bridge).
+    // Spawn OpenCode as the project owner using runuser -l.
     // runuser -l resets env, so OPENCODE_DANGEROUSLY_SKIP_PERMISSIONS must be set in the
     // shell command itself rather than via spawn's `env` option.
     // We override HOME to the isolated config directory so OpenCode reads per-project
@@ -351,6 +351,12 @@ export class OpenCodeProcessManager {
     let child: ChildProcess
     if (systemUser) {
       const shellCmd =
+        // umask 0000 so every file/dir the AI's mvn/gradle writes into the
+        // SHARED Maven/Gradle caches is world-writable (777/666). Without this
+        // the default umask (022) makes new cache dirs 755, which blocks the
+        // NEXT user from writing into them and breaks `mvn package` with
+        // "cannot write to /var/lib/maven/shared/repository/<artifact>".
+        `umask 0000 && ` +
         `cd ${shellQuote(directory)} && ` +
         `export HOME=${shellQuote(isolatedConfigDir)} && ` +
         `export JAVA_HOME=${shellQuote(resolvedJavaVersion)} && ` +

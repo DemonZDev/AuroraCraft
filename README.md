@@ -195,13 +195,18 @@ cd /tmp
 
 ```bash
 curl -fsSL https://cli.coderabbit.ai/install.sh | CODERABBIT_INSTALL_DIR=/usr/local/bin sh
+# tmux is required: the admin OAuth login flow drives the CLI inside a tmux session
+sudo apt-get install -y tmux
 ```
 
 Verify:
 
 ```bash
 coderabbit --version   # 0.5.x
+tmux -V
 ```
+
+> The CLI must be installed **system-wide** at `/usr/local/bin/coderabbit` (like OpenCode) so each `auroracraft-{username}` user can run reviews. User login/grant is admin-driven via a browser OAuth flow — see [Grant CodeRabbit Access to a User](#4-grant-coderabbit-access-to-a-user-optional).
 
 ### Step 9 — Clone and Install
 
@@ -297,14 +302,15 @@ Expected output: `Migrations complete`
 
 > **On a fresh database, just run the migrator — all migrations apply cleanly in order and there is nothing else to do.** The notes below only matter when re-deploying onto a database whose migration tracking has drifted.
 >
-> **AI Runtime migrations (0019–0021) — what they create.** These power the admin-managed AI Runtime + API key routing:
+> **AI Runtime migrations (0019–0021, 0024) — what they create.** These power the admin-managed AI Runtime + API key routing:
 > - `0019_ai_runtime_admin.sql` — creates `ai_providers`, `ai_models`, `mcps`; adds `provider_id` / `mcp_id` FKs to `provider_api_keys`; **seeds the built-in OpenCode Zen provider + its two free models** (DeepSeek V4 Flash, Nemotron 3 Super).
 > - `0020_builtin_providers.sql` — seeds two more built-in providers (paid **OpenRouter**, free **NVIDIA NIM**) with **no models** — admins add models from the UI.
 > - `0021_api_key_routing.sql` — adds `label`, `weight`, `limit_usd`, `used_usd`, `exhausted_at` to `provider_api_keys`, and **drops the legacy `UNIQUE(user_id, provider)` index** so a user can hold multiple keys per paid provider. **This DROP INDEX is required** — without it, adding a second key to any provider fails.
+> - `0024_builtin_fireworks_google.sql` — promotes **Fireworks AI** and seeds **Google AI Studio** as built-in providers (both **paid** by default, OpenAI-compatible; Google's endpoint is `https://generativelanguage.googleapis.com/v1beta/openai`). Like the other built-ins they ship with **no models** — admins add models from the UI. Idempotent.
 >
 > All three are **idempotent** (`CREATE TYPE … EXCEPTION WHEN duplicate_object`, `ADD COLUMN IF NOT EXISTS`, `DROP INDEX IF EXISTS`, `INSERT … ON CONFLICT DO NOTHING`), so they are safe to re-run and safe to apply by hand via `psql -1 -f`.
 >
-> **What ships seeded vs. empty:** After migrations, the database contains **only the built-in providers** (Zen + its 2 models, OpenRouter, NVIDIA NIM). There are **no paid models and no API keys** — admins add those at runtime from **Admin Panel → AI Runtime** and **Admin Panel → Users → Provider Keys** (see Post-Deployment Setup). A fresh install can immediately use the free Zen models with no further configuration.
+> **What ships seeded vs. empty:** After migrations, the database contains **only the built-in providers** (Zen + its 2 models, OpenRouter, NVIDIA NIM, Fireworks AI, Google AI Studio). There are **no paid models and no API keys** — admins add those at runtime from **Admin Panel → AI Runtime** and **Admin Panel → Users → Provider Keys** (see Post-Deployment Setup). A fresh install can immediately use the free Zen models with no further configuration.
 >
 > **Note:** If you see errors about missing tables or columns, the Drizzle journal may be out of sync with the actual `.sql` files. Check `drizzle/meta/_journal.json` against the files in `drizzle/` and apply any missing files manually via `psql -1 -f`.
 >
@@ -413,6 +419,8 @@ chmod -R 777 /var/lib/maven/shared
 ```
 
 > **Why 777?** Each user runs as their own UID. A group-based approach would require a shared `auroracraft` group and `sg` on every `runuser` call, which is fragile. `777` on shared caches is the simplest correct solution.
+>
+> **Why `umask 0000` matters too:** `777` on the *base* dirs is not enough on its own. The first user to download a Maven/Gradle artifact creates its sub-directory with the default `umask 022` → `755` owned by that user, which then blocks the **next** user from writing into it (`cannot write to /var/lib/maven/shared/repository/<artifact>`, and the same under `/var/lib/gradle/shared/caches`). AuroraCraft handles this automatically: `initializeSharedCaches()` re-runs `chmod -R 777` on every startup (repairing stale dirs), and the OpenCode build shell is prefixed with `umask 0000` so newly created cache dirs stay world-writable. You only need the manual `chmod` above for the initial bootstrap; the server keeps it correct afterward.
 
 ### Step 15.5 — Initialize Knowledge Base (Required for Platform-Specific AI Rules)
 
@@ -727,9 +735,9 @@ Everything below is done in the browser as the `admin` user. See [AI Runtime (Ad
 
 **a) Add a provider** — **Admin Panel → AI Runtime → Providers → Add Provider**
 - **Name** (e.g. `Fireworks AI`) — a `slug` is auto-derived for configs/keys.
-- **Base URL** — the provider's OpenAI-compatible endpoint, e.g. `https://api.fireworks.ai/inference/v1` or `https://api.bluesminds.com/v1`.
+- **Base URL** — the provider's OpenAI-compatible endpoint, e.g. `https://api.fireworks.ai/inference/v1`, `https://api.bluesminds.com/v1`, or `https://generativelanguage.googleapis.com/v1beta/openai` (Google AI Studio — use model real names **without** the `models/` prefix, e.g. `gemini-3.5-flash`).
 - **Free?** — leave **off** for paid providers (models bill tokens; keys require paid users). Turn **on** only for genuinely free endpoints (models cost 0 tokens; any user may hold a key, but **only one key per user**).
-- Built-in providers (Zen, OpenRouter, NVIDIA NIM) are seeded already; you can't delete them or change their endpoint, but you can disable them and add models to them.
+- Built-in providers (Zen, OpenRouter, NVIDIA NIM, Fireworks AI, Google AI Studio) are seeded already; you can't delete them or change their endpoint, but you **can switch their free/paid mode** with the **Free?** toggle — editable for **every built-in except Zen** (Zen runs natively in OpenCode with no LiteLLM billing meter, so it stays free). You can also disable them and add models to them.
 
 **b) Add models** — **Admin Panel → AI Runtime → Models → Add Model**
 - **Show name** (what users see, e.g. `Kimi K2.6`) and **Real name** (the exact upstream model id, e.g. `accounts/fireworks/models/kimi-k2.6` or `gemini-3.1-pro`). The Real name must match the provider's model id exactly — check the provider's `/v1/models`.
@@ -773,12 +781,20 @@ GITHUB_CALLBACK_URL=https://codeaurora.online/api/auth/github/callback
 
 **Note:** The callback URL must match exactly what you configured in the GitHub OAuth App. If your domain uses HTTP instead of HTTPS, update accordingly.
 
-### 4. Configure CodeRabbit (Optional)
+### 4. Grant CodeRabbit Access to a User (Optional)
 
-1. Go to [CodeRabbit Settings](https://app.coderabbit.ai/settings/api-keys)
-2. Generate an API key
-3. In AuroraCraft Admin Panel → Users → click "Grant Access" on any user
-4. Paste the API key
+CodeRabbit access is granted **per user** by an admin through a **browser OAuth flow** — there is no API key to generate or paste. Under the hood AuroraCraft drives the CLI's agent-mode OAuth (`coderabbit auth login --agent`) in a tmux session and parses its JSON status stream.
+
+1. In **Admin Panel → Users**, click **Grant Access** on the CodeRabbit column, then **Generate Login URL**.
+2. AuroraCraft returns a login link whose `redirect_uri` is `coderabbit-cli://auth-callback` (the headless/remote callback). Open it in your browser and sign in to CodeRabbit.
+3. CodeRabbit then shows a **callback string starting with `coderabbit-cli://`** (or a bare token). Copy it.
+4. Paste it back into the modal and click **Complete Login**. AuroraCraft submits it to the CLI, confirms with `coderabbit auth status --agent`, and flips the user's `coderabbitEnabled` flag.
+
+**Notes:**
+- The login link is short-lived — if completion fails, just generate a new one and retry promptly.
+- No OS keyring (`libsecret`) is required: when it is absent CodeRabbit auto-falls back to file storage at `~/.coderabbit/auth.json`. AuroraCraft `chown`s it to the target user so reviews (which run via `runuser`) can read it.
+- The `--api-key` login method is intentionally **not** used (some plans do not offer API keys).
+- Requires **tmux** on the server (see Step 8).
 
 ### 5. Configure User Token Balances (Optional)
 
@@ -898,11 +914,12 @@ AuroraCraft's AI providers, models, and MCP servers are **stored in the database
 | `provider_api_keys` | per-user secrets, linked by `provider_id` **or** `mcp_id` (+ routing fields, see below) |
 
 **Built-in (seeded) vs. admin-added:**
-- **Built-in** (`is_builtin = true`, cannot delete or change endpoint): **OpenCode Zen** (free, two seeded models) · **OpenRouter** (paid, no models) · **NVIDIA NIM** (free, no models).
+- **Built-in** (`is_builtin = true`, cannot delete or change endpoint; **free/paid mode IS editable, except Zen**): **OpenCode Zen** (free — *locked free*, two seeded models) · **OpenRouter** (paid by default, toggle-able, no models) · **NVIDIA NIM** (free by default, toggle-able, no models) · **Fireworks AI** (paid by default, toggle-able, no models — seeded by `0024`) · **Google AI Studio** (paid by default, toggle-able, no models — seeded by `0024`; OpenAI-compat endpoint `…/v1beta/openai`).
 - **Everything else** is admin-added from **Admin Panel → AI Runtime**: any OpenAI-compatible provider, its models, and MCP servers.
 
 **Key rules enforced by the backend:**
 - A provider's `is_free` flag decides everything downstream: free → models cost **0 tokens**, any user may hold a key, but only **one key per user**. Paid → models bill tokens, keys require **paid** users, and **multiple keys per user** are allowed (the routing chain).
+- **Built-in providers can be switched free⇄paid** by an admin (their endpoint and deletion stay locked). The sole exception is **OpenCode Zen** (`kind = zen`), which is permanently free — it runs natively in OpenCode with no LiteLLM billing meter. Flipping a provider paid→free prunes each user's keys for it down to the single highest-priority one (free providers allow only one key per user).
 - Within the same (`show_name`, overlapping usage), both `type_tag` and `weight` must be **unique** (validated on create/edit).
 - Disabling a provider hides **all** its models from every selector.
 - A user cannot be downgraded to free while they hold **any** paid-provider key.
@@ -1144,8 +1161,7 @@ All AI-generated commands run through a sandboxed wrapper (`/usr/local/bin/auror
 The workspace remembers your chosen AI model and speed per project across page refreshes:
 
 - Selection is saved to `localStorage` under key `auroracraft:model:{projectId}`
-- On page load, the saved model is validated against the project's bridge (Kiro vs OpenCode)
-- If the saved model is incompatible (e.g., a Kiro model on an OpenCode project), it falls back to the default
+- On page load, the saved model is validated against the available model list; if it is no longer available it falls back to the default
 - Each project has its own independent selection
 
 ### Shared Caches
@@ -1245,11 +1261,15 @@ If stale PID file: `pg_ctlcluster 16 main start` (replace `16` with your Postgre
 
 ### Shared cache permission denied
 
+Symptom: the AI agent reports a build failure like `cannot write to /var/lib/maven/shared/repository/<artifact>` (or the same under `/var/lib/gradle/shared/caches`). This happens when one user populated part of the shared cache at `755` and another user's `mvn package` / `gradle build` can't write into it. The server normally prevents and self-heals this (`chmod -R 777` on startup + `umask 0000` on the build shell), but to repair on-disk immediately:
+
 ```bash
 chmod -R 777 /var/lib/opencode/shared
 chmod -R 777 /var/lib/gradle/shared
 chmod -R 777 /var/lib/maven/shared
 ```
+
+A server restart re-applies the recursive `777` automatically. If the problem recurs, confirm the OpenCode spawn still includes `umask 0000` (`server/src/bridges/opencode-process-manager.ts`) — without it, each new artifact dir is created `755` and re-locks the next user.
 
 ### Linux user not created on registration
 
@@ -1470,7 +1490,7 @@ This is by design — a free user may not hold keys for **paid** providers. Remo
 2. Delete every key under the listed paid provider(s)
 3. Then change tier to **free**
 
-(Separately: flipping a **provider** itself from paid → free in AI Runtime is destructive — it prunes every user's keys for that provider down to the single highest-priority one, since free providers allow only one key per user. The UI warns before doing this.)
+(Separately: flipping a **provider** itself from paid → free in AI Runtime is destructive — it prunes every user's keys for that provider down to the single highest-priority one, since free providers allow only one key per user. This now applies to the built-in **OpenRouter** too, whose free/paid mode became admin-editable. The toggle takes effect **immediately, without a confirmation prompt**, so double-check before flipping a paid provider that has active user keys.)
 
 ### Java compilation fails / "java: command not found"
 
@@ -1524,8 +1544,8 @@ If the selected model reverts to default after refreshing the page:
 
 1. **Check localStorage:** Open browser DevTools → Application → Local Storage → your domain
 2. Look for keys starting with `auroracraft:model:`
-3. If the key exists but the model is wrong, the validation may be rejecting it due to bridge mismatch (e.g., Kiro model on OpenCode project)
-4. **Fix:** Select a model compatible with the project's bridge, then refresh
+3. If the key exists but the model is wrong, the saved model may no longer be available (e.g., it was disabled in Admin → AI Runtime)
+4. **Fix:** Select an available model, then refresh
 
 ### AI says "I cannot compile" or "Compilation unavailable"
 

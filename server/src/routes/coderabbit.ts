@@ -5,12 +5,48 @@ import { projects } from '../db/schema/projects'
 import { codeReviews } from '../db/schema/code-reviews'
 import { eq, and, desc, or, sql } from 'drizzle-orm'
 import { authMiddleware, adminGuard } from '../middleware/auth'
-import { access, readdir, unlink, rm } from 'fs/promises'
+import { access, readdir, unlink, rm, readFile } from 'fs/promises'
 import { join } from 'path'
 
 declare global {
   // eslint-disable-next-line no-var
-  var coderabbitLoginProcesses: Record<string, { userHome: string; sessionName: string }> | undefined
+  var coderabbitLoginProcesses: Record<string, { userHome: string; sessionName: string; logFile: string }> | undefined
+}
+
+/**
+ * Read the line-delimited JSON emitted by `coderabbit auth login --agent`, captured
+ * to a logfile via `tmux pipe-pane`. Strips carriage returns + ANSI/OSC escape codes
+ * and returns every parseable JSON object, in order.
+ *
+ * Reading from the logfile (not the live pane) is essential: in --agent mode the CLI
+ * EXITS immediately after it processes the pasted callback, so `tmux capture-pane`
+ * would fail with "can't find pane" and we would lose the terminal success/error JSON.
+ */
+async function readAgentJson(logFile: string): Promise<any[]> {
+  let raw = ''
+  try {
+    raw = await readFile(logFile, 'utf8')
+  } catch {
+    return []
+  }
+  return raw
+    .replace(/\r/g, '')
+    .split('\n')
+    .map((line) =>
+      line
+        .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '') // OSC sequences (e.g. hyperlinks)
+        .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '') // CSI / color sequences
+        .trim()
+    )
+    .filter((line) => line.startsWith('{'))
+    .map((line) => {
+      try {
+        return JSON.parse(line)
+      } catch {
+        return null
+      }
+    })
+    .filter(Boolean)
 }
 
 async function cleanupCoderabbitCache(userHome: string) {
@@ -71,8 +107,7 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
 
     const userHome = `/home/auroracraft-${user.username.toLowerCase()}`
     const sessionName = `coderabbit-${id}`
-
-    const errors: string[] = []
+    const logFile = `/tmp/aurora-coderabbit-auth-${id}.log`
 
     try {
       const { promisify } = await import('util')
@@ -99,64 +134,77 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
       }
       app.log.info(`Using CodeRabbit CLI: ${coderabbitPath}`)
 
-      // Ensure tmux server is running
+      // Fresh start: tmux server up, no stale session, no stale logfile
       await execAsync(`tmux start-server 2>/dev/null || true`)
-
-      // Kill any existing session
       await execAsync(`tmux kill-session -t ${sessionName} 2>/dev/null || true`)
+      await rm(logFile, { force: true }).catch(() => {})
 
-      // Start tmux session with coderabbit auth login (wide window to prevent URL wrapping)
+      // Start the OAuth login in --agent mode. Unlike the interactive flow (which
+      // renders the URL as an OSC 8 hyperlink and prompts on a TTY), --agent emits a
+      // clean line-delimited JSON status stream we can parse deterministically:
+      //   starting_login → awaiting_browser_auth {authUrl, fallbackAuthUrl} → ...
       try {
-        await execAsync(`tmux new-session -d -s ${sessionName} -x 200 -y 50 "HOME=${userHome} ${coderabbitPath} auth login"`)
+        await execAsync(`tmux new-session -d -s ${sessionName} -x 220 -y 50 "HOME=${userHome} ${coderabbitPath} auth login --agent"`)
       } catch (tmuxErr: any) {
         app.log.error({ err: tmuxErr }, 'Failed to create tmux session')
         reply.status(500).send({ error: `Failed to start authentication session: ${tmuxErr.message || 'tmux error'}` }); return
       }
 
-      // The CLI can take 3-5 seconds to output the URL. Retry capture with backoff.
-      const maxAttempts = 6
-      const delayMs = 2000
+      // Mirror the pty stream to a logfile. This is required (not just convenient):
+      // in --agent mode the CLI process exits the instant it finishes processing the
+      // pasted callback, so the tmux pane disappears and capture-pane stops working —
+      // the logfile is the only place the terminal success/error JSON survives.
+      await execAsync(`tmux pipe-pane -o -t ${sessionName} "cat >> ${logFile}"`)
+      await execAsync(`chmod 600 ${logFile} 2>/dev/null || true`)
+
+      // Poll the JSON stream for the awaiting_browser_auth status carrying the URLs.
+      const maxAttempts = 8
+      const delayMs = 1500
       let loginUrl: string | null = null
 
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         await new Promise(resolve => setTimeout(resolve, delayMs))
 
-        let stdout = ''
-        try {
-          const result = await execAsync(`tmux capture-pane -t ${sessionName} -p`)
-          stdout = result.stdout
-        } catch (captureErr: any) {
-          app.log.warn({ err: captureErr, attempt }, 'tmux capture-pane failed, retrying...')
-          continue
+        const objs = await readAgentJson(logFile)
+
+        const errObj = objs.find((o: any) => o.type === 'error')
+        if (errObj) {
+          await execAsync(`tmux kill-session -t ${sessionName} 2>/dev/null || true`)
+          await rm(logFile, { force: true }).catch(() => {})
+          app.log.error({ errObj }, 'CodeRabbit login failed during initiation')
+          reply.status(500).send({ error: errObj.message || 'CodeRabbit failed to start the login flow. Please try again.' }); return
         }
 
-        // Strip ANSI escape codes before matching
-        const cleanStdout = stdout.replace(/\x1b\[[0-9;]*m/g, '')
-        const urlMatch = cleanStdout.match(/https:\/\/app\.coderabbit\.ai\/login\?[^\s\n]+/)
-        if (urlMatch) {
-          loginUrl = urlMatch[0]
+        const awaiting = objs.find((o: any) => o.status === 'awaiting_browser_auth')
+        if (awaiting && (awaiting.fallbackAuthUrl || awaiting.authUrl)) {
+          // Prefer fallbackAuthUrl (redirect_uri=coderabbit-cli://auth-callback): this is
+          // the headless copy-paste flow — the browser page shows a callback string to
+          // copy. authUrl uses redirect_uri=http://127.0.0.1:<port>/callback, a localhost
+          // server on THIS machine that an admin's remote browser can never reach.
+          loginUrl = awaiting.fallbackAuthUrl || awaiting.authUrl
           app.log.info({ attempt }, 'Captured CodeRabbit login URL')
           break
         }
 
-        app.log.info({ attempt, stdoutPreview: cleanStdout.trim().slice(-200) }, 'Login URL not yet visible, retrying...')
+        app.log.info({ attempt, objectsSeen: objs.length }, 'Login URL not yet visible, retrying...')
       }
 
       if (!loginUrl) {
         await execAsync(`tmux kill-session -t ${sessionName} 2>/dev/null || true`)
-        app.log.error('No login URL found in tmux output after all retries')
+        await rm(logFile, { force: true }).catch(() => {})
+        app.log.error('No login URL found in agent JSON output after all retries')
         reply.status(500).send({ error: 'CodeRabbit CLI did not produce a login URL within the expected time. Please try again.' }); return
       }
 
-      // Store session info
+      // Store session info (logFile included so /complete can read the terminal status)
       global.coderabbitLoginProcesses = global.coderabbitLoginProcesses || {}
-      global.coderabbitLoginProcesses[id] = { userHome, sessionName }
+      global.coderabbitLoginProcesses[id] = { userHome, sessionName, logFile }
 
       return { loginUrl, userId: id }
     } catch (err: any) {
+      await rm(logFile, { force: true }).catch(() => {})
       app.log.error({ err }, 'Failed to initiate CodeRabbit login')
-      const detail = errors.length > 0 ? errors.join('; ') : (err?.message || 'Unknown error')
-      reply.status(500).send({ error: `Failed to initiate login: ${detail}` }); return
+      reply.status(500).send({ error: `Failed to initiate login: ${err?.message || 'Unknown error'}` }); return
     }
   })
 
@@ -165,73 +213,103 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string }
     const { token } = request.body as { token: string }
 
-    if (!token) {
+    if (!token || !token.trim()) {
       reply.status(400).send({ error: 'Token is required' }); return
     }
 
+    const processInfo = global.coderabbitLoginProcesses?.[id]
+    if (!processInfo) {
+      reply.status(400).send({ error: 'No active login session. Please generate a new login URL.' }); return
+    }
+    const { userHome, sessionName, logFile } = processInfo
+
+    const cleanup = async () => {
+      await rm(logFile, { force: true }).catch(() => {})
+      if (global.coderabbitLoginProcesses?.[id] !== undefined) delete global.coderabbitLoginProcesses[id]
+    }
+
     try {
-      const processInfo = global.coderabbitLoginProcesses?.[id]
-      if (!processInfo) {
-        reply.status(400).send({ error: 'No active login session' }); return
-      }
-
       const { promisify } = await import('util')
-      const { exec } = await import('child_process')
+      const { exec, execFile } = await import('child_process')
       const execAsync = promisify(exec)
+      const execFileAsync = promisify(execFile)
 
-      // Check if tmux session still exists
+      // The CLI must still be alive and waiting for the pasted callback.
       try {
-        await execAsync(`tmux has-session -t ${processInfo.sessionName}`)
+        await execAsync(`tmux has-session -t ${sessionName}`)
       } catch {
+        await cleanup()
         reply.status(400).send({ error: 'Login session expired. Please generate a new login URL.' }); return
       }
 
-      // Send token to tmux session
-      await execAsync(`tmux send-keys -t ${processInfo.sessionName} "${token.trim()}" Enter`)
+      // Only inspect JSON produced AFTER we submit the callback.
+      const seenBefore = (await readAgentJson(logFile)).length
 
-      // Wait for authentication to complete
-      await new Promise(resolve => setTimeout(resolve, 3000))
+      // Submit the pasted token/callback to the CLI's stdin. `send-keys -l` sends the
+      // string literally (so '&' '?' '=' ':' '/' are not parsed as tmux key names), and
+      // execFile runs tmux without a shell (no escaping/injection via the callback value).
+      await execFileAsync('tmux', ['send-keys', '-t', sessionName, '-l', token.trim()])
+      await execFileAsync('tmux', ['send-keys', '-t', sessionName, 'Enter'])
 
-      // Capture output to check for errors
-      const { stdout: tmuxOutput } = await execAsync(`tmux capture-pane -t ${processInfo.sessionName} -p`)
-      
-      app.log.info({ tmuxOutput: tmuxOutput.slice(-500) }, 'Tmux output after token')
-      
-      // Kill the session
-      await execAsync(`tmux kill-session -t ${processInfo.sessionName}`)
+      // Poll for the terminal JSON. In --agent mode the flow is
+      // processing_callback → fetching_user → (success | error) and the process then
+      // exits, so we stop as soon as we see an error, a success status, or the pane dies.
+      let errObj: any = null
+      const maxAttempts = 12
+      const delayMs = 1000
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, delayMs))
 
-      // Check if authentication failed in the output
-      if (tmuxOutput.includes('Authentication failed') || tmuxOutput.includes('Invalid')) {
-        app.log.error('CodeRabbit authentication failed in tmux output')
-        reply.status(400).send({ error: 'Authentication failed - invalid token or state mismatch' }); return
+        const fresh = (await readAgentJson(logFile)).slice(seenBefore)
+        errObj = fresh.find((o: any) => o.type === 'error')
+        if (errObj) break
+
+        const success = fresh.find((o: any) => o.authenticated === true || /success|completed|logged_in|authenticated/i.test(o.status || ''))
+        let alive = true
+        try {
+          await execAsync(`tmux has-session -t ${sessionName}`)
+        } catch {
+          alive = false
+        }
+        if (success || !alive) break
       }
 
-      // Verify authentication
-      const coderabbitPath = await resolveCoderabbitPath(processInfo.userHome)
+      // Tear down the tmux session (no-op if the CLI already exited).
+      await execAsync(`tmux kill-session -t ${sessionName} 2>/dev/null || true`)
+
+      if (errObj) {
+        app.log.error({ errObj }, 'CodeRabbit authentication failed')
+        await cleanup()
+        reply.status(400).send({ error: errObj.message || 'Authentication failed — the token may be invalid or expired. Please generate a new login URL and try again.' }); return
+      }
+
+      // Source of truth: ask the CLI whether credentials are now stored & valid.
+      const coderabbitPath = await resolveCoderabbitPath(userHome)
       if (!coderabbitPath) {
+        await cleanup()
         reply.status(500).send({ error: 'CodeRabbit CLI not found' }); return
       }
-      const { stdout } = await execAsync(`${coderabbitPath} auth status --agent`, {
-        env: { ...process.env, HOME: processInfo.userHome }
-      })
 
-      app.log.info({ authStatus: stdout }, 'CodeRabbit auth status check')
-
-      const lines = stdout.trim().split('\n')
       let authenticated = false
-      for (const line of lines) {
-        try {
-          const obj = JSON.parse(line)
-          if ((obj.type === 'auth_status' || obj.type === 'status') && obj.authenticated) {
-            authenticated = true
-            break
-          }
-        } catch {}
+      try {
+        const { stdout } = await execFileAsync(coderabbitPath, ['auth', 'status', '--agent'], {
+          env: { ...process.env, HOME: userHome },
+        })
+        app.log.info({ authStatus: stdout.slice(0, 300) }, 'CodeRabbit auth status check')
+        for (const line of stdout.trim().split('\n')) {
+          try {
+            const obj = JSON.parse(line.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim())
+            if (obj.authenticated === true) { authenticated = true; break }
+          } catch {}
+        }
+      } catch (statusErr) {
+        app.log.warn({ statusErr }, 'auth status --agent check failed')
       }
 
       if (!authenticated) {
         app.log.error('CodeRabbit not authenticated after token submission')
-        reply.status(400).send({ error: 'Authentication failed' }); return
+        await cleanup()
+        reply.status(400).send({ error: 'Authentication did not complete. Make sure you pasted the full callback string, and try again promptly — the login link can expire.' }); return
       }
 
       await db
@@ -243,20 +321,19 @@ export default async function coderabbitRoutes(app: FastifyInstance) {
         })
         .where(eq(users.id, id))
 
-      // Fix ownership of all files in user home
+      // Fix ownership so the user (reviews run via runuser) can read the stored auth.json.
+      // userHome is `/home/auroracraft-<username>`, so its basename is the system user.
       try {
-        const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1)
-        if (user) {
-          await execAsync(`chown -R auroracraft-${user.username.toLowerCase()}:auroracraft-${user.username.toLowerCase()} ${processInfo.userHome}`)
-        }
+        const sysUser = userHome.split('/').pop() || ''
+        if (sysUser) await execAsync(`chown -R ${sysUser}:${sysUser} ${userHome}`)
       } catch (chownErr) {
         app.log.warn({ chownErr }, 'Failed to fix ownership, but authentication succeeded')
       }
 
-      global.coderabbitLoginProcesses?.[id] !== undefined && delete global.coderabbitLoginProcesses[id]
-
+      await cleanup()
       return { success: true }
     } catch (err) {
+      await cleanup()
       app.log.error({ err }, 'Failed to complete CodeRabbit login')
       reply.status(500).send({ error: 'Failed to complete login' }); return
     }

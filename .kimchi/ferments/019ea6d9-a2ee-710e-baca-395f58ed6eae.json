@@ -1,0 +1,17 @@
+{
+  "id": "019ea6d9-a2ee-710e-baca-395f58ed6eae",
+  "name": "Read the entire codebase of auroracraft and understand it",
+  "description": "Read the entire codebase of auroracraft and understand it properly.",
+  "status": "draft",
+  "worktree": {
+    "path": "/root/AuroraCraft",
+    "branch": "main",
+    "commit": "a31bb2cb35d44b9e3108e4c4b7385c9bd1036a8f"
+  },
+  "scoping": {},
+  "phases": [],
+  "decisions": [],
+  "memories": [],
+  "createdAt": "2026-06-08T10:49:01.421Z",
+  "updatedAt": "2026-06-08T10:49:01.421Z"
+}

@@ -8,6 +8,13 @@ import type { ModelPricing, UserTier } from '../config/pricing.js'
 /** Minimum token balance required to send messages using premium (paid) models */
 export const MIN_PREMIUM_BALANCE = 30
 
+// Hard ceiling for a single agent turn's max_tokens. The budget-derived value below can
+// balloon to tens of millions for a cheap model on a large balance; sending that as
+// max_tokens is meaningless and actively breaks providers that count max_tokens against a
+// per-minute token budget (e.g. Groq's free tier rejects the request outright). Real-time
+// billing + force-stop are the actual budget guard now, so this just stays sane.
+export const MAX_AGENT_OUTPUT_TOKENS = 32768
+
 export async function getUserTokens(userId: string): Promise<number> {
   const [user] = await db.select({ aiTokens: users.aiTokens }).from(users).where(eq(users.id, userId)).limit(1)
   return user?.aiTokens ?? 0
@@ -145,8 +152,9 @@ export function calculateMaxOutputTokens(
   // Convert output budget USD to tokens
   const maxOutputTokens = Math.floor((outputBudgetUSD / pricing.outputPer1M) * 1_000_000)
 
-  // Add a small safety margin (90%) to avoid rounding edge cases
-  return Math.max(0, Math.floor(maxOutputTokens * 0.9))
+  // Add a small safety margin (90%) to avoid rounding edge cases, and clamp to a sane
+  // ceiling so we never send an absurd (or provider-breaking) max_tokens.
+  return Math.min(MAX_AGENT_OUTPUT_TOKENS, Math.max(0, Math.floor(maxOutputTokens * 0.9)))
 }
 
 export function calculateActualCost(

@@ -50,12 +50,14 @@ Folia, hybrid servers, proxies, etc.).
 backend, OpenCode AI agent bridge, PM2 process management, TypeScript strict throughout.
 
 **AI runtime is DB-driven, not hardcoded.** Providers, models, MCPs live in the DB
-(`ai_providers` / `ai_models` / `mcps`, migrations 0019–0021). Managed at runtime from
+(`ai_providers` / `ai_models` / `mcps`, migrations 0019–0021, 0024). Managed at runtime from
 Admin Panel → AI Runtime. No hardcoded model list. Source of truth:
 `server/src/utils/ai-runtime.ts`. Pricing math only in `server/src/config/pricing.ts`.
 Paid providers route through a per-project LiteLLM proxy with multi-key routing +
 real-time per-call billing. Built-in seeded providers: OpenCode Zen (free, 2 models),
-OpenRouter (paid), NVIDIA NIM (free).
+OpenRouter (paid), NVIDIA NIM (free), Fireworks AI (paid), Google AI Studio (paid) —
+every built-in's free⇄paid is admin-editable at runtime except Zen, which stays free.
+Built-ins other than Zen seed with no models; admins add models from the UI.
 
 ---
 
@@ -132,11 +134,15 @@ Key files:
 
 Tables (migrations 0019–0021):
 - `ai_providers`: slug, base_url, kind (openai_compatible|zen), is_free, is_active, is_builtin
-- `ai_models`: provider_id FK, show_name, real_name, usages jsonb, type_tag, weight, per-1M pricing
+- `ai_models`: provider_id FK, show_name, real_name, usages jsonb, type_tag, weight, 3-tier per-1M pricing (uncached `input_per_1m` / `cached_input_per_1m` / `output_per_1m`)
 - `mcps`: name, raw OpenCode MCP config, api_type (non_api|api)
 
 Rules: free provider → 0 cost, one key per user. Paid → multiple keys per user allowed.
-Built-ins (Zen/OpenRouter/NVIDIA NIM) can't be deleted or have endpoint edited.
+Built-ins (Zen/OpenRouter/NVIDIA NIM/Fireworks AI/Google AI Studio) can't be deleted or have
+endpoint edited, but their free/paid mode IS admin-editable — except Zen (always free;
+bypasses LiteLLM, no billing meter). Gate is `kind !== 'zen'`, not `is_builtin`. Paid→free
+prunes extra per-user keys. Pricing is 3-tier: cached input falls back to the uncached input
+rate when unset (a provider reporting `cached_tokens` is never billed $0 for them).
 
 ### API Key Isolation (Per-Project)
 Keys are **never** stored in the workspace tree.
@@ -172,7 +178,12 @@ Key files:
 
 ### LiteLLM Integration
 Proxies all paid (non-Zen) providers. Handles `/responses`→`/chat/completions`
-translation, multi-key routing, and real-time billing meter.
+translation, multi-key routing, and real-time billing meter. The per-project config is
+scoped to the **selected model only** — cold start scales with deployment count (~10s for
+a few, ~40–55s for dozens), so scoping keeps the first agent message fast. Proxy spawned
+without `--detailed_debug` and with `LITELLM_LOCAL_MODEL_COST_MAP=True` (skips a ~40s
+model-cost-map fetch). The meter strips OpenAI-only fields (`promptCacheKey`,
+`safetyIdentifier`) that generic providers 400 on.
 
 **CRITICAL: Never write `mcpServers` into `opencode.json`** — schema rejects it.
 Register MCPs via HTTP API after instance starts.
@@ -234,7 +245,7 @@ Key file: `server/src/bridges/opencode.ts` — `parseThinkingTags()`
 
 ### Model Selection Persistence
 Workspace remembers chosen model per project in localStorage under
-`auroracraft:model:{projectId}`. Validated on page load against project's bridge.
+`auroracraft:model:{projectId}`. Validated on page load against the available model list (`GET /api/ai/models`).
 Key file: `client/src/pages/workspace.tsx`
 
 ### Graphify Token Savings (Product Feature — Paid Only)
@@ -251,6 +262,8 @@ Key file: `server/src/utils/graphify-service.ts`
 | Gradle deps | /var/lib/gradle/shared | ~/.gradle/caches |
 | Maven artifacts | /var/lib/maven/shared | ~/.m2/repository |
 | Graphify venv | /var/lib/graphify/shared/venv | /usr/local/bin/graphify |
+
+**Shared caches are `777` + builds run under `umask 0000`.** Each user runs as its own UID, so a shared Maven/Gradle cache only works if every entry is world-writable. `initializeSharedCaches()` does `chmod -R 777` on startup (repairing stale `755` dirs an earlier user created) and the OpenCode spawn is prefixed `umask 0000` so new `mvn`/`gradle` cache dirs stay world-writable. Without both, the 2nd user to build hits `cannot write to /var/lib/maven/shared/repository/<artifact>` (same for `/var/lib/gradle/shared/caches`). Never lower these to `755`.
 
 ### graphify (Dev Tooling — For THIS Repo)
 > Different from the end-user Graphify product feature.
@@ -289,6 +302,7 @@ When user types `/graphify`, invoke the `skill` tool with `skill: "graphify"` fi
 - `server/src/routes/ai-admin.ts` — provider/model/MCP CRUD
 - `server/src/routes/internal.ts` — POST /internal/litellm/usage (machine-to-machine)
 - `server/src/routes/graphify.ts` — enable/remove/status + graph.html viewer
+- `server/src/routes/coderabbit.ts` — admin browser-OAuth login (initiate/complete/revoke) + per-project code review
 
 ---
 
@@ -305,6 +319,17 @@ Never write `mcpServers` into `opencode.json` — OpenCode schema rejects it wit
 ### Zen Model ID Format
 Always `opencode/model-id` (e.g. `opencode/deepseek-v4-flash-free`).
 Never `opencode/opencode/` or `zen/` prefixes.
+
+### CodeRabbit Login Is Browser-OAuth, Not API Key
+Admin grants CodeRabbit per user via `coderabbit auth login --agent` driven inside **tmux**
+(`server/src/routes/coderabbit.ts`); never `--api-key`. Parse the line-delimited JSON stream.
+Give the admin the `fallbackAuthUrl` (`coderabbit-cli://auth-callback`) — `authUrl`'s
+`http://127.0.0.1:<port>/callback` localhost server is unreachable from a remote browser.
+The CLI **exits right after** processing the pasted callback, so capture the stream with
+`tmux pipe-pane` to a logfile (not `capture-pane`, which fails once the pane is gone). Submit
+the pasted token/callback with `send-keys -l` via `execFile` (literal, no shell). Truth check:
+`coderabbit auth status --agent` → `{"authenticated":true}`. No keyring needed — file fallback
+at `~/.coderabbit/auth.json` (chown to the user so `runuser` reviews can read it). Requires tmux.
 
 ### TypeScript Build Errors
 `server/tsconfig.json` uses `noEmitOnError: false` — do NOT change this.
@@ -328,6 +353,23 @@ Never use `graphify extract`. Never set GEMINI_API_KEY or GOOGLE_API_KEY in serv
 ### aurora-sandbox Not Currently Wired
 Wrapper declared but not passed to OpenCode spawn. Do not rely on it for command gating.
 Feature-level gating is done by skill presence, not the sandbox.
+
+### OpenAI-Compatible Providers — Coverage & Upstream Limits
+All 3 surfaces work with any OpenAI-compatible provider (Agent via LiteLLM; Prompt Enhancer +
+Error Prompt Maker via direct `/chat/completions` in `chat-completions-client.ts`). Upstream
+limits found in testing (NOT AuroraCraft bugs):
+- **Google AI Studio**: base `…/v1beta/openai`, real names **without** the `models/` prefix
+  (e.g. `gemini-3.5-flash`); free `AQ.` keys are 429-quota-limited under load.
+- **Groq** free tier = 8000 TPM (counts `max_tokens`): works for the prompt tools, but 429s
+  the Agent (big system prompt). Needs a higher Groq tier for agent use.
+- **Gemini 3.x preview** (incl. via Bluesminds, which proxies Google) is capacity-flaky
+  (503/504) — `gemini-2.5-flash` is a reliable fallback.
+
+### Token Caps
+Prompt tools: `ENHANCE_MAX_TOKENS=4096`, `FIX_MAX_TOKENS=6000` (`prompt-tools-engine.ts`) —
+under low TPM ceilings. Agent: `calculateMaxOutputTokens()` clamped to
+`MAX_AGENT_OUTPUT_TOKENS=32768` (`token-service.ts`) — the balance-derived value could
+otherwise balloon to tens of millions and break TPM-limited providers.
 
 ---
 

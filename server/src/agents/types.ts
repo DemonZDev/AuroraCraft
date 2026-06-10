@@ -11,7 +11,6 @@ export interface AgentExecutionContext {
   billingModelId?: string // AuroraCraft ai_models row uuid, used for token reconciliation
   speed?: string
   opencodeSessionId?: string
-  kiroSessionId?: string
   username?: string
   projectLinkId?: string
   projectName?: string
@@ -36,7 +35,6 @@ export interface AgentExecutionResult {
   error?: string
   metadata?: {
     opencodeSessionId?: string
-    kiroSessionId?: string
     parts?: MessagePart[]
   }
 }

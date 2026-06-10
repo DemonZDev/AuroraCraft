@@ -1,10 +1,7 @@
 import type { BridgeInterface } from './types.js'
 import { OpenCodeBridge } from './opencode.js'
-import { KiroBridge } from './kiro.js'
 import { processManager } from './opencode-process-manager.js'
-import { kiroProcessManager } from './kiro-process-manager.js'
 import { litellmProcessManager } from './litellm-process-manager.js'
-import { sessionEventBus } from './session-event-bus.js'
 
 class BridgeRegistry {
   private bridges = new Map<string, BridgeInterface>()
@@ -38,21 +35,16 @@ export const bridgeRegistry = new BridgeRegistry()
 export const opencodeBridge = new OpenCodeBridge()
 bridgeRegistry.register(opencodeBridge)
 
-export const kiroBridge = new KiroBridge()
-bridgeRegistry.register(kiroBridge)
-
 // Graceful shutdown: stop all bridge processes
 process.on('SIGTERM', () => {
   processManager.shutdown().catch(() => {})
-  kiroProcessManager.shutdown()
   litellmProcessManager.shutdown().catch(() => {})
 })
 process.on('SIGINT', () => {
   processManager.shutdown().catch(() => {})
-  kiroProcessManager.shutdown()
   litellmProcessManager.shutdown().catch(() => {})
 })
 
-export { processManager, kiroProcessManager, litellmProcessManager, sessionEventBus }
+export { processManager, litellmProcessManager }
 export type { BridgeInterface, BridgeTask, BridgeResult, BridgeStreamEvent, MessagePart, TodoItem, StreamEvent, StreamTodoItem } from './types.js'
 export { SubscriptionManager } from './opencode.js'

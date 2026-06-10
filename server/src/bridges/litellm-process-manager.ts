@@ -185,11 +185,13 @@ export class LiteLLMProcessManager {
       // No key file — health checks without auth will fail if master_key is set
     }
 
-    // Spawn LiteLLM with the generated config
+    // Spawn LiteLLM with the generated config. No --detailed_debug: it emits dozens of
+    // "is callback X disabled" DEBUG lines PER request (and a verbose startup), which both
+    // slows the proxy and floods the logs. Default INFO logging + the meter's own prints
+    // are enough; set LITELLM_LOG=DEBUG in env temporarily if deep tracing is needed.
     const child = spawn(litellmPath, [
       '--config', configPath,
       '--port', String(port),
-      '--detailed_debug',
     ], {
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: false,
@@ -203,6 +205,12 @@ export class LiteLLMProcessManager {
         delete childEnv.POSTGRES_URL
         delete childEnv.POSTGRES_PRISMA_URL
         childEnv.PYTHONUNBUFFERED = '1'
+        // Use the bundled model-cost map instead of fetching it from GitHub on every
+        // cold start. LiteLLM otherwise blocks for ~40s downloading
+        // model_prices_and_context_window.json before the proxy answers /health — and we
+        // don't need it at all, since per-deployment pricing + the aurora meter do the
+        // billing. This is the dominant cold-start cost for the first agent message.
+        childEnv.LITELLM_LOCAL_MODEL_COST_MAP = 'True'
         // Real-time meter identity (read by aurora_litellm_callback.py). One proxy
         // == one project == one user, so these stay valid across warm reuse.
         if (userId) childEnv.AURORA_USER_ID = userId

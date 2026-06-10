@@ -1248,15 +1248,8 @@ function ModelSelector({ selectedModel, onModelChange, onSpeedChange, availableM
 
 // ── Chat components ──────────────────────────────────────────────────
 
-function getBridgeFromModel(modelId: string): 'opencode' | 'kiro' {
-  return modelId.startsWith('kiro/') ? 'kiro' : 'opencode'
-}
-
-
-
 function ChatPanel({ projectId, selectedModel, selectedSpeed, onModelChange, onSpeedChange, onRefreshFiles, onFileSelect, autoFixPayload, onAutoFixComplete, workspaceDisabled, onAiRunningChange, stopAiRef, onBeforeSend }: {
   projectId: string
-  projectBridge?: string
   selectedModel: string
   selectedSpeed?: string
   onModelChange: (modelId: string) => void
@@ -1322,8 +1315,7 @@ function ChatPanel({ projectId, selectedModel, selectedSpeed, onModelChange, onS
     if (resolvedSessionId) {
       setPendingMessage({ content: autoFixPayload.prompt, model: autoFixPayload.model, promptToolJobId: autoFixPayload.promptToolJobId })
     } else {
-      const bridge = getBridgeFromModel(autoFixPayload.model)
-      createSession({ bridge }).then((session) => {
+      createSession({}).then((session) => {
         setActiveSessionId(session.id)
         setPendingMessage({ content: autoFixPayload.prompt, model: autoFixPayload.model, promptToolJobId: autoFixPayload.promptToolJobId })
       })
@@ -1446,7 +1438,7 @@ const ChatInput = memo(function ChatInput({ onSend, disabled, isRunning, isCance
 
 function ChatEmptyState({ onSessionCreated, createSession, selectedModel, selectedSpeed, onModelChange, onSpeedChange, onBeforeSend }: {
   onSessionCreated: (id: string, message: string) => void
-  createSession: (body?: { bridge?: 'opencode' | 'kiro' }) => Promise<{ id: string }>
+  createSession: (body?: Record<string, never>) => Promise<{ id: string }>
   selectedModel: string
   selectedSpeed?: string
   onModelChange: (modelId: string) => void
@@ -1472,8 +1464,7 @@ function ChatEmptyState({ onSessionCreated, createSession, selectedModel, select
         onSend={(msg) => {
           const deliver = (finalPrompt: string) => {
             setIsCreating(true)
-            const bridge = getBridgeFromModel(selectedModel)
-            createSession({ bridge }).then((session) => onSessionCreated(session.id, finalPrompt)).catch(() => setIsCreating(false))
+            createSession({}).then((session) => onSessionCreated(session.id, finalPrompt)).catch(() => setIsCreating(false))
           }
           if (onBeforeSend) onBeforeSend(msg, deliver)
           else deliver(msg)
@@ -1540,7 +1531,7 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
       resetStream()
       streamStartMessageCountRef.current = messages.length
       completionHandledRef.current = false
-      void sendMessage({ content: pendingMessage.content, model: pendingMessage.model, bridge: getBridgeFromModel(pendingMessage.model), speed: selectedSpeed, promptToolJobId: pendingMessage.promptToolJobId }).catch(() => setAwaitingStream(false))
+      void sendMessage({ content: pendingMessage.content, model: pendingMessage.model, speed: selectedSpeed, promptToolJobId: pendingMessage.promptToolJobId }).catch(() => setAwaitingStream(false))
       onPendingMessageSent?.()
     }
   }, [pendingMessage, isConnected, sendMessage, onPendingMessageSent, resetStream, messages.length, selectedSpeed])
@@ -1554,7 +1545,7 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
         resetStream()
         streamStartMessageCountRef.current = messages.length
         completionHandledRef.current = false
-        void sendMessage({ content: pendingMessage.content, model: pendingMessage.model, bridge: getBridgeFromModel(pendingMessage.model), speed: selectedSpeed, promptToolJobId: pendingMessage.promptToolJobId }).catch(() => setAwaitingStream(false))
+        void sendMessage({ content: pendingMessage.content, model: pendingMessage.model, speed: selectedSpeed, promptToolJobId: pendingMessage.promptToolJobId }).catch(() => setAwaitingStream(false))
         onPendingMessageSent?.()
       }
     }, 5000)
@@ -1634,7 +1625,7 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
     prevFileChangesRef.current = 0
     prevCompletedOpsRef.current = 0
     try {
-      await sendMessage({ content: message, model: selectedModel, bridge: getBridgeFromModel(selectedModel), speed: selectedSpeed })
+      await sendMessage({ content: message, model: selectedModel, speed: selectedSpeed })
     } catch {
       setAwaitingStream(false)
     }
@@ -2921,21 +2912,25 @@ const openInBuiltAutoFix = () => {
     }
 
     return (
-      <div className="shrink-0 relative flex items-center justify-center gap-2.5 bg-gradient-to-r from-primary/[0.03] via-primary/[0.06] to-primary/[0.03] border-b border-primary/10 py-2 px-4 z-50 overflow-hidden">
-        <span className="inline-flex items-center gap-1">
-          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" style={{ animationDelay: '0ms' }} />
-          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" style={{ animationDelay: '200ms' }} />
-          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" style={{ animationDelay: '400ms' }} />
+      <div className="shrink-0 relative flex items-center justify-center border-b border-primary/10 bg-gradient-to-r from-primary/[0.03] via-primary/[0.06] to-primary/[0.03] py-2 px-4 z-50 overflow-hidden">
+        {/* Light band sweeping across the banner */}
+        <span aria-hidden className="pointer-events-none absolute inset-0 animate-aurora-sweep bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
+        <span className="relative flex items-center gap-2.5">
+          <span className="inline-flex items-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary animate-aurora-bounce" style={{ animationDelay: '0ms' }} />
+            <span className="h-1.5 w-1.5 rounded-full bg-primary animate-aurora-bounce" style={{ animationDelay: '160ms' }} />
+            <span className="h-1.5 w-1.5 rounded-full bg-primary animate-aurora-bounce" style={{ animationDelay: '320ms' }} />
+          </span>
+          <span className="text-sm font-medium text-primary">{message}</span>
+          {onStop && (
+            <button
+              onClick={onStop}
+              className="ml-1 flex items-center gap-1 rounded-md bg-destructive/10 hover:bg-destructive/20 px-2 py-0.5 text-xs font-medium text-destructive transition-colors"
+            >
+              <Square className="h-3 w-3" /> {stopLabel}
+            </button>
+          )}
         </span>
-        <span className="text-sm font-medium text-primary">{message}</span>
-        {onStop && (
-          <button
-            onClick={onStop}
-            className="ml-1 flex items-center gap-1 rounded-md bg-destructive/10 hover:bg-destructive/20 px-2 py-0.5 text-xs font-medium text-destructive transition-colors"
-          >
-            <Square className="h-3 w-3" /> {stopLabel}
-          </button>
-        )}
       </div>
     )
   })()
@@ -3082,7 +3077,6 @@ const openInBuiltAutoFix = () => {
             </div>
             <ChatPanel
               projectId={project.id}
-              projectBridge={project.bridge}
               selectedModel={selectedModel}
               selectedSpeed={selectedSpeed}
               onModelChange={setSelectedModel}
@@ -3675,20 +3669,7 @@ const openInBuiltAutoFix = () => {
   return (
     <div className="flex h-screen flex-col bg-background">
       <ToastContainer />
-      {isWorkspaceLocked && (
-        <div className="shrink-0 flex items-center justify-center gap-2 bg-primary/90 py-2 px-4 text-sm font-medium text-primary-foreground backdrop-blur animate-pulse z-50">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <span>{isReviewLocked ? 'Review is ongoing, please wait' : 'AI is generating code, please wait'}</span>
-          {aiRunning && (
-            <button
-              onClick={() => stopAiRef.current?.()}
-              className="ml-2 flex items-center gap-1 rounded bg-destructive px-2 py-0.5 text-xs text-destructive-foreground hover:bg-destructive/80"
-            >
-              <Square className="h-3 w-3" /> Stop
-            </button>
-          )}
-        </div>
-      )}
+      {workspaceBanner}
       {reviewLock?.status === 'error' && (
         <div className="shrink-0 flex items-center justify-between gap-2 bg-red-500/90 py-2 px-4 text-sm font-medium text-white backdrop-blur z-50">
           <div className="flex items-center gap-2">
@@ -3821,7 +3802,6 @@ const openInBuiltAutoFix = () => {
               </div>
               <ChatPanel
               projectId={project.id}
-              projectBridge={project.bridge}
               selectedModel={selectedModel}
               selectedSpeed={selectedSpeed}
               onModelChange={setSelectedModel}
@@ -3862,7 +3842,6 @@ const openInBuiltAutoFix = () => {
               </div>
               <ChatPanel
               projectId={project.id}
-              projectBridge={project.bridge}
               selectedModel={selectedModel}
               selectedSpeed={selectedSpeed}
               onModelChange={setSelectedModel}

@@ -23,7 +23,7 @@ export function useAgentSessions(projectId: string) {
   })
 
   const createSessionMutation = useMutation({
-    mutationFn: (body?: { bridge?: 'opencode' | 'kiro' }) =>
+    mutationFn: (body?: Record<string, never>) =>
       api.post<AgentSession>(`/projects/${projectId}/agent/sessions`, body ?? {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'agent', 'sessions'] })
@@ -70,8 +70,8 @@ export function useAgentSession(projectId: string, sessionId: string) {
   }, [queryClient, projectId, sessionId, refetch])
 
   const sendMessageMutation = useMutation({
-    mutationFn: ({ content, model, bridge, speed, displayContent, promptToolJobId }: { content: string; model?: string; bridge?: 'opencode' | 'kiro'; speed?: string; displayContent?: string; promptToolJobId?: string }) =>
-      api.post<AgentMessage>(`/projects/${projectId}/agent/sessions/${sessionId}/messages`, { content, model, bridge, speed, displayContent, promptToolJobId }),
+    mutationFn: ({ content, model, speed, displayContent, promptToolJobId }: { content: string; model?: string; speed?: string; displayContent?: string; promptToolJobId?: string }) =>
+      api.post<AgentMessage>(`/projects/${projectId}/agent/sessions/${sessionId}/messages`, { content, model, speed, displayContent, promptToolJobId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'agent', 'sessions', sessionId] })
     },

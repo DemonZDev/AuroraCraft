@@ -1,59 +1,8 @@
 import { useState } from 'react'
-import { Loader2, CheckCircle2, XCircle, Terminal, Shield, Coins, User as UserIcon, KeyRound, Plus, Trash2, Pencil, Check, X } from 'lucide-react'
+import { Loader2, Shield, Coins, User as UserIcon, KeyRound, Plus, Trash2, Pencil, Check, X } from 'lucide-react'
 import { useAdminUsers } from '@/hooks/use-admin'
 import { useUserKeys, useUserKeyMutations, type UserProviderKeyRow, type UserProviderKey } from '@/hooks/use-ai-admin'
-import { api } from '@/lib/api'
 import { GlassyConfirmModal, GlassyPromptModal } from '@/components/ui/glassy'
-import type { KiroAuthStatus } from '@/types'
-
-function KiroAuthButton({ userId }: { userId: string }) {
-  const [status, setStatus] = useState<KiroAuthStatus | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  const checkStatus = async () => {
-    setLoading(true)
-    try {
-      const result = await api.get<KiroAuthStatus>(`/admin/kiro/status/${userId}`)
-      setStatus(result)
-    } catch {
-      setStatus(null)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  if (loading) {
-    return <Loader2 className="h-3.5 w-3.5 animate-spin text-text-dim" />
-  }
-
-  if (status) {
-    return (
-      <div className="flex items-center gap-1.5">
-        {status.authenticated ? (
-          <span className="inline-flex items-center gap-1 text-xs text-success">
-            <CheckCircle2 className="h-3 w-3" />
-            Kiro Auth
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1 text-xs text-warning">
-            <XCircle className="h-3 w-3" />
-            No Kiro
-          </span>
-        )}
-      </div>
-    )
-  }
-
-  return (
-    <button
-      onClick={checkStatus}
-      className="inline-flex items-center gap-1 rounded-md bg-surface-hover px-2 py-1 text-[11px] text-text-muted transition-colors hover:bg-primary/10 hover:text-primary"
-    >
-      <Terminal className="h-3 w-3" />
-      Check Kiro
-    </button>
-  )
-}
 
 export default function AdminUsersPage() {
   const { users, isLoading, refetch } = useAdminUsers()
@@ -271,7 +220,6 @@ export default function AdminUsersPage() {
                 <th className="px-4 py-3 text-left font-medium text-text-muted">Tokens</th>
                 <th className="px-4 py-3 text-left font-medium text-text-muted">CodeRabbit</th>
                 <th className="px-4 py-3 text-left font-medium text-text-muted">Joined</th>
-                <th className="px-4 py-3 text-left font-medium text-text-muted">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -370,9 +318,6 @@ export default function AdminUsersPage() {
                   <td className="px-4 py-3 text-text-dim">
                     {new Date(user.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                   </td>
-                  <td className="px-4 py-3">
-                    <KiroAuthButton userId={user.id} />
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -420,7 +365,7 @@ export default function AdminUsersPage() {
             ) : (
               <>
                 <div className="mt-4 rounded-lg border border-border bg-background p-4">
-                  <p className="text-sm font-medium text-text mb-2">Step 1: Open this URL in your browser</p>
+                  <p className="text-sm font-medium text-text mb-2">Step 1: Open this URL in your browser and sign in</p>
                   <a
                     href={loginUrl}
                     target="_blank"
@@ -429,12 +374,15 @@ export default function AdminUsersPage() {
                   >
                     {loginUrl}
                   </a>
-                  <p className="text-sm font-medium text-text mb-2">Step 2: After login, paste the token here</p>
+                  <p className="text-sm font-medium text-text mb-2">Step 2: Paste the callback string here</p>
+                  <p className="text-xs text-text-muted mb-2">
+                    After signing in, CodeRabbit shows a callback string starting with <code className="rounded bg-surface px-1">coderabbit-cli://</code>. Copy it and paste it below.
+                  </p>
                   <input
                     type="text"
                     value={token}
                     onChange={(e) => setToken(e.target.value)}
-                    placeholder="Paste token here"
+                    placeholder="coderabbit-cli://auth-callback?..."
                     className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-dim focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>

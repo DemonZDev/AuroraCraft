@@ -34,12 +34,19 @@ export const SHARED_CACHE_PATHS = {
 export async function initializeSharedCaches(): Promise<void> {
   console.log('[SharedCache] Initializing shared cache directories...')
 
-  // Create all base directories with 755 (owner rwx, group rx, others rx)
-  // We use sudo since /var/lib/ requires root
+  // Create all base directories with 777 (world rwx).
+  // These caches are shared across every auroracraft-* user, and each user
+  // runs as its own UID (no shared group — see CLAUDE.md), so the only way a
+  // second user can write artifacts a first user hasn't already created is for
+  // the whole tree to be world-writable. The recursive chmod also REPAIRS any
+  // sub-directories an earlier user created at 755 (default umask), which would
+  // otherwise block other users from writing into them (e.g. a Maven
+  // "cannot write to .../repository/<artifact>" failure during `mvn package`).
+  // We use sudo since /var/lib/ requires root.
   for (const [name, paths] of Object.entries(SHARED_CACHE_PATHS)) {
     try {
       await execFileAsync('sudo', ['mkdir', '-p', paths.base])
-      await execFileAsync('sudo', ['chmod', '-R', '755', paths.base])
+      await execFileAsync('sudo', ['chmod', '-R', '777', paths.base])
       console.log(`[SharedCache] ${name}: ${paths.base}`)
     } catch (err) {
       console.error(`[SharedCache] Failed to initialize ${name}:`, err)

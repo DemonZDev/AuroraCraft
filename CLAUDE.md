@@ -38,7 +38,7 @@ AuroraCraft is an AI-powered Minecraft plugin development platform. Users descri
 
 **Tech Stack:** React 19 + Vite 7 frontend, Fastify 5 + Drizzle ORM + PostgreSQL backend, OpenCode AI agent bridge, PM2 process management, TypeScript strict mode throughout.
 
-**AI runtime is DB-driven, not hardcoded (read this first).** AI providers, models, and MCP servers live in the database (`ai_providers` / `ai_models` / `mcps`, migrations 0019–0021) and are managed at runtime from **Admin Panel → AI Runtime** — there is no hardcoded model list to edit. `server/src/config/pricing.ts` now holds ONLY pricing math; the data source is `server/src/utils/ai-runtime.ts`. Paid providers route through a per-project **LiteLLM proxy** with **multi-key routing + real-time per-call billing** (a user can hold many keys per paid provider, each weighted with a dollar limit). See [API Key Routing & Real-Time Billing](#api-key-routing--real-time-billing) below. Built-in seeded providers: OpenCode Zen (free, 2 models), OpenRouter (paid), NVIDIA NIM (free).
+**AI runtime is DB-driven, not hardcoded (read this first).** AI providers, models, and MCP servers live in the database (`ai_providers` / `ai_models` / `mcps`, migrations 0019–0021, 0024) and are managed at runtime from **Admin Panel → AI Runtime** — there is no hardcoded model list to edit. `server/src/config/pricing.ts` now holds ONLY pricing math; the data source is `server/src/utils/ai-runtime.ts`. Paid providers route through a per-project **LiteLLM proxy** with **multi-key routing + real-time per-call billing** (a user can hold many keys per paid provider, each weighted with a dollar limit). See [API Key Routing & Real-Time Billing](#api-key-routing--real-time-billing) below. Built-in seeded providers: OpenCode Zen (free, 2 models), OpenRouter (paid), NVIDIA NIM (free), **Fireworks AI (paid)**, **Google AI Studio (paid)** — seeded by migrations 0020 (OpenRouter, NVIDIA NIM) and 0024 (Fireworks, Google). Every built-in's free/paid mode is admin-editable at runtime **except** Zen, which is locked free. (Built-ins other than Zen are seeded with **no models** — admins add models from the UI.)
 
 ## Development Commands
 
@@ -100,6 +100,9 @@ Every registered user gets a Linux system user (`auroracraft-{username}`) with t
 - `server/src/bridges/opencode-process-manager.ts` — Spawns OpenCode as the user
 
 ### OpenCode Instance Lifecycle
+
+> **OpenCode is the sole AI bridge.** The former **Kiro CLI** bridge was fully removed — migration `0023_drop_kiro_bridge.sql` drops `projects.bridge`, `agent_sessions.bridge`, `agent_sessions.kiro_session_id`, and the `project_bridge` enum; the bridge-selector UI is gone from project creation. The `BridgeRegistry` abstraction (`server/src/bridges/index.ts`) is retained but registers only `OpenCodeBridge`, so there is **no per-project bridge selection** anymore. Do not reintroduce a `bridge` field or a Kiro code path.
+
 Each AI message spawns a fresh OpenCode instance on a dynamic port (9000-9999). The instance runs until idle timeout (120s), then is killed and the port is released.
 
 **Flow:**
@@ -117,12 +120,12 @@ Each AI message spawns a fresh OpenCode instance on a dynamic port (9000-9999). 
 ### AI Runtime (Admin-Managed: Providers, Models, MCPs)
 **Providers, models, and MCPs are DB-managed — never hardcoded.** Added/edited at runtime from Admin Panel → AI Runtime; no code edits, no redeploy. (Old hardcoded `config/ai-models.ts` data + `config/nim-models.ts` were removed in the AI Runtime redesign, migration 0019; the leftover pricing math now lives in `config/pricing.ts`.)
 
-**Tables (migrations 0019–0021):**
+**Tables (migrations 0019–0021; built-in providers extended by 0024):**
 - `ai_providers` (`slug`, `base_url`, `kind` `openai_compatible|zen`, `is_free`, `is_active`, `is_builtin`) — `server/src/db/schema/ai-providers.ts`
-- `ai_models` (`provider_id` FK, `show_name`, `real_name` upstream id, `usages` jsonb `agent|prompt_enhancer|error_prompt_maker`, `type_tag`, `weight`, per-1M pricing) — `ai-models.ts`
+- `ai_models` (`provider_id` FK, `show_name`, `real_name` upstream id, `usages` jsonb `agent|prompt_enhancer|error_prompt_maker`, `type_tag`, `weight`, **3-tier per-1M pricing**: `input_per_1m` (uncached), optional `cached_input_per_1m`, `output_per_1m`) — `ai-models.ts`
 - `mcps` (`name`, raw OpenCode MCP `config`, `api_type` `non_api|api`) — `mcps.ts`
 
-**Rules:** provider `is_free` ⇒ models cost 0 tokens, any user may hold a key, **one key per user**; paid ⇒ keys require paid users and **multiple keys per user** allowed. Within (`show_name`, overlapping usage), `type_tag` AND `weight` must be unique. Built-ins (Zen/OpenRouter/NVIDIA NIM, `is_builtin`) can't be deleted and their endpoint can't be edited. Demotion to free blocked while a user holds any paid-provider key.
+**Rules:** provider `is_free` ⇒ models cost 0 tokens, any user may hold a key, **one key per user**; paid ⇒ keys require paid users and **multiple keys per user** allowed. Within (`show_name`, overlapping usage), `type_tag` AND `weight` must be unique. Built-ins (Zen/OpenRouter/NVIDIA NIM/Fireworks AI/Google AI Studio, `is_builtin`) can't be deleted and their endpoint can't be edited — **but their free/paid mode IS admin-editable** (the lock is keyed off `kind !== 'zen'`, not `is_builtin`). **Zen alone stays permanently free** because it bypasses LiteLLM and has no billing meter; every other built-in can be flipped free⇄paid at runtime (paid→free triggers the same per-user key prune as any other provider). Demotion of a *user* to free is still blocked while that user holds any paid-provider key.
 
 **Single source of truth:** `server/src/utils/ai-runtime.ts` (`resolveModelById`, `listModelsForUsage`, `getRoutedKeysForProvider`, `getUserRoutedKeysByProvider`, `getUserProviderKeyMap`). MCP resolution: `server/src/utils/mcp-runtime.ts`. Admin CRUD: `server/src/routes/ai-admin.ts`.
 
@@ -148,7 +151,7 @@ For **paid providers**, a user can hold multiple keys and AuroraCraft routes acr
 
 **Real-time dual-ledger billing:** a Python meter (`aurora_litellm_callback.py`, embedded in `litellm-config.ts` and shipped into each project's LiteLLM config dir) fires after every successful call and POSTs real usage to `POST /internal/litellm/usage` (shared-secret, `server/src/routes/internal.ts`). Each call debits BOTH ledgers from the same usage: the **user's token balance** (`calculateTokenCost` = ×1.2 commission ×1000) and the **serving key's `used_usd`** (raw provider $, no commission). If balance hits 0 mid-run, the meter's pre-call hook refuses further calls AND the backend force-stops OpenCode. Balance is clamped at 0 (never negative). Same metering applies to the **Prompt Enhancer + Error Prompt Maker** (`prompt-tools-engine.ts` `meteredChatCompletion`, direct provider calls over the chain, not LiteLLM).
 
-**Pricing math** (`server/src/config/pricing.ts`): `$1 = 1000 tokens`, `TOKEN_MULTIPLIER = 1.2`. `calculateTokenCost(in,out,pricing,cached)` = user charge (×1.2 ×1000, ceil). `calculateProviderCostUsd(...)` = raw $ for the key ledger. Both from the same token counts; only the multiplier differs. Free-provider models always cost 0.
+**Pricing math** (`server/src/config/pricing.ts`): `$1 = 1000 tokens`, `TOKEN_MULTIPLIER = 1.2`. Pricing is **3-tier**: uncached input, cached input, and output (each per 1M). `calculateTokenCost(in,out,pricing,cached)` = user charge (×1.2 ×1000, ceil); `calculateProviderCostUsd(...)` = raw $ for the key ledger. Both split `in` into `cached` + uncached: cached tokens bill at `cachedInputPer1M` **when set, else fall back to the uncached input rate** — a provider that reports `cached_tokens` is never billed $0 for them. Both from the same token counts; only the multiplier differs. Free-provider models always cost 0.
 
 **Key files:**
 - `server/src/utils/ai-runtime.ts` — routed-key resolvers
@@ -221,13 +224,17 @@ OpenCode plugins, Gradle dependencies, and Maven artifacts are shared across all
 
 **Permissions:** Shared directories use `777` permissions because each user runs as their own UID. A group-based approach would require `sg` on every `runuser` call, which is fragile. (The Graphify venv is `755` — read-only/execute for all users — since nothing writes into it; per-project graphs are written into each user's own workspace.)
 
+**Why `777` AND `umask 0000` (multi-user write correctness — read this before touching build perms):** A shared Maven/Gradle cache written by per-UID users has a subtle failure mode. With the default `umask 022`, the **first** user to download an artifact creates its directory at `755` owned by *that* user, so the **next** user's build can't write into it → `mvn package`/`gradle build` fails with `cannot write to /var/lib/maven/shared/repository/<artifact>` (Gradle hits the identical wall under `/var/lib/gradle/shared/caches`). Two complementary guards prevent this:
+- `initializeSharedCaches()` (`server/src/utils/shared-cache.ts`) does `chmod -R 777` (NOT `755`) on every server startup — this both sets the bases world-writable AND **repairs** any sub-dirs an earlier user left at `755`.
+- The OpenCode spawn shell command (`opencode-process-manager.ts`) is prefixed with **`umask 0000`** so every dir/file the AI's `mvn`/`gradle` creates in the shared cache is world-writable (`777`/`666`) from the start — preventing the lockout instead of only repairing it. This applies to both build tools (same shell). Do **not** lower the chmod back to `755` or drop the `umask`.
+
 **Setup:** Symlinks are automatically created during user registration by `server/src/utils/shared-cache.ts`. The shared directories must be initialized before the first user registration (see README Step 15).
 
 ## Key Patterns
 
 ### Database Schema
 - **Users:** `server/src/db/schema/users.ts` — User accounts, roles (admin/user), token balances
-- **Projects:** `server/src/db/schema/projects.ts` — Project metadata, software type, language, compiler, bridge, visibility, Graphify state (`graphifyEnabled`, `graphifyStatus`, `graphifyBuiltAt`)
+- **Projects:** `server/src/db/schema/projects.ts` — Project metadata, software type, language, compiler, visibility, Graphify state (`graphifyEnabled`, `graphifyStatus`, `graphifyBuiltAt`)
 - **Agent Sessions:** `server/src/db/schema/agent-sessions.ts` — OpenCode session tracking, model, provider, speed
 - **Agent Messages:** `server/src/db/schema/agent-messages.ts` — Chat history, role (user/assistant), parts (text/thinking/tool)
 - **AI Providers / Models / MCPs:** `server/src/db/schema/ai-providers.ts`, `ai-models.ts`, `mcps.ts` — admin-managed AI runtime (DB-driven, not hardcoded)
@@ -248,10 +255,10 @@ OpenCode plugins, Gradle dependencies, and Maven artifacts are shared across all
 - **Projects:** `server/src/routes/projects.ts` — CRUD, file tree, download, fork, community features
 - **Agents:** `server/src/routes/agents.ts` — Create session, send message (SSE), stop session; resolves model + routed keys, provisions LiteLLM
 - **Admin:** `server/src/routes/admin.ts` — User management, token grants/deductions, **per-user multi-key CRUD** (provider keys with weight/limit/label, reset-usage, delete-by-keyId; MCP keys), stats
-- **AI Runtime (admin):** `server/src/routes/ai-admin.ts` — CRUD for providers / models / MCPs (`/api/admin/ai/...`); paid→free provider toggle prunes extra keys
+- **AI Runtime (admin):** `server/src/routes/ai-admin.ts` — CRUD for providers / models / MCPs (`/api/admin/ai/...`); paid→free provider toggle prunes extra keys (free/paid edit is allowed for every provider except Zen — the built-in OpenRouter / NVIDIA NIM / Fireworks AI / Google AI Studio are all editable)
 - **Internal (machine-to-machine):** `server/src/routes/internal.ts` — `POST /internal/litellm/usage` real-time meter (shared-secret, not auth-middleware)
 - **Prompt Tools (enhancer/maker):** `server/src/routes/prompt-tools.ts` — Prompt Enhancer + Error Prompt Maker jobs (now billed per call over the key chain)
-- **CodeRabbit:** `server/src/routes/coderabbit.ts` — AI code review for uncommitted changes
+- **CodeRabbit:** `server/src/routes/coderabbit.ts` — admin-driven **browser OAuth** login (`/api/admin/users/:id/coderabbit/initiate` → `/complete` → `/revoke`) plus per-project AI code review of uncommitted changes (`/api/projects/:id/coderabbit/...`). Login is OAuth, **not** API-key based — see the [CodeRabbit OAuth login](#coderabbit-login-is-browser-oauth-not-api-key) gotcha
 - **GitHub:** `server/src/routes/github.ts` — OAuth callback, repo import
 - **Graphify:** `server/src/routes/graphify.ts` — Enable/remove/status + `graph.html` viewer (paid-only)
 
@@ -264,7 +271,7 @@ Some models (DeepSeek via Fireworks/Blueminds) emit reasoning as plain text rath
 **Key file:** `server/src/bridges/opencode.ts` — `parseThinkingTags()` function
 
 ### Model Selection Persistence
-The workspace remembers the chosen AI model and speed per project across page refreshes. Selection is saved to `localStorage` under key `auroracraft:model:{projectId}`. On page load, the saved model is validated against the project's bridge (Kiro vs OpenCode).
+The workspace remembers the chosen AI model and speed per project across page refreshes. Selection is saved to `localStorage` under key `auroracraft:model:{projectId}`. On page load, the saved model is validated against the available model list (from `GET /api/ai/models`); if it is no longer available it falls back to the first usable model.
 
 **Key file:** `client/src/pages/workspace.tsx` — `useEffect` hook loads saved model from localStorage
 
@@ -291,11 +298,19 @@ Never write `mcpServers` into `opencode.json` — OpenCode's schema rejects it (
 ### Zen Model ID Format
 Zen models always use the `opencode/` prefix (e.g., `opencode/deepseek-v4-flash-free`). Never use `opencode/opencode/` or `zen/` prefixes.
 
+### CodeRabbit Login Is Browser-OAuth, Not API Key
+Admin grants a user CodeRabbit access via a **browser OAuth** flow (`--agent` mode), never an API key (`coderabbit auth login --api-key` is intentionally unused — some plans don't offer keys). `/initiate` and `/complete` (`server/src/routes/coderabbit.ts`) drive `coderabbit auth login --agent` inside a **tmux** session and parse its line-delimited JSON state machine (`starting_login → awaiting_browser_auth → processing_callback → fetching_user → success|error`). Hard-won details that are easy to regress:
+- **Give the admin the `fallbackAuthUrl`** (`redirect_uri=coderabbit-cli://auth-callback`), not `authUrl`. `authUrl` uses a `http://127.0.0.1:<port>/callback` localhost server on *this* machine that a remote admin browser can never reach (the original "callback by localhost" bug). The page for the fallback URL shows a copyable callback string.
+- **Capture via `tmux pipe-pane` to a logfile, not `capture-pane`.** In `--agent` mode the CLI process **exits the instant it processes the pasted callback**, so the pane disappears and `capture-pane` fails with "can't find pane" — the logfile is the only place the terminal success/error JSON survives. (The old interactive flow also emitted the URL as an OSC 8 hyperlink that `capture-pane -p` without `-e` silently stripped.)
+- **Submit the pasted callback with `tmux send-keys -l <value>` via `execFile`** (no shell): `-l` sends it literally so `& ? = : /` aren't parsed as key names, and `execFile` avoids shell injection from the URL.
+- **Source of truth is `coderabbit auth status --agent`** → `{"authenticated":true}`. The pasted value can be a bare token OR a full `coderabbit-cli://…`/`http://127.0.0.1/callback?…` string — the CLI parses `access_token`+`state` out of any of them.
+- **No keyring needed:** this server has no `libsecret`, so CodeRabbit falls back to file storage at `~/.coderabbit/auth.json`. `/complete` `chown`s it to `auroracraft-{username}` so reviews (run via `runuser`) can read it. Requires **tmux** installed.
+
 ### LiteLLM Integration (Multi-Key Routing + Real-Time Meter)
 LiteLLM proxies **all paid (non-Zen) OpenAI-compatible providers** — it handles `/responses`→`/chat/completions` translation, ordered multi-key routing, and hosts the real-time billing meter. Zen bypasses it (native `opencode/<id>`).
 
 **How it works:**
-1. On a paid-model message, the backend builds a per-project `litellm.yaml` with **one deployment per usable key** (ordered by weight via `order`), each carrying `model_info.aurora_key_id` + raw per-token pricing, plus `num_retries` and the meter callback.
+1. On a paid-model message, the backend builds a per-project `litellm.yaml` with **one deployment per usable key** (ordered by weight via `order`), each carrying `model_info.aurora_key_id` + raw per-token pricing, plus `num_retries` and the meter callback. The config is scoped to **only the selected model** (× its routed keys), not every model the user has keys for — LiteLLM's cold start scales with deployment count, so scoping keeps the first agent message fast (see the cold-start gotcha below). `agents.ts` filters `listModelsForLiteLLM('agent')` down to the resolved model.
 2. The meter (`aurora_litellm_callback.py`) is shipped into the project's config dir; `litellm-process-manager` passes `AURORA_USER_ID/PROJECT_DIR/CALLBACK_BASE/INTERNAL_SECRET` env so it can POST usage back.
 3. LiteLLM is spawned per-project on a dynamic port; OpenCode routes through it. The proxy is restarted when the config hash changes (e.g. a key exhausted and dropped out).
 4. After each call the meter reports usage → backend bills user + key in real time (see [API Key Routing & Real-Time Billing](#api-key-routing--real-time-billing)). There is **no** LiteLLM-level `max_budget` / token-USD safety net anymore — the meter is the enforcement.
@@ -305,7 +320,20 @@ LiteLLM proxies **all paid (non-Zen) OpenAI-compatible providers** — it handle
 - `server/src/utils/litellm-config.ts` — multi-deployment config gen + embedded Python meter + master key persistence
 - `server/src/routes/agents.ts` — starts LiteLLM before OpenCode for paid models (passes the routed key set)
 
-**Installation:** shared Python venv at `/var/lib/litellm/shared/venv/bin/litellm` (globally accessible). **Requires `httpx`** in that venv for the meter (README Step 15.7). Env: `LITELLM_PORT_MIN/MAX`, `LITELLM_IDLE_TIMEOUT`, `LITELLM_NUM_RETRIES`, optional `LITELLM_INTERNAL_SECRET` (falls back to `SESSION_SECRET`).
+**Installation:** shared Python venv at `/var/lib/litellm/shared/venv/bin/litellm` (globally accessible). **Requires `httpx`** in that venv for the meter (README Step 15.7). Env: `LITELLM_PORT_MIN/MAX`, `LITELLM_IDLE_TIMEOUT`, `LITELLM_NUM_RETRIES`, optional `LITELLM_INTERNAL_SECRET` (falls back to `SESSION_SECRET`). The child proxy is spawned **without `--detailed_debug`** (it logged dozens of lines per request) and with **`LITELLM_LOCAL_MODEL_COST_MAP=True`** set by `litellm-process-manager.ts` — the latter skips a ~40s startup fetch of LiteLLM's model-cost map from GitHub (billing is done by the meter, so the map is unused).
+
+### LiteLLM Cold Start Scales With Deployment Count
+The per-project proxy's cold start (spawn → `/health` 200) scales with the number of deployments (one per model×key): ~10s for a few, ~40–55s for dozens. This — not the model — is the "first message feels slow" cost (the model call is a few seconds). Mitigations already in place: the config is scoped to the **selected model only** (`agents.ts`), `LITELLM_LOCAL_MODEL_COST_MAP=True`, and no `--detailed_debug`. The warm proxy is reused within `LITELLM_IDLE_TIMEOUT`; switching models triggers a small-config reload, not a 40s one.
+
+### OpenAI-Compatible Provider Coverage & Upstream Limits
+All three surfaces work with any OpenAI-compatible provider — the **Agent** routes through LiteLLM; the **Prompt Enhancer + Error Prompt Maker** call `/chat/completions` directly (`chat-completions-client.ts`, which reads `content`, `reasoning_content`, and `prompt_tokens_details.cached_tokens`). Known **upstream** limits found in provider testing (not AuroraCraft bugs):
+- **Google AI Studio** is OpenAI-compatible at `https://generativelanguage.googleapis.com/v1beta/openai` — set the model **real name without** the `models/` prefix (e.g. `gemini-3.5-flash`). Free-tier (`AQ.`) keys are quota-limited (429 `RESOURCE_EXHAUSTED`) under load.
+- **Groq** free tier caps at 8000 TPM and counts `max_tokens` against it — fine for the prompt tools, but an agent request (large system prompt) 429s on every key. Needs a higher Groq tier for the Agent.
+- **Gemini 3.x preview** models (incl. via Bluesminds, which proxies Google) are capacity-flaky (503/504); `gemini-2.5-flash` is a reliable fallback.
+
+### Prompt-Tool & Agent Token Caps
+- Prompt tools: `ENHANCE_MAX_TOKENS = 4096`, `FIX_MAX_TOKENS = 6000` (`prompt-tools-engine.ts`) — kept under low TPM ceilings (e.g. Groq's 8000); an enhanced/fix prompt is short text, so larger reservations only waste tokens and trip 413s.
+- Agent: `calculateMaxOutputTokens()` is clamped to `MAX_AGENT_OUTPUT_TOKENS = 32768` (`token-service.ts`) — the balance-derived value could otherwise balloon to tens of millions for a cheap model and break TPM-limited providers. Real-time billing + force-stop are the actual budget guard.
 
 ### Dynamic Rules & Skills System
 Every AuroraCraft project gets a custom `AGENTS.md` rule file and 8 skill files auto-generated based on the selected platform, compiler, and language.
@@ -375,7 +403,7 @@ There was a `UNIQUE(user_id, provider)` index on `provider_api_keys` (migration 
 - **Isolated config base directory** must exist: `mkdir -p /var/lib/auroracraft/configs && chmod 711 /var/lib/auroracraft/configs`
 - **OpenCode cleanup requires sqlite3** — used to delete conversation history when projects are deleted
 - **Java, Maven, Gradle must be installed** for plugin compilation (supports Java 8/11/17/21/25)
-- **CodeRabbit CLI is optional** but required for code review feature (installed at `/usr/local/bin/coderabbit`)
+- **CodeRabbit CLI is optional** but required for the code review feature (installed system-wide at `/usr/local/bin/coderabbit`). The admin OAuth login flow also requires **tmux** on the server; credential storage needs no keyring (file fallback at `~/.coderabbit/auth.json`)
 - **LiteLLM is required for ALL paid providers** (installed at `/var/lib/litellm/shared/venv/bin/litellm`; needs `httpx` in that venv for the real-time meter). Without it, paid-model messages fail; free Zen models still work. See README Step 15.7.
 - **Graphify is optional** but required for the "Save tokens using Graphify" feature (shared Python venv at `/var/lib/graphify/shared/venv`, symlinked to `/usr/local/bin/graphify`; needs `python3-venv`). See README Step 15.6. If absent, enabling Graphify just sets status `failed` — everything else works.
 - **Knowledge base must be present** at `/root/AuroraCraft/opencode-knowledge/` (ships with source code, no manual setup needed)

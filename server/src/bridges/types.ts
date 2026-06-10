@@ -4,7 +4,6 @@ export interface BridgeTask {
   prompt: string
   context?: {
     opencodeSessionId?: string
-    kiroSessionId?: string
     model?: string
     projectLinkId?: string
     projectName?: string
@@ -54,7 +53,6 @@ export interface BridgeResult {
   error?: string
   metadata?: {
     opencodeSessionId?: string
-    kiroSessionId?: string
     parts?: MessagePart[]
     usage?: TokenUsage
   }

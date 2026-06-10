@@ -6,7 +6,7 @@ import { useProjects } from '@/hooks/use-projects'
 import { useUserTokens } from '@/hooks/use-user-tokens'
 import { CustomSelect } from '@/components/ui/custom-select'
 
-const steps = ['Project Info', 'Platform', 'Build Config', 'AI Tool', 'Source']
+const steps = ['Project Info', 'Platform', 'Build Config', 'Source']
 
 import { SOFTWARE_CATEGORIES } from '@/lib/software-options'
 
@@ -106,7 +106,6 @@ export default function NewProjectPage() {
     language: 'java' as 'java' | 'kotlin',
     javaVersion: '21',
     compilers: ['gradle'] as string[],
-    bridge: 'opencode' as 'opencode' | 'kiro',
     source: 'blank' as 'blank' | 'zip' | 'github',
     branch: '',
     commit: '',
@@ -206,8 +205,7 @@ export default function NewProjectPage() {
       case 0: return form.name.trim().length >= 2
       case 1: return !!form.software
       case 2: return form.compilers.length > 0 && !!form.javaVersion
-      case 3: return !!form.bridge
-      case 4: {
+      case 3: {
         if (form.source === 'blank') return true
         if (form.source === 'zip') return !!zipFile
         if (form.source === 'github') {
@@ -240,7 +238,6 @@ export default function NewProjectPage() {
             language: form.language,
             javaVersion: form.javaVersion,
             compiler: compilerValue,
-            bridge: form.bridge,
             repoUrl: githubRepoUrl.trim(),
             branch: form.branch.trim() || undefined,
             commit: form.commit.trim() || undefined,
@@ -266,7 +263,6 @@ export default function NewProjectPage() {
         formData.append('language', form.language)
         formData.append('javaVersion', form.javaVersion)
         formData.append('compiler', compilerValue)
-        formData.append('bridge', form.bridge)
         formData.append('visibility', form.visibility)
         formData.append('zipFile', zipFile)
         
@@ -293,7 +289,6 @@ export default function NewProjectPage() {
           language: form.language,
           javaVersion: form.javaVersion,
           compiler: compilerValue,
-          bridge: form.bridge,
           visibility: form.visibility,
         })
         navigate(`/workspace/${project.id}`)
@@ -583,90 +578,6 @@ export default function NewProjectPage() {
         )}
 
         {step === 3 && (
-          <div className="space-y-4">
-            <div>
-              <label className="mb-3 block text-sm font-medium text-text">AI Coding Tool</label>
-              <p className="mb-4 text-xs text-text-muted">Choose the AI tool for this project. This cannot be changed later as each tool maintains separate conversation memory.</p>
-              <div className="space-y-3">
-                <button
-                  onClick={() => setForm({ ...form, bridge: 'opencode' })}
-                  className={cn(
-                    'flex w-full flex-col gap-2 rounded-lg border px-4 py-4 text-left transition-colors',
-                    form.bridge === 'opencode'
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-border-bright hover:bg-surface-hover'
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={cn(
-                      'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border',
-                      form.bridge === 'opencode'
-                        ? 'border-primary bg-primary'
-                        : 'border-border'
-                    )}>
-                      {form.bridge === 'opencode' && <div className="h-2 w-2 rounded-full bg-white" />}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-text">OpenCode</p>
-                      <p className="text-xs text-text-muted">Free AI coding assistant</p>
-                    </div>
-                  </div>
-                  <div className="ml-7 space-y-1">
-                    <p className="text-xs font-medium text-text-muted">Available Models:</p>
-                    <div className="space-y-1.5">
-                      <div className="rounded-md bg-surface px-3 py-1.5">
-                        <p className="text-xs font-medium text-text">DeepSeek V4 Flash</p>
-                        <p className="text-[10px] text-text-dim">Free — fast coding with strong reasoning</p>
-                      </div>
-                      <div className="rounded-md bg-surface px-3 py-1.5">
-                        <p className="text-xs font-medium text-text">Nemotron 3 Super</p>
-                        <p className="text-[10px] text-text-dim">Free — NVIDIA optimized for coding</p>
-                      </div>
-                      <div className="rounded-md bg-surface px-3 py-1.5">
-                        <p className="text-xs font-medium text-text">Big Pickle</p>
-                        <p className="text-[10px] text-text-dim">Free — general-purpose AI model</p>
-                      </div>
-                    </div>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => setForm({ ...form, bridge: 'kiro' })}
-                  className={cn(
-                    'flex w-full flex-col gap-2 rounded-lg border px-4 py-4 text-left transition-colors',
-                    form.bridge === 'kiro'
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-border-bright hover:bg-surface-hover'
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={cn(
-                      'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border',
-                      form.bridge === 'kiro'
-                        ? 'border-primary bg-primary'
-                        : 'border-border'
-                    )}>
-                      {form.bridge === 'kiro' && <div className="h-2 w-2 rounded-full bg-white" />}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-text">Kiro CLI</p>
-                      <p className="text-xs text-text-muted">Advanced AI with Claude Sonnet</p>
-                    </div>
-                  </div>
-                  <div className="ml-7 space-y-1">
-                    <p className="text-xs font-medium text-text-muted">Available Model:</p>
-                    <div className="rounded-md bg-surface px-3 py-2">
-                      <p className="text-xs font-medium text-text">Claude Sonnet 4.5</p>
-                      <p className="text-[10px] text-text-dim">Strong agentic coding with extended autonomous operation</p>
-                    </div>
-                  </div>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {step === 4 && (
           <div className="space-y-4">
             <label className="mb-3 block text-sm font-medium text-text">Project Source</label>
             <div className="space-y-2">

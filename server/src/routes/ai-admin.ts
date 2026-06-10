@@ -144,17 +144,19 @@ export async function aiAdminRoutes(app: FastifyInstance) {
     const updates: Record<string, unknown> = { updatedAt: new Date() }
     if (parsed.data.name !== undefined) updates.name = parsed.data.name.trim()
     if (parsed.data.isActive !== undefined) updates.isActive = parsed.data.isActive
-    // Built-in (Zen): endpoint + free/paid mode are locked; only name + active state can change.
+    // Built-in providers (OpenRouter, NVIDIA NIM, Zen): the endpoint/kind are locked and they
+    // can't be deleted — but their free/paid mode IS admin-editable, EXCEPT Zen. Zen bypasses
+    // LiteLLM and has no billing meter, so it must always stay free.
     let prunedToFree = false
-    if (!existing.isBuiltin) {
-      if (parsed.data.baseUrl !== undefined) updates.baseUrl = parsed.data.baseUrl.trim()
-      if (parsed.data.isFree !== undefined) {
-        updates.isFree = parsed.data.isFree
-        // paid → free: a free provider allows only ONE key per user (routing.md §6.3).
-        // Destructively prune every user's keys for this provider down to the single
-        // highest-priority one (lowest weight, oldest as tie-break).
-        prunedToFree = parsed.data.isFree === true && existing.isFree === false
-      }
+    if (!existing.isBuiltin && parsed.data.baseUrl !== undefined) {
+      updates.baseUrl = parsed.data.baseUrl.trim()
+    }
+    if (parsed.data.isFree !== undefined && existing.kind !== 'zen') {
+      updates.isFree = parsed.data.isFree
+      // paid → free: a free provider allows only ONE key per user (routing.md §6.3).
+      // Destructively prune every user's keys for this provider down to the single
+      // highest-priority one (lowest weight, oldest as tie-break).
+      prunedToFree = parsed.data.isFree === true && existing.isFree === false
     }
     await db.update(aiProviders).set(updates).where(eq(aiProviders.id, id))
 

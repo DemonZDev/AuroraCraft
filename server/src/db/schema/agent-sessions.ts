@@ -8,8 +8,6 @@ export const agentSessions = pgTable('agent_sessions', {
   projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
   status: agentStatusEnum('status').default('idle').notNull(),
   opencodeSessionId: varchar('opencode_session_id', { length: 255 }),
-  bridge: varchar('bridge', { length: 32 }).default('opencode').notNull(),
-  kiroSessionId: varchar('kiro_session_id', { length: 255 }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [

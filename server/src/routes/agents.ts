@@ -12,7 +12,7 @@ import { aiProviders } from '../db/schema/ai-providers.js'
 import { promptToolJobs } from '../db/schema/prompt-tool-jobs.js'
 import { authMiddleware } from '../middleware/auth.js'
 import { agentExecutor } from '../agents/executor.js'
-import { opencodeBridge, sessionEventBus } from '../bridges/index.js'
+import { opencodeBridge } from '../bridges/index.js'
 import { processManager } from '../bridges/opencode-process-manager.js'
 import { generateOpenCodeKnowledge } from '../utils/opencode-knowledge.js'
 import { resolveModelById, listModelsForUsage, listModelsForLiteLLM, canUseModel, getUserProviderKeyMap, getUserRoutedKeysByProvider, type ResolvedModel } from '../utils/ai-runtime.js'
@@ -22,10 +22,6 @@ import { generateProviderConfig, generateLiteLLMProviderConfig, generateMinimalP
 import { generateLiteLLMConfig, writeLiteLLMConfig } from '../utils/litellm-config.js'
 import { litellmProcessManager } from '../bridges/litellm-process-manager.js'
 import { readFile } from 'fs/promises'
-
-const createSessionSchema = z.object({
-  bridge: z.enum(['opencode', 'kiro']).optional(),
-})
 
 const sendMessageSchema = z.object({
   content: z.string().min(1).max(50000),
@@ -39,7 +35,6 @@ const sendMessageSchema = z.object({
   // but the claim is already taken so no duplicate message is sent).
   promptToolJobId: z.string().uuid().optional(),
   model: z.string().max(100).optional(),
-  bridge: z.enum(['opencode', 'kiro']).optional(),
   speed: z.string().max(40).optional(),
 })
 
@@ -87,12 +82,9 @@ export async function agentRoutes(app: FastifyInstance) {
       return reply.status(404).send({ message: 'Project not found', statusCode: 404 })
     }
 
-    const parsed = createSessionSchema.safeParse(request.body ?? {})
-    const bridge = parsed.success ? (parsed.data.bridge ?? 'opencode') : 'opencode'
-
     const [session] = await db
       .insert(agentSessions)
-      .values({ projectId, bridge })
+      .values({ projectId })
       .returning()
 
     return reply.status(201).send(session)
@@ -174,79 +166,68 @@ export async function agentRoutes(app: FastifyInstance) {
     let unsubscribe: (() => void) | null = null
     let subscribed = false
 
-    if (session.bridge === 'kiro') {
-      // Kiro uses the bridge-agnostic session event bus — no process URL needed
-      subscribed = true
+    // OpenCode: subscribe via the OpenCode subscription manager
+    const trySubscribe = () => {
+      if (subscribed) return
 
-      if (session.status === 'running' || session.status === 'idle') {
-        sendSSE({ type: 'status', status: 'running' })
-      }
+      const doSubscribe = async () => {
+        let opencodeId = session.opencodeSessionId
 
-      unsubscribe = sessionEventBus.subscribe(sessionId, (event) => sendSSE(event))
-    } else {
-      // OpenCode: subscribe via the OpenCode subscription manager
-      const trySubscribe = () => {
-        if (subscribed) return
+        // Poll for up to 30 seconds if no opencodeSessionId yet
+        if (!opencodeId) {
+          for (let i = 0; i < 60; i++) {
+            if (raw.destroyed) return
+            await new Promise((r) => setTimeout(r, 500))
 
-        const doSubscribe = async () => {
-          let opencodeId = session.opencodeSessionId
+            const [refreshed] = await db
+              .select({ opencodeSessionId: agentSessions.opencodeSessionId })
+              .from(agentSessions)
+              .where(eq(agentSessions.id, sessionId))
+              .limit(1)
 
-          // Poll for up to 30 seconds if no opencodeSessionId yet
-          if (!opencodeId) {
-            for (let i = 0; i < 60; i++) {
-              if (raw.destroyed) return
-              await new Promise((r) => setTimeout(r, 500))
-
-              const [refreshed] = await db
-                .select({ opencodeSessionId: agentSessions.opencodeSessionId })
-                .from(agentSessions)
-                .where(eq(agentSessions.id, sessionId))
-                .limit(1)
-
-              if (refreshed?.opencodeSessionId) {
-                opencodeId = refreshed.opencodeSessionId
-                break
-              }
+            if (refreshed?.opencodeSessionId) {
+              opencodeId = refreshed.opencodeSessionId
+              break
             }
           }
-
-          if (!opencodeId || raw.destroyed) return
-
-          // Poll for the OpenCode instance URL (may still be starting)
-          let instanceUrl: string | null = null
-          for (let j = 0; j < 60; j++) {
-            if (raw.destroyed) return
-            instanceUrl = processManager.getInstanceUrl(projectDir)
-            if (instanceUrl) break
-            await new Promise((r) => setTimeout(r, 500))
-          }
-          if (!instanceUrl || raw.destroyed) return
-
-          subscribed = true
-
-          const [current] = await db
-            .select({ status: agentSessions.status })
-            .from(agentSessions)
-            .where(eq(agentSessions.id, sessionId))
-            .limit(1)
-
-          if (current && (current.status === 'running' || current.status === 'idle')) {
-            sendSSE({ type: 'status', status: 'running' })
-          }
-
-          unsubscribe = opencodeBridge.subscriptionManager.subscribe(
-            projectDir,
-            opencodeId,
-            (event) => sendSSE(event),
-            instanceUrl,
-          )
         }
 
-        doSubscribe().catch(() => {})
+        if (!opencodeId || raw.destroyed) return
+
+        // Poll for the OpenCode instance URL (may still be starting)
+        let instanceUrl: string | null = null
+        for (let j = 0; j < 60; j++) {
+          if (raw.destroyed) return
+          instanceUrl = processManager.getInstanceUrl(projectDir)
+          if (instanceUrl) break
+          await new Promise((r) => setTimeout(r, 500))
+        }
+        if (!instanceUrl || raw.destroyed) return
+
+        subscribed = true
+
+        const [current] = await db
+          .select({ status: agentSessions.status })
+          .from(agentSessions)
+          .where(eq(agentSessions.id, sessionId))
+          .limit(1)
+
+        if (current && (current.status === 'running' || current.status === 'idle')) {
+          sendSSE({ type: 'status', status: 'running' })
+        }
+
+        unsubscribe = opencodeBridge.subscriptionManager.subscribe(
+          projectDir,
+          opencodeId,
+          (event) => sendSSE(event),
+          instanceUrl,
+        )
       }
 
-      trySubscribe()
+      doSubscribe().catch(() => {})
     }
+
+    trySubscribe()
 
     // Send initial connection event
     sendSSE({ type: 'status', status: 'connected' })
@@ -350,7 +331,7 @@ export async function agentRoutes(app: FastifyInstance) {
     // Resolve project directory and bridge
     const username = request.user!.username
     const projectDir = getProjectDirectory(username, project.linkId)
-    const bridgeName = parsed.data.bridge || session.bridge || 'opencode'
+    const bridgeName = 'opencode'
     let resolvedModelId: string | undefined
     let estimatedCost = 0
     let providerId: string | undefined
@@ -419,9 +400,16 @@ export async function agentRoutes(app: FastifyInstance) {
         const needsLiteLLM = provider.kind !== 'zen'
         if (needsLiteLLM) {
           const userTokenBalance = await getUserTokens(request.user!.id)
-          // Collect all non-Zen agent models the user has keys for, not just billable ones.
+          // Scope the proxy config to ONLY the selected model (× its routed keys). The
+          // LiteLLM cold start scales with the number of deployments (one per model×key):
+          // ~37 deployments for a user with keys across every provider took ~42s to become
+          // healthy, vs ~12s for a handful — and that cold start is the dominant "first
+          // message is slow" cost (the model call itself is fast). Multi-key routing only
+          // needs the selected model's keys, which are all included here. Switching models
+          // regenerates a small config (a one-off ~10s proxy reload), not a 40s one.
           const allModels = await listModelsForLiteLLM('agent')
-          const llmConfig = await generateLiteLLMConfig(projectDir, allModels, routedKeysByProvider, userTokenBalance)
+          const scopedModels = allModels.filter((m) => m.id === resolvedModel!.id)
+          const llmConfig = await generateLiteLLMConfig(projectDir, scopedModels.length ? scopedModels : allModels, routedKeysByProvider, userTokenBalance)
           const configPath = await writeLiteLLMConfig(projectDir, llmConfig)
           try {
             litellmUrl = await litellmProcessManager.acquire({ directory: projectDir, configPath, userId: request.user!.id })
@@ -546,15 +534,10 @@ export async function agentRoutes(app: FastifyInstance) {
       if (opencodeSessionId) {
         opencodeBridge.subscriptionManager.clearBuffer(projectDir, opencodeSessionId)
       }
-    } else if (bridgeName === 'kiro') {
-      // Clear stale buffered events for Kiro sessions
-      sessionEventBus.clearBuffer(sessionId)
     }
 
     // Resolve which admin-configured MCP servers this user can run (key substitution included).
-    const mcp = bridgeName === 'opencode'
-      ? await buildUserMcpServers(request.user!.id)
-      : { servers: [], disconnect: [] }
+    const mcp = await buildUserMcpServers(request.user!.id)
 
     // Fire-and-forget: launch the AI agent executor asynchronously
     agentExecutor.execute(
@@ -568,8 +551,7 @@ export async function agentRoutes(app: FastifyInstance) {
         model: resolvedModelId ?? parsed.data.model,
         billingModelId: requestedModelId || undefined,
         speed: parsed.data.speed,
-        opencodeSessionId: bridgeName === 'opencode' ? opencodeSessionId : undefined,
-        kiroSessionId: bridgeName === 'kiro' ? (session.kiroSessionId ?? undefined) : undefined,
+        opencodeSessionId,
         username,
         projectLinkId: project.linkId ?? undefined,
         projectName: project.name,
