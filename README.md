@@ -15,6 +15,7 @@ AI-powered Minecraft plugin development platform. Describe what you want and an 
 - **Monaco Code Editor** — Built-in code editor with syntax highlighting and file tree navigation
 - **Admin Panel** — User management, project oversight, per-user multi-key configuration, and full **AI Runtime** management (providers / models / MCPs)
 - **Multi-User** — Role-based access control (admin / user)
+- **Animated Login/Register** — The auth page is an interactive scene: a hanging lamp (green = sign-up, blue = sign-in) with a pull-rope that switches between the two forms, and a frog mascot that startle-jumps when the rope is pulled, watches the form while you type, politely looks away when you reveal the password, and shakes its head on a failed login. Fully responsive (on mobile the frog looks down/up instead of right/left, since the form sits below the lamp) and reduced-motion aware
 - **CodeRabbit Integration** — AI-powered code review for uncommitted changes
 - **Dynamic Rules & Skills** — Per-project AI rules and skills auto-generated from platform-specific knowledge base (14 sections, 8 skills) covering Paper, Spigot, Folia, Velocity, BungeeCord, and 13 more platforms
 - **Platform-Aware Code Generation** — AI automatically uses correct APIs (Adventure Components vs ChatColor), scheduler types (BukkitScheduler vs RegionScheduler), and build systems (Maven vs Gradle) based on project configuration

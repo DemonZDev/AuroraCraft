@@ -341,3 +341,160 @@
     transform: none;
   }
 }
+
+/* ── Auth: hanging lamp + frog scene ──────────────────────────────── */
+
+/* NOTE (mobile compatibility): every transform in this scene bakes its pivot
+   into the keyframes as translate(origin) … translate(-origin) instead of
+   relying on transform-box/transform-origin, which some mobile WebKit builds
+   resolve against the SVG canvas corner for CSS-animated SVG elements. */
+
+/* The lamp swings from the ceiling pivot (140, -75 in viewBox units). */
+.lamp-root { will-change: transform; }
+/* The pull yanks the lamp down a touch, then it swings out. Starts after the
+   cord stretch has registered (delay), so the causality reads: tug → swing. */
+.lamp-root.is-swinging { animation: lampSwing 1.5s ease-in-out 0.12s backwards; }
+@keyframes lampSwing {
+  0% { transform: translate(140px, -75px) translateY(0) rotate(0deg) translate(-140px, 75px); }
+  10% { transform: translate(140px, -75px) translateY(3px) rotate(1.5deg) translate(-140px, 75px); }
+  30% { transform: translate(140px, -75px) translateY(0) rotate(4.5deg) translate(-140px, 75px); }
+  52% { transform: translate(140px, -75px) translateY(0) rotate(-3deg) translate(-140px, 75px); }
+  72% { transform: translate(140px, -75px) translateY(0) rotate(1.8deg) translate(-140px, 75px); }
+  88% { transform: translate(140px, -75px) translateY(0) rotate(-0.8deg) translate(-140px, 75px); }
+  100% { transform: translate(140px, -75px) translateY(0) rotate(0deg) translate(-140px, 75px); }
+}
+
+.lamp-glow { animation: lampGlow 4s ease-in-out infinite; }
+@keyframes lampGlow {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.82; }
+}
+
+/* Frog startled jump (fires when the rope is pulled): anticipation crouch →
+   leg-kick launch → airborne apex → landing squash → rebound settle. The body
+   trajectory runs on .frog; legs / arms / head get their own synced keyframes
+   so the limbs visibly push off, dangle mid-air, and absorb the landing. */
+.frog { will-change: transform; }
+.frog.is-jumping { animation: frogJump 1.05s cubic-bezier(0.33, 0, 0.2, 1) 0.1s backwards; }
+@keyframes frogJump {
+  0% { transform: translate(140px, 176px) translateY(0) scale(1, 1) translate(-140px, -176px); }
+  12% { transform: translate(140px, 176px) translateY(6px) scale(1.12, 0.82) translate(-140px, -176px); }
+  22% { transform: translate(140px, 176px) translateY(-30px) scale(0.96, 1.12) translate(-140px, -176px); }
+  40% { transform: translate(140px, 176px) translateY(-80px) scale(0.98, 1.05) translate(-140px, -176px); }
+  50% { transform: translate(140px, 176px) translateY(-76px) scale(1, 1.02) translate(-140px, -176px); }
+  62% { transform: translate(140px, 176px) translateY(-38px) scale(1, 0.99) translate(-140px, -176px); }
+  74% { transform: translate(140px, 176px) translateY(2px) scale(1.14, 0.84) translate(-140px, -176px); }
+  84% { transform: translate(140px, 176px) translateY(-8px) scale(0.97, 1.04) translate(-140px, -176px); }
+  92% { transform: translate(140px, 176px) translateY(0) scale(1.04, 0.97) translate(-140px, -176px); }
+  100% { transform: translate(140px, 176px) translateY(0) scale(1, 1) translate(-140px, -176px); }
+}
+
+.frog.is-jumping .frog-legs { animation: frogJumpLegs 1.05s ease 0.1s backwards; }
+@keyframes frogJumpLegs {
+  0% { transform: translate(140px, 171px) scale(1, 1) translate(-140px, -171px); }
+  12% { transform: translate(140px, 171px) scale(1.1, 0.7) translate(-140px, -171px); }
+  22% { transform: translate(140px, 171px) scale(0.94, 1.3) translate(-140px, -171px); }
+  40% { transform: translate(140px, 171px) scale(0.97, 1.12) translate(-140px, -171px); }
+  62% { transform: translate(140px, 171px) scale(1, 1.02) translate(-140px, -171px); }
+  74% { transform: translate(140px, 171px) scale(1.12, 0.75) translate(-140px, -171px); }
+  84% { transform: translate(140px, 171px) scale(0.99, 1.06) translate(-140px, -171px); }
+  100% { transform: translate(140px, 171px) scale(1, 1) translate(-140px, -171px); }
+}
+
+.frog.is-jumping .frog-arms { animation: frogJumpArms 1.05s ease 0.1s backwards; }
+@keyframes frogJumpArms {
+  0% { transform: translate(140px, 135px) translateY(0) scaleY(1) translate(-140px, -135px); }
+  12% { transform: translate(140px, 135px) translateY(2px) scaleY(0.92) translate(-140px, -135px); }
+  22% { transform: translate(140px, 135px) translateY(5px) scaleY(1.07) translate(-140px, -135px); }
+  40% { transform: translate(140px, 135px) translateY(8px) scaleY(1.1) translate(-140px, -135px); }
+  62% { transform: translate(140px, 135px) translateY(3px) scaleY(1.02) translate(-140px, -135px); }
+  74% { transform: translate(140px, 135px) translateY(0) scaleY(0.93) translate(-140px, -135px); }
+  84% { transform: translate(140px, 135px) translateY(1px) scaleY(1) translate(-140px, -135px); }
+  100% { transform: translate(140px, 135px) translateY(0) scaleY(1) translate(-140px, -135px); }
+}
+
+.frog.is-jumping .frog-head { animation: frogJumpHead 1.05s ease 0.1s backwards; }
+@keyframes frogJumpHead {
+  0% { transform: translateY(0); }
+  12% { transform: translateY(3px); }
+  24% { transform: translateY(-2.5px); }
+  40% { transform: translateY(-1px); }
+  62% { transform: translateY(1px); }
+  74% { transform: translateY(3px); }
+  86% { transform: translateY(-1px); }
+  100% { transform: translateY(0); }
+}
+
+/* Eyes held wide open (no blinking) while startled mid-jump. */
+.frog.is-jumping .frog-eyes { animation: none; }
+
+/* Disapproval head-shake (fires when a sign-in/submit fails). */
+.frog-head-shake.is-shaking { animation: frogShake 0.56s ease-in-out; }
+@keyframes frogShake {
+  0%, 100% { transform: translate(140px, 121px) rotate(0deg) translate(-140px, -121px); }
+  15% { transform: translate(140px, 121px) rotate(-13deg) translate(-140px, -121px); }
+  35% { transform: translate(140px, 121px) rotate(11deg) translate(-140px, -121px); }
+  55% { transform: translate(140px, 121px) rotate(-8deg) translate(-140px, -121px); }
+  75% { transform: translate(140px, 121px) rotate(5deg) translate(-140px, -121px); }
+  90% { transform: translate(140px, 121px) rotate(-2deg) translate(-140px, -121px); }
+}
+
+/* Gaze: the head/pupils transform is set inline (pivot baked into the value);
+   these add the easing. */
+.frog-head { transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1); }
+.frog-pupils { transition: transform 0.45s ease-out; }
+.frog-eyes { animation: frogBlink 5.5s ease-in-out infinite; }
+@keyframes frogBlink {
+  0%, 90%, 100% { transform: translate(140px, 78px) scaleY(1) translate(-140px, -78px); }
+  94%, 96% { transform: translate(140px, 78px) scaleY(0.12) translate(-140px, -78px); }
+}
+
+/* Pull rope: on pull the cord stretches from its anchor (scaleY) while the
+   bead rides the cord's end down, then both spring back with an overshoot.
+   No browser focus rectangle / tap highlight — the bead's ring is the
+   focus + hover indicator instead. */
+.pull {
+  cursor: pointer;
+  touch-action: manipulation;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.pull-cord { will-change: transform; }
+.pull-bead { animation: beadHint 2.4s ease-in-out infinite; }
+@keyframes beadHint {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(4px); }
+}
+.pull-assembly.is-tugging .pull-cord { animation: cordStretch 0.75s ease-out; }
+.pull-assembly.is-tugging .pull-bead { animation: beadFollow 0.75s ease-out; }
+/* The cord is 80 viewBox px long and anchored at (198, 246), so the bead's
+   translateY mirrors the cord's scaleY exactly: 80 × (scale − 1). */
+@keyframes cordStretch {
+  0% { transform: translate(198px, 246px) scaleY(1) translate(-198px, -246px); }
+  32% { transform: translate(198px, 246px) scaleY(1.55) translate(-198px, -246px); }
+  58% { transform: translate(198px, 246px) scaleY(0.9) translate(-198px, -246px); }
+  78% { transform: translate(198px, 246px) scaleY(1.06) translate(-198px, -246px); }
+  100% { transform: translate(198px, 246px) scaleY(1) translate(-198px, -246px); }
+}
+@keyframes beadFollow {
+  0% { transform: translateY(0); }
+  32% { transform: translateY(44px); }
+  58% { transform: translateY(-8px); }
+  78% { transform: translateY(4.8px); }
+  100% { transform: translateY(0); }
+}
+.pull-ring { opacity: 0.35; transition: opacity 0.2s ease, stroke-width 0.2s ease; }
+.pull:hover .pull-ring,
+.pull:focus-visible .pull-ring { opacity: 1; stroke-width: 3; }
+
+/* Reduced motion: disable only the ambient looping animations. Brief
+   user-triggered feedback (rope tug, lamp swing, startle jump, head shake)
+   stays on — it is a direct response to the user's own action, and phones
+   with "Remove animations" / "Reduce Motion" enabled would otherwise lose
+   the whole interaction (the common "works on desktop, dead on mobile"
+   report). The tug/jump/shake rules out-specify these, so they still run. */
+@media (prefers-reduced-motion: reduce) {
+  .lamp-glow,
+  .pull-bead,
+  .frog-eyes { animation: none; }
+}

@@ -2335,8 +2335,8 @@
     "semantic_hash": ""
   },
   "/root/AuroraCraft/.claude/settings.local.json": {
-    "mtime": 1781174645.68856,
-    "ast_hash": "5fb6e5f681160dd6247275281d75a2e7",
+    "mtime": 1781205665.719004,
+    "ast_hash": "d30991da92915ce1e1ef8b588ce08471",
     "semantic_hash": ""
   },
   "/root/AuroraCraft/server/tsconfig.json": {
@@ -2900,8 +2900,8 @@
     "semantic_hash": ""
   },
   "/root/AuroraCraft/client/src/pages/pricing.tsx": {
-    "mtime": 1781173755.824149,
-    "ast_hash": "a7e2d9402d436ac857cf7253cc782a3a",
+    "mtime": 1781175563.224044,
+    "ast_hash": "65a49919d3b724aa09dc69fbc3358a02",
     "semantic_hash": ""
   },
   "/root/AuroraCraft/client/src/pages/dashboard.tsx": {
@@ -2915,8 +2915,8 @@
     "semantic_hash": ""
   },
   "/root/AuroraCraft/client/src/pages/login.tsx": {
-    "mtime": 1780566822.297134,
-    "ast_hash": "dae37634bb183de9761b53d115fd9d08",
+    "mtime": 1781191282.8687315,
+    "ast_hash": "460056eb7611370debe6aeb2e77051c4",
     "semantic_hash": ""
   },
   "/root/AuroraCraft/client/src/pages/docs.tsx": {
@@ -2925,8 +2925,8 @@
     "semantic_hash": ""
   },
   "/root/AuroraCraft/client/src/pages/register.tsx": {
-    "mtime": 1780566822.297134,
-    "ast_hash": "5c9aa2d05d5f5f17661bb00056cb53a7",
+    "mtime": 1781191295.0597646,
+    "ast_hash": "e5daa5b29b9f5ceaeb1732997a3eadd2",
     "semantic_hash": ""
   },
   "/root/AuroraCraft/client/src/pages/terms.tsx": {
@@ -11387,6 +11387,11 @@
   "/root/AuroraCraft/client/public/favicon.svg": {
     "mtime": 1780566822.289947,
     "ast_hash": "06d29e6ae91a02cb59e2e6483388c7f6",
+    "semantic_hash": ""
+  },
+  "/root/AuroraCraft/client/src/components/auth/auth-scene.tsx": {
+    "mtime": 1781212297.2552807,
+    "ast_hash": "0c987a3dbc733cb72ed2a83837e29a76",
     "semantic_hash": ""
   }
 }

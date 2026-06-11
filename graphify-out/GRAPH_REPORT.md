@@ -1,16 +1,16 @@
 # Graph Report - AuroraCraft  (2026-06-11)
 
 ## Corpus Check
-- 1484 files · ~2,176,777 words
+- 1485 files · ~2,179,007 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 33611 nodes · 33336 edges · 2259 communities (2231 shown, 28 thin omitted)
-- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 112 edges (avg confidence: 0.8)
+- 33627 nodes · 33355 edges · 2258 communities (2230 shown, 28 thin omitted)
+- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 113 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `b95c436c`
+- Built from commit: `e42d352c`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -2231,7 +2231,6 @@
 - [[_COMMUNITY_Community 2213|Community 2213]]
 - [[_COMMUNITY_Community 2214|Community 2214]]
 - [[_COMMUNITY_Community 2215|Community 2215]]
-- [[_COMMUNITY_Community 2216|Community 2216]]
 - [[_COMMUNITY_Community 2217|Community 2217]]
 - [[_COMMUNITY_Community 2220|Community 2220]]
 - [[_COMMUNITY_Community 2221|Community 2221]]
@@ -2259,14 +2258,14 @@
   client/src/pages/new-project.tsx → client/src/lib/utils.ts
 - `GitConnectionModal()` --calls--> `cn()`  [INFERRED]
   client/src/pages/workspace.tsx → client/src/lib/utils.ts
-- `FileTreeNode()` --calls--> `cn()`  [INFERRED]
-  client/src/pages/workspace.tsx → client/src/lib/utils.ts
-- `FileOpBadge()` --calls--> `cn()`  [INFERRED]
-  client/src/pages/workspace.tsx → client/src/lib/utils.ts
-- `StreamingThinkingBadge()` --calls--> `cn()`  [INFERRED]
-  client/src/pages/workspace.tsx → client/src/lib/utils.ts
+- `ReadOnlyFileTreeNode()` --calls--> `cn()`  [INFERRED]
+  client/src/pages/community-project.tsx → client/src/lib/utils.ts
+- `ChatMessage()` --calls--> `cn()`  [INFERRED]
+  client/src/pages/community-project.tsx → client/src/lib/utils.ts
+- `DownloadDropdown()` --calls--> `cn()`  [INFERRED]
+  client/src/pages/community-project.tsx → client/src/lib/utils.ts
 
-## Communities (2259 total, 28 thin omitted)
+## Communities (2258 total, 28 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.06
@@ -2326,7 +2325,7 @@ Nodes (41): 1. Visual Theme & Atmosphere, 2. Color Palette & Roles, 3. Typograph
 
 ### Community 14 - "Community 14"
 Cohesion: 0.05
-Nodes (42): A paid model's upstream returns an error / 429, Adding a second API key fails with a unique-constraint error, Admin cannot downgrade user to free tier, AI says "I cannot compile" or "Compilation unavailable", API key visible in workspace editor / opencode.json, Backend won't start, code:bash (./auroracraft.sh restart), code:bash (pg_isready) (+34 more)
+Nodes (43): A paid model's upstream returns an error / 429, Adding a second API key fails with a unique-constraint error, Admin cannot downgrade user to free tier, Backend won't start, code:bash (./auroracraft.sh restart), code:bash (pg_isready), code:bash (# Check if opencode is globally accessible), code:bash (netstat -tuln | grep -E "900[0-9]|99[0-9][0-9]") (+35 more)
 
 ### Community 15 - "Community 15"
 Cohesion: 0.05
@@ -2410,7 +2409,7 @@ Nodes (40): 1. Visual Theme & Atmosphere, 2. Color Palette & Roles, 3. Typograph
 
 ### Community 35 - "Community 35"
 Cohesion: 0.05
-Nodes (41): description, forked_from, graphify_built_at, link_id, logo, name, repo_branch, repo_url (+33 more)
+Nodes (42): description, forked_from, graphify_built_at, graphify_enabled, link_id, logo, repo_branch, repo_url (+34 more)
 
 ### Community 36 - "Community 36"
 Cohesion: 0.05
@@ -2497,8 +2496,8 @@ Cohesion: 0.05
 Nodes (38): 1. Visual Theme & Atmosphere, 2. Color Palette & Roles, 3. Typography Rules, 4. Component Stylings, 5. Layout Principles, 6. Depth & Elevation, 7. Do's and Don'ts, 8. Responsive Behavior (+30 more)
 
 ### Community 57 - "Community 57"
-Cohesion: 0.06
-Nodes (29): useAgentSessions(), useFileContent(), useAgentModels(), buildRenderBlocksFromMetadata(), buildRenderBlocksFromStreaming(), ChatInput, ChatPanel(), EditorPanel() (+21 more)
+Cohesion: 0.08
+Nodes (23): useAgentSessions(), useFileContent(), useAgentModels(), buildRenderBlocksFromMetadata(), buildRenderBlocksFromStreaming(), ChatInput, ChatPanel(), EditorPanel() (+15 more)
 
 ### Community 58 - "Community 58"
 Cohesion: 0.05
@@ -2526,7 +2525,7 @@ Nodes (37): 1. Visual Theme & Atmosphere, 2. Color Palette & Roles, 3. Typograph
 
 ### Community 64 - "Community 64"
 Cohesion: 0.05
-Nodes (38): description, layout_mode, link_id, logo, name, software, versions, name (+30 more)
+Nodes (38): description, java_version, link_id, logo, name, software, versions, name (+30 more)
 
 ### Community 65 - "Community 65"
 Cohesion: 0.05
@@ -2542,7 +2541,7 @@ Nodes (37): 1. Visual Theme & Atmosphere, 2. Color Palette & Roles, 3. Typograph
 
 ### Community 68 - "Community 68"
 Cohesion: 0.05
-Nodes (37): code:bash (apt update && apt install -y curl ca-certificates build-esse), code:bash (cd /root   # or your preferred deployment directory), code:bash (cp .env.example .env), code:bash (# Generate a secret), code:env (# Database), code:bash (sudo -u postgres psql <<'SQL'), code:bash (PGPASSWORD=auroracraft psql -U auroracraft -d auroracraft -h), code:bash (cd /root/AuroraCraft/server) (+29 more)
+Nodes (38): code:bash (apt update && apt install -y curl ca-certificates build-esse), code:bash (cd /root   # or your preferred deployment directory), code:bash (cp .env.example .env), code:bash (# Generate a secret), code:env (# Database), code:bash (sudo -u postgres psql <<'SQL'), code:bash (PGPASSWORD=auroracraft psql -U auroracraft -d auroracraft -h), code:bash (cd /root/AuroraCraft/server) (+30 more)
 
 ### Community 69 - "Community 69"
 Cohesion: 0.05
@@ -2654,7 +2653,7 @@ Nodes (32): 10. Player Information, 1. NO plugin.yml — Use @Plugin Annotation,
 
 ### Community 96 - "Community 96"
 Cohesion: 0.06
-Nodes (33): description, language, link_id, logo, name, versions, name, notNull (+25 more)
+Nodes (32): description, java_version, link_id, logo, name, versions, name, notNull (+24 more)
 
 ### Community 97 - "Community 97"
 Cohesion: 0.06
@@ -2665,8 +2664,8 @@ Cohesion: 0.06
 Nodes (33): description, layout_mode, link_id, logo, name, software, versions, name (+25 more)
 
 ### Community 99 - "Community 99"
-Cohesion: 0.08
-Nodes (23): AdminAIRuntimePage(), ALL_USAGES, Badge(), IconBtn(), McpForm(), Modal(), ModelForm(), ProviderForm() (+15 more)
+Cohesion: 0.07
+Nodes (29): AdminAIRuntimePage(), ALL_USAGES, Badge(), IconBtn(), McpForm(), Modal(), ModelForm(), ProviderForm() (+21 more)
 
 ### Community 100 - "Community 100"
 Cohesion: 0.06
@@ -3373,8 +3372,8 @@ Cohesion: 0.07
 Nodes (27): 10. Folia-Safe Event Handling, 11. Event Listener Lifecycle (Dynamic Registration), 1. Listener Structure (Domain-Grouped), 2. ignoreCancelled — Always Set It, 3. Cancel + Return Pattern, 4. Entity Type Checking, 5. PlayerMoveEvent Optimization, 6. Inventory Click Handler (+19 more)
 
 ### Community 284 - "Community 284"
-Cohesion: 0.07
-Nodes (28): description, java_version, link_id, name, software, name, notNull, primaryKey (+20 more)
+Cohesion: 0.06
+Nodes (35): description, java_version, language, link_id, name, software, name, notNull (+27 more)
 
 ### Community 285 - "Community 285"
 Cohesion: 0.07
@@ -3965,8 +3964,8 @@ Cohesion: 0.08
 Nodes (25): brandId, classes, elements, fixture, classCount, description, elementCount, selectorCount (+17 more)
 
 ### Community 432 - "Community 432"
-Cohesion: 0.08
-Nodes (26): project_likes_project_id_projects_id_fk, project_likes_user_id_users_id_fk, columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom (+18 more)
+Cohesion: 0.12
+Nodes (17): project_likes_project_id_projects_id_fk, project_likes_user_id_users_id_fk, columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom (+9 more)
 
 ### Community 433 - "Community 433"
 Cohesion: 0.08
@@ -4237,8 +4236,8 @@ Cohesion: 0.09
 Nodes (23): content, metadata, role, session_id, name, notNull, primaryKey, type (+15 more)
 
 ### Community 500 - "Community 500"
-Cohesion: 0.09
-Nodes (23): content, metadata, role, session_id, name, notNull, primaryKey, type (+15 more)
+Cohesion: 0.15
+Nodes (13): AuthScene(), AuthSceneProps, Digit, FROG, FRONT_FINGERS, Gaze, gazeTransforms(), LampScene() (+5 more)
 
 ### Community 501 - "Community 501"
 Cohesion: 0.09
@@ -4297,8 +4296,8 @@ Cohesion: 0.09
 Nodes (21): Authoring rules (important), Before you author anything — ALWAYS ask or recommend, Catalogs (load when needed), code:bash (npx skills add https://github.com/lewislulu/html-ppt-skill), code:bash (./scripts/new-deck.sh my-talk), code:html (<link rel="stylesheet" id="theme-link" href="../assets/theme), code:bash (./scripts/render.sh templates/theme-showcase.html       # on), code:block5 (html-ppt/) (+13 more)
 
 ### Community 515 - "Community 515"
-Cohesion: 0.09
-Nodes (22): created_at, expires_at, token, user_id, default, name, notNull, primaryKey (+14 more)
+Cohesion: 0.12
+Nodes (16): expires_at, token, user_id, name, notNull, primaryKey, type, columns (+8 more)
 
 ### Community 516 - "Community 516"
 Cohesion: 0.09
@@ -4330,7 +4329,7 @@ Nodes (22): sessions_user_id_users_id_fk, checkConstraints, compositePrimaryKeys
 
 ### Community 523 - "Community 523"
 Cohesion: 0.09
-Nodes (22): created_at, expires_at, token, user_id, default, name, notNull, primaryKey (+14 more)
+Nodes (22): expires_at, id, token, user_id, name, notNull, primaryKey, type (+14 more)
 
 ### Community 524 - "Community 524"
 Cohesion: 0.09
@@ -5226,11 +5225,11 @@ Nodes (18): dialect, enums, public.user_role, id, _meta, columns, schemas, table
 
 ### Community 747 - "Community 747"
 Cohesion: 0.11
-Nodes (19): project_id, status, updated_at, name, notNull, primaryKey, type, columns (+11 more)
+Nodes (19): created_at, project_id, status, default, name, notNull, primaryKey, type (+11 more)
 
 ### Community 748 - "Community 748"
 Cohesion: 0.11
-Nodes (19): content, id, role, name, notNull, primaryKey, type, default (+11 more)
+Nodes (18): content, role, session_id, name, notNull, primaryKey, type, columns (+10 more)
 
 ### Community 749 - "Community 749"
 Cohesion: 0.11
@@ -5730,7 +5729,7 @@ Nodes (17): created_at, log_type, message, default, name, notNull, primaryKey, t
 
 ### Community 873 - "Community 873"
 Cohesion: 0.12
-Nodes (17): id, log_type, message, default, name, notNull, primaryKey, type (+9 more)
+Nodes (17): created_at, log_type, message, default, name, notNull, primaryKey, type (+9 more)
 
 ### Community 874 - "Community 874"
 Cohesion: 0.12
@@ -5749,8 +5748,8 @@ Cohesion: 0.12
 Nodes (17): project_views_project_id_projects_id_fk, project_views_user_id_users_id_fk, columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom (+9 more)
 
 ### Community 878 - "Community 878"
-Cohesion: 0.14
-Nodes (14): useIsMobile(), useProject(), useProjectStats(), compilersToValue(), CompilerTab(), javaVersions, OverviewForm, OverviewTab() (+6 more)
+Cohesion: 0.29
+Nodes (7): visibility, default, name, notNull, primaryKey, type, typeSchema
 
 ### Community 879 - "Community 879"
 Cohesion: 0.15
@@ -5773,8 +5772,8 @@ Cohesion: 0.12
 Nodes (17): id, log_type, message, default, name, notNull, primaryKey, type (+9 more)
 
 ### Community 884 - "Community 884"
-Cohesion: 0.12
-Nodes (17): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, columnsFrom (+9 more)
+Cohesion: 0.08
+Nodes (26): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, columnsFrom (+18 more)
 
 ### Community 885 - "Community 885"
 Cohesion: 0.12
@@ -5845,12 +5844,12 @@ Cohesion: 0.12
 Nodes (16): expires_at, token, user_id, name, notNull, primaryKey, type, columns (+8 more)
 
 ### Community 902 - "Community 902"
-Cohesion: 0.12
-Nodes (16): email, password_hash, username, name, notNull, primaryKey, type, name (+8 more)
+Cohesion: 0.09
+Nodes (22): email, password_hash, updated_at, username, name, notNull, primaryKey, type (+14 more)
 
 ### Community 903 - "Community 903"
 Cohesion: 0.12
-Nodes (16): log_type, message, session_id, name, notNull, primaryKey, type, name (+8 more)
+Nodes (17): id, log_type, message, default, name, notNull, primaryKey, type (+9 more)
 
 ### Community 904 - "Community 904"
 Cohesion: 0.12
@@ -7182,7 +7181,7 @@ Nodes (12): 1.1 Documentation Files (Existing), 1.2 OpenCode Knowledge Base (Exi
 
 ### Community 1237 - "Community 1237"
 Cohesion: 0.17
-Nodes (11): 15. Workflow Rules, 1. API Usage Rules, 3. Build System Rules, 4. Language-Specific Rules, 5. AI-Generated Code Risk Statistics, Auto-generated for {SOFTWARE} | {COMPILER} | {LANGUAGE}, Critical Workflow Rules, Mandatory Development Workflow (+3 more)
+Nodes (11): 13. Reload Safety, 1. API Usage Rules, 3. Build System Rules, 4. Language-Specific Rules, 5. AI-Generated Code Risk Statistics, Auto-generated for {SOFTWARE} | {COMPILER} | {LANGUAGE}, code:java (public class ReloadSubCommand implements SubCommand {), Minecraft Plugin Development Rules (+3 more)
 
 ### Community 1238 - "Community 1238"
 Cohesion: 0.17
@@ -7397,8 +7396,8 @@ Cohesion: 0.18
 Nodes (10): 1. Visual Theme & Atmosphere, 2. Color, 3. Typography, 4. Spacing & Grid, 5. Layout & Composition, 6. Components, 7. Motion & Interaction, 8. Voice & Brand (+2 more)
 
 ### Community 1291 - "Community 1291"
-Cohesion: 0.18
-Nodes (8): useProjects(), DashboardPage(), SortKey, compilers, javaVersions, NewProjectPage(), steps, VisibilitySelector()
+Cohesion: 0.08
+Nodes (22): useIsMobile(), useProject(), useProjects(), useProjectStats(), DashboardPage(), SortKey, compilers, javaVersions (+14 more)
 
 ### Community 1292 - "Community 1292"
 Cohesion: 0.18
@@ -7961,8 +7960,8 @@ Cohesion: 0.29
 Nodes (7): role, default, name, notNull, primaryKey, type, typeSchema
 
 ### Community 1432 - "Community 1432"
-Cohesion: 0.29
-Nodes (7): language, default, name, notNull, primaryKey, type, typeSchema
+Cohesion: 0.09
+Nodes (23): content, metadata, role, session_id, name, notNull, primaryKey, type (+15 more)
 
 ### Community 1433 - "Community 1433"
 Cohesion: 0.29
@@ -8002,7 +8001,7 @@ Nodes (7): compiler, default, name, notNull, primaryKey, type, typeSchema
 
 ### Community 1442 - "Community 1442"
 Cohesion: 0.29
-Nodes (7): visibility, default, name, notNull, primaryKey, type, typeSchema
+Nodes (7): language, default, name, notNull, primaryKey, type, typeSchema
 
 ### Community 1443 - "Community 1443"
 Cohesion: 0.29
@@ -8758,7 +8757,7 @@ Nodes (6): software, default, name, notNull, primaryKey, type
 
 ### Community 1632 - "Community 1632"
 Cohesion: 0.33
-Nodes (6): java_version, default, name, notNull, primaryKey, type
+Nodes (6): layout_mode, default, name, notNull, primaryKey, type
 
 ### Community 1633 - "Community 1633"
 Cohesion: 0.33
@@ -8769,8 +8768,8 @@ Cohesion: 0.33
 Nodes (6): software, default, name, notNull, primaryKey, type
 
 ### Community 1635 - "Community 1635"
-Cohesion: 0.33
-Nodes (6): java_version, default, name, notNull, primaryKey, type
+Cohesion: 0.40
+Nodes (5): error, name, notNull, primaryKey, type
 
 ### Community 1636 - "Community 1636"
 Cohesion: 0.33
@@ -9021,8 +9020,8 @@ Cohesion: 0.33
 Nodes (6): software, default, name, notNull, primaryKey, type
 
 ### Community 1698 - "Community 1698"
-Cohesion: 0.33
-Nodes (6): graphify_enabled, default, name, notNull, primaryKey, type
+Cohesion: 0.40
+Nodes (5): name, name, notNull, primaryKey, type
 
 ### Community 1699 - "Community 1699"
 Cohesion: 0.33
@@ -9966,19 +9965,19 @@ Nodes (5): style, name, notNull, primaryKey, type
 
 ### Community 1934 - "Community 1934"
 Cohesion: 0.40
-Nodes (5): error, name, notNull, primaryKey, type
+Nodes (5): input_json, name, notNull, primaryKey, type
 
 ### Community 1935 - "Community 1935"
 Cohesion: 0.40
-Nodes (5): input_json, name, notNull, primaryKey, type
+Nodes (5): nim_model, name, notNull, primaryKey, type
 
 ### Community 1936 - "Community 1936"
 Cohesion: 0.40
-Nodes (5): nim_model, name, notNull, primaryKey, type
+Nodes (5): result_json, name, notNull, primaryKey, type
 
 ### Community 1937 - "Community 1937"
-Cohesion: 0.40
-Nodes (5): result_json, name, notNull, primaryKey, type
+Cohesion: 0.67
+Nodes (3): AI says "I cannot compile" or "Compilation unavailable", code:bash (./auroracraft.sh restart), code:bash (grep "AGENT_SYSTEM_PROMPT" /root/AuroraCraft/server/src/brid)
 
 ### Community 1938 - "Community 1938"
 Cohesion: 0.40
@@ -10845,8 +10844,8 @@ Cohesion: 0.50
 Nodes (4): API Routes, Database Schema, Frontend State, Key Patterns
 
 ### Community 2154 - "Community 2154"
-Cohesion: 0.50
-Nodes (4): code:bash (cd /root/AuroraCraft/server), code:bash (# Verify DB user exists), code:bash (adduser --disabled-password --gecos "" auroracraft-admin), Step 13 — Seed the Database
+Cohesion: 0.67
+Nodes (3): API key visible in workspace editor / opencode.json, code:bash (./auroracraft.sh restart), code:bash (# Should show only $schema, permission, tools (no apiKey))
 
 ### Community 2155 - "Community 2155"
 Cohesion: 0.50
@@ -10858,15 +10857,15 @@ Nodes (4): code:bash (apt update && apt install -y openjdk-21-jdk maven gradle),
 
 ### Community 2157 - "Community 2157"
 Cohesion: 0.50
-Nodes (4): code:block65 (Model not found: opencode/opencode/deepseek-v4-flash-free), code:bash (./auroracraft.sh restart), code:bash (# Check Zen auth.json (only exists if user has Zen API key)), Zen model not working / "Model not found" error
+Nodes (4): code:bash (curl -fsSL https://raw.githubusercontent.com/opencode-ai/ope), code:bash (opencode --version   # 1.15.x or higher), code:bash (# Find where opencode is installed), Step 7 — OpenCode (AI Agent)
 
 ### Community 2158 - "Community 2158"
 Cohesion: 0.50
 Nodes (4): code:block70 (ERROR service=mcp key=firecrawl command=["npx","-y","firecra), code:bash (# Make /root/.nvm traversable for other Linux users), code:bash (./auroracraft.sh restart), Firecrawl MCP not working / "Executable not found in $PATH: npx"
 
 ### Community 2159 - "Community 2159"
-Cohesion: 0.50
-Nodes (4): code:bash (curl -fsSL https://raw.githubusercontent.com/opencode-ai/ope), code:bash (opencode --version   # 1.15.x or higher), code:bash (# Find where opencode is installed), Step 7 — OpenCode (AI Agent)
+Cohesion: 0.67
+Nodes (3): code:bash (./auroracraft.sh web), code:bash (echo "=== AuroraCraft Deployment Verification ==="), Step 19 — Verify Full Deployment
 
 ### Community 2160 - "Community 2160"
 Cohesion: 0.50
@@ -11026,7 +11025,7 @@ Nodes (3): CRITICAL: Before ANY UI work — load the skill first, UI Generation 
 
 ### Community 2199 - "Community 2199"
 Cohesion: 0.67
-Nodes (3): code:bash (adduser --disabled-password --gecos "" auroracraft-{username), code:bash (USER="auroracraft-{username}"), Linux user not created on registration
+Nodes (3): 15. Workflow Rules, Critical Workflow Rules, Mandatory Development Workflow
 
 ### Community 2200 - "Community 2200"
 Cohesion: 0.67
@@ -11050,10 +11049,6 @@ Nodes (3): code:css (.tag {), code:html (<!-- Example: a single brush tag flaggi
 
 ### Community 2215 - "Community 2215"
 Cohesion: 0.67
-Nodes (3): 13. Reload Safety, code:java (public class ReloadSubCommand implements SubCommand {), Why `/reload` Is Dangerous and What to Do Instead
-
-### Community 2216 - "Community 2216"
-Cohesion: 0.67
 Nodes (3): 6. Compilation & Runtime Error Prevention, Compilation Errors You MUST Avoid, Runtime Errors You MUST Avoid
 
 ### Community 2217 - "Community 2217"
@@ -11061,14 +11056,14 @@ Cohesion: 0.67
 Nodes (3): AgentState, SetMessagesParams, Message
 
 ## Knowledge Gaps
-- **25314 isolated node(s):** `name`, `version`, `private`, `workspaces`, `dev` (+25309 more)
+- **25322 isolated node(s):** `name`, `version`, `private`, `workspaces`, `dev` (+25317 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **28 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `columns` connect `Community 96` to `Community 1441`, `Community 1633`, `Community 1635`, `Community 1634`, `Community 1442`, `Community 875`, `Community 531`, `Community 532`, `Community 534`, `Community 122`?**
+- **Why does `columns` connect `Community 96` to `Community 1440`, `Community 1441`, `Community 1442`, `Community 1633`, `Community 1634`, `Community 875`, `Community 531`, `Community 532`, `Community 534`, `Community 122`?**
   _High betweenness centrality (0.000) - this node is a cross-community bridge._
 - **Why does `user_id` connect `Community 531` to `Community 96`?**
   _High betweenness centrality (0.000) - this node is a cross-community bridge._
@@ -11077,7 +11072,7 @@ _Questions this graph is uniquely positioned to answer:_
 - **Are the 42 inferred relationships involving `cn()` (e.g. with `Badge()` and `IconBtn()`) actually correct?**
   _`cn()` has 42 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `name`, `version`, `private` to the rest of the system?**
-  _25314 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _25322 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 0` be split into smaller, more focused modules?**
   _Cohesion score 0.05608322026232474 - nodes in this community are weakly interconnected._
 - **Should `Community 1` be split into smaller, more focused modules?**
