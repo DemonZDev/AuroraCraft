@@ -183,6 +183,13 @@
       "when": 1781300000000,
       "tag": "0025_admin_suspension",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1781400000000,
+      "tag": "0026_plan_settings",
+      "breakpoints": true
     }
   ]
 }
