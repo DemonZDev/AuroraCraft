@@ -62,6 +62,7 @@ import { cn } from '@/lib/utils'
 import type { AxiosError } from 'axios'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useProject } from '@/hooks/use-projects'
+import { useAuth } from '@/hooks/use-auth'
 import { useAgentSessions, useAgentSession, useStreamingAgent, useProjectFiles, useFileContent, useFileOperations } from '@/hooks/use-agent'
 import { useUserTokens } from '@/hooks/use-user-tokens'
 import { useAgentModels } from '@/hooks/use-ai-models'
@@ -2142,6 +2143,7 @@ function saveSessionPreference(projectId: string | undefined, sessionId: string)
 export default function WorkspacePage() {
   const { projectId } = useParams<{ projectId: string }>()
   const { project, isLoading, updateProject } = useProject(projectId ?? '')
+  const { user: authUser } = useAuth()
   const { files, isLoading: filesLoading, refetch: refetchFiles } = useProjectFiles(projectId ?? '')
   const { tokens } = useUserTokens()
   const isPaid = tokens?.tier === 'paid'
@@ -2247,7 +2249,8 @@ export default function WorkspacePage() {
   // ── Review Lock System ──────────────────────────────────────────────
   const [reviewLock, setReviewLock] = useState<{ status: 'pending' | 'error' | 'completed'; reviewId: string; error?: string } | null>(null)
   const isReviewLocked = reviewLock?.status === 'pending'
-  const isWorkspaceLocked = isReviewLocked || aiRunning || enhancerActive || errorFixActive || agentDispatchActive
+  const isSuspended = !!authUser?.suspended || !!project?.suspended
+  const isWorkspaceLocked = isReviewLocked || aiRunning || enhancerActive || errorFixActive || agentDispatchActive || isSuspended
 
   // ── Toast Notifications ─────────────────────────────────────────────
   const { addToast, ToastContainer } = useToasts()
@@ -2892,7 +2895,11 @@ const openInBuiltAutoFix = () => {
     let onStop: (() => void) | undefined
     let stopLabel = 'Stop'
 
-    if (agentDispatchActive) {
+    if (isSuspended) {
+      message = authUser?.suspended
+        ? 'Your account is suspended — this workspace is read-only.'
+        : 'This project is suspended — it is read-only.'
+    } else if (agentDispatchActive) {
       message = 'Sending enhanced prompt to AI Agent…'
     } else if (errorFixActive && (!errFixJobId || errFixJob?.status !== 'running')) {
       message = 'Sending to AI Agent…'

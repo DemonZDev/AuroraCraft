@@ -118,3 +118,30 @@ export async function changeSystemUserPassword(username: string, newPassword: st
   await setSystemUserPassword(systemUsername, newPassword)
   console.log(`[SystemUser] Password changed for ${systemUsername}`)
 }
+
+/**
+ * Delete a Linux system user and their home directory (`userdel -r`).
+ * Best-effort: a still-running process owned by the UID can make `userdel` return
+ * non-zero — we log and continue rather than throw, so the caller (admin user
+ * deletion) isn't blocked. Guarded to only ever touch `auroracraft-*` accounts.
+ */
+export async function deleteSystemUser(username: string): Promise<void> {
+  const systemUsername = toSystemUsername(username)
+  if (!systemUsername.startsWith('auroracraft-')) {
+    throw new Error(`Refusing to delete non-AuroraCraft system user: ${systemUsername}`)
+  }
+
+  const exists = await systemUserExists(username)
+  if (!exists) {
+    console.log(`[SystemUser] User ${systemUsername} does not exist, skipping deletion`)
+    return
+  }
+
+  console.log(`[SystemUser] Deleting system user (and home): ${systemUsername}`)
+  try {
+    await sudo('userdel', ['-r', systemUsername])
+    console.log(`[SystemUser] System user ${systemUsername} deleted`)
+  } catch (err) {
+    console.warn(`[SystemUser] userdel -r failed for ${systemUsername} (continuing):`, err instanceof Error ? err.message : err)
+  }
+}

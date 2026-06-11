@@ -1,11 +1,28 @@
-import { useState } from 'react'
-import { Loader2, Shield, Coins, User as UserIcon, KeyRound, Plus, Trash2, Pencil, Check, X } from 'lucide-react'
-import { useAdminUsers } from '@/hooks/use-admin'
+import { useState, useEffect } from 'react'
+import { Loader2, Shield, Coins, User as UserIcon, KeyRound, Plus, Trash2, Pencil, Check, X, Search, Ban, CircleCheck } from 'lucide-react'
+import { useAdminUsers, useAdminUserMutations } from '@/hooks/use-admin'
+import { useAuth } from '@/hooks/use-auth'
 import { useUserKeys, useUserKeyMutations, type UserProviderKeyRow, type UserProviderKey } from '@/hooks/use-ai-admin'
 import { GlassyConfirmModal, GlassyPromptModal } from '@/components/ui/glassy'
 
+function useDebounced<T>(value: T, ms = 300): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), ms)
+    return () => clearTimeout(t)
+  }, [value, ms])
+  return debounced
+}
+
 export default function AdminUsersPage() {
-  const { users, isLoading, refetch } = useAdminUsers()
+  const { user: currentUser } = useAuth()
+  const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounced(search)
+  const { users, isLoading, refetch } = useAdminUsers(debouncedSearch.trim() || undefined)
+  const { setSuspended, updateProfile, remove } = useAdminUserMutations()
+  const [editUser, setEditUser] = useState<{ id: string; username: string; email: string } | null>(null)
+  const [deleteUser, setDeleteUser] = useState<{ id: string; username: string } | null>(null)
+  const [actionError, setActionError] = useState('')
   const [grantModalOpen, setGrantModalOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<{ id: string; username: string } | null>(null)
   const [loginUrl, setLoginUrl] = useState('')
@@ -195,10 +212,43 @@ export default function AdminUsersPage() {
     }
   }
 
+  const handleToggleSuspend = (u: { id: string; suspended?: boolean }) => {
+    setActionError('')
+    setSuspended.mutate(
+      { id: u.id, suspended: !u.suspended },
+      { onError: (e) => setActionError((e as { message?: string })?.message || 'Failed to update user') },
+    )
+  }
+
+  const handleDeleteUser = () => {
+    if (!deleteUser) return
+    setActionError('')
+    remove.mutate(deleteUser.id, {
+      onSuccess: () => setDeleteUser(null),
+      onError: (e) => setActionError((e as { message?: string })?.message || 'Failed to delete user'),
+    })
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-bold tracking-tight text-text">Users</h1>
-      <p className="mt-1 text-sm text-text-muted">Manage user accounts and roles</p>
+      <p className="mt-1 text-sm text-text-muted">Manage user accounts, suspension, and deletion</p>
+
+      <div className="mt-4 flex items-center gap-2">
+        <div className="relative w-full max-w-sm">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-dim" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by username or email…"
+            className="w-full rounded-lg border border-border bg-surface py-2 pl-9 pr-3 text-sm text-text placeholder:text-text-dim focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+        </div>
+      </div>
+
+      {actionError && (
+        <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{actionError}</div>
+      )}
 
       {isLoading ? (
         <div className="mt-6 flex items-center justify-center py-12">
@@ -220,12 +270,18 @@ export default function AdminUsersPage() {
                 <th className="px-4 py-3 text-left font-medium text-text-muted">Tokens</th>
                 <th className="px-4 py-3 text-left font-medium text-text-muted">CodeRabbit</th>
                 <th className="px-4 py-3 text-left font-medium text-text-muted">Joined</th>
+                <th className="px-4 py-3 text-right font-medium text-text-muted">Actions</th>
               </tr>
             </thead>
             <tbody>
               {users.map((user) => (
                 <tr key={user.id} className="border-b border-border last:border-0 hover:bg-surface-hover">
-                  <td className="px-4 py-3 font-medium text-text">{user.username}</td>
+                  <td className="px-4 py-3 font-medium text-text">
+                    <div className="flex items-center gap-2">
+                      {user.username}
+                      {user.suspended && <span className="rounded bg-warning/10 px-1.5 py-0.5 text-[10px] font-medium text-warning">suspended</span>}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-text-muted">{user.email}</td>
                   <td className="px-4 py-3">
                     <span className={`rounded px-2 py-0.5 text-xs font-medium ${
@@ -317,6 +373,39 @@ export default function AdminUsersPage() {
                   </td>
                   <td className="px-4 py-3 text-text-dim">
                     {new Date(user.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                  </td>
+                  <td className="px-4 py-3">
+                    {(() => {
+                      const locked = user.role === 'admin' || currentUser?.id === user.id
+                      const reason = currentUser?.id === user.id ? 'You cannot suspend or delete your own account' : 'Admin accounts are protected'
+                      return (
+                        <div className="flex items-center justify-end gap-3">
+                          <button
+                            onClick={() => { setActionError(''); setEditUser({ id: user.id, username: user.username, email: user.email }) }}
+                            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                          >
+                            <Pencil className="h-3.5 w-3.5" /> Edit
+                          </button>
+                          <button
+                            onClick={() => handleToggleSuspend(user)}
+                            disabled={locked || setSuspended.isPending}
+                            title={locked ? reason : undefined}
+                            className={`inline-flex items-center gap-1 text-xs hover:underline disabled:cursor-not-allowed disabled:opacity-30 disabled:no-underline ${user.suspended ? 'text-success' : 'text-warning'}`}
+                          >
+                            {user.suspended ? <CircleCheck className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
+                            {user.suspended ? 'Unsuspend' : 'Suspend'}
+                          </button>
+                          <button
+                            onClick={() => { setActionError(''); setDeleteUser({ id: user.id, username: user.username }) }}
+                            disabled={locked}
+                            title={locked ? reason : undefined}
+                            className="inline-flex items-center gap-1 text-xs text-destructive hover:underline disabled:cursor-not-allowed disabled:opacity-30 disabled:no-underline"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" /> Delete
+                          </button>
+                        </div>
+                      )
+                    })()}
                   </td>
                 </tr>
               ))}
@@ -478,6 +567,97 @@ export default function AdminUsersPage() {
           }}
         />
       )}
+
+      <GlassyConfirmModal
+        isOpen={!!deleteUser}
+        onClose={() => setDeleteUser(null)}
+        onConfirm={handleDeleteUser}
+        title="Delete User?"
+        description="This permanently deletes the user, ALL their projects and workspaces, their Linux home directory, and their isolated config. This cannot be undone."
+        icon={Trash2}
+        confirmText={remove.isPending ? 'Deleting…' : 'Delete User'}
+        itemName={deleteUser?.username}
+        error={actionError || undefined}
+      />
+
+      {editUser && (
+        <EditUserModal
+          user={editUser}
+          isSaving={updateProfile.isPending}
+          onClose={() => setEditUser(null)}
+          onSave={async (email, password) => {
+            await updateProfile.mutateAsync({ id: editUser.id, email, password })
+            setEditUser(null)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function EditUserModal({ user, isSaving, onClose, onSave }: {
+  user: { id: string; username: string; email: string }
+  isSaving: boolean
+  onClose: () => void
+  onSave: (email?: string, password?: string) => Promise<void>
+}) {
+  const [email, setEmail] = useState(user.email)
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+
+  const submit = async () => {
+    setError('')
+    const emailChanged = email.trim().length > 0 && email.trim() !== user.email
+    const pwChanged = password.trim().length > 0
+    if (!emailChanged && !pwChanged) { setError('Change the email or enter a new password'); return }
+    if (pwChanged && password.trim().length < 8) { setError('Password must be at least 8 characters'); return }
+    try {
+      await onSave(emailChanged ? email.trim() : undefined, pwChanged ? password.trim() : undefined)
+    } catch (e) {
+      setError((e as { message?: string })?.message || 'Failed to update user')
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-semibold text-text">Edit User — {user.username}</h2>
+        <p className="mt-1 text-sm text-text-muted">Update the email and/or set a new password. Changing the password signs the user out everywhere.</p>
+
+        <label className="mt-4 block text-xs font-medium text-text-muted">Email</label>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+
+        <label className="mt-3 block text-xs font-medium text-text-muted">
+          New password <span className="text-text-dim">(leave blank to keep)</span>
+        </label>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Minimum 8 characters"
+          className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text placeholder:text-text-dim focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+
+        {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
+
+        <div className="mt-6 flex gap-3">
+          <button onClick={onClose} className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={isSaving}
+            className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {isSaving ? 'Saving…' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

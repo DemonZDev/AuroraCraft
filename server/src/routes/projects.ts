@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
 import { eq, and, desc, sql, inArray } from 'drizzle-orm'
 import crypto from 'crypto'
@@ -13,7 +13,7 @@ import { agentSessions } from '../db/schema/agent-sessions.js'
 import { agentMessages } from '../db/schema/agent-messages.js'
 import { agentLogs } from '../db/schema/agent-logs.js'
 import { authMiddleware } from '../middleware/auth.js'
-import { opencodeBridge } from '../bridges/index.js'
+import { deleteProjectArtifacts } from '../utils/project-deletion.js'
 import { toSystemUsername } from '../utils/system-user.js'
 
 /** Software category groups — restricts cross-category changes in project settings */
@@ -103,6 +103,65 @@ export async function readFileTree(dirPath: string, relativeTo: string, maxDepth
     })
   } catch {
     return []
+  }
+}
+
+/**
+ * Resolve a project for a file operation, supporting BOTH the owner and any admin.
+ * - Owner: must own the project (else 404). Suspended owner / suspended project ⇒ 403 on writes.
+ * - Admin: may act on ANY project (full edit), never suspension-gated.
+ * The workspace path is always built from the OWNER's system username, not the caller's.
+ * Returns null after sending an error reply; otherwise the resolved project + paths.
+ */
+async function resolveProjectForFiles(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  projectId: string,
+  requireWrite: boolean,
+): Promise<{ project: typeof projects.$inferSelect; ownerUsername: string; projectDir: string } | null> {
+  const isAdmin = request.user!.role === 'admin'
+
+  const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1)
+  if (!project) {
+    reply.status(404).send({ message: 'Project not found', statusCode: 404 })
+    return null
+  }
+  if (!isAdmin && project.userId !== request.user!.id) {
+    reply.status(404).send({ message: 'Project not found', statusCode: 404 })
+    return null
+  }
+
+  // Resolve the owner's username (the caller is the owner unless an admin is acting on someone else's project).
+  let ownerUsername = request.user!.username
+  if (project.userId !== request.user!.id) {
+    const [owner] = await db.select({ username: users.username }).from(users).where(eq(users.id, project.userId)).limit(1)
+    if (!owner) {
+      reply.status(404).send({ message: 'Project owner not found', statusCode: 404 })
+      return null
+    }
+    ownerUsername = owner.username
+  }
+
+  // Suspension gate applies only to non-admin owners writing to their own project.
+  if (requireWrite && !isAdmin && (request.user!.suspended || project.suspended)) {
+    reply.status(403).send({
+      message: request.user!.suspended
+        ? 'Your account is suspended. Editing is disabled.'
+        : 'This project is suspended. Editing is disabled.',
+      statusCode: 403,
+    })
+    return null
+  }
+
+  if (!project.linkId) {
+    reply.status(404).send({ message: 'Project directory not found', statusCode: 404 })
+    return null
+  }
+
+  return {
+    project,
+    ownerUsername,
+    projectDir: `/home/auroracraft-${ownerUsername.toLowerCase()}/${project.linkId}`,
   }
 }
 
@@ -284,6 +343,10 @@ export async function projectRoutes(app: FastifyInstance) {
       })
     }
 
+    if (request.user!.suspended) {
+      return reply.status(403).send({ message: 'Your account is suspended. You cannot create new projects.', statusCode: 403 })
+    }
+
     const userTier = request.user!.tier ?? 'free'
     const visibility = userTier === 'free' ? 'public' : parsed.data.visibility
 
@@ -355,6 +418,10 @@ export async function projectRoutes(app: FastifyInstance) {
         return reply.status(400).send({ error: parsed.error.issues[0].message })
       }
 
+      if (request.user!.suspended) {
+        return reply.status(403).send({ error: 'Your account is suspended. You cannot create new projects.', statusCode: 403 })
+      }
+
       const userTier = request.user!.tier ?? 'free'
       if (userTier === 'free') {
         return reply.status(403).send({ error: 'ZIP upload requires a paid subscription. Upgrade to enable importing from ZIP archives.', statusCode: 403 })
@@ -402,6 +469,10 @@ export async function projectRoutes(app: FastifyInstance) {
     const parsed = createProjectSchema.safeParse(projectData)
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.issues[0].message })
+    }
+
+    if (request.user!.suspended) {
+      return reply.status(403).send({ error: 'Your account is suspended. You cannot create new projects.', statusCode: 403 })
     }
 
     const userTier = request.user!.tier ?? 'free'
@@ -496,13 +567,17 @@ export async function projectRoutes(app: FastifyInstance) {
     }
 
     const [existing] = await db
-      .select({ id: projects.id, software: projects.software, language: projects.language })
+      .select({ id: projects.id, software: projects.software, language: projects.language, suspended: projects.suspended })
       .from(projects)
       .where(and(eq(projects.id, id), eq(projects.userId, request.user!.id)))
       .limit(1)
 
     if (!existing) {
       return reply.status(404).send({ message: 'Project not found', statusCode: 404 })
+    }
+
+    if (request.user!.suspended || existing.suspended) {
+      return reply.status(403).send({ message: 'This project is suspended and cannot be modified.', statusCode: 403 })
     }
 
     const userTier = request.user!.tier ?? 'free'
@@ -560,49 +635,11 @@ export async function projectRoutes(app: FastifyInstance) {
       .where(eq(users.id, existing.userId))
       .limit(1)
 
-    const systemUsername = `auroracraft-${(projectOwner?.username ?? request.user!.username).toLowerCase()}`
-    const projectDir = existing.linkId
-      ? `/home/${systemUsername}/${existing.linkId}`
-      : null
-
-    if (projectDir) {
-      await opencodeBridge.cleanupProject(systemUsername, projectDir).catch((err) => {
-        app.log.warn({ err, projectDir }, 'Failed to clean up OpenCode data')
-      })
-    }
-
     await db.delete(projects).where(eq(projects.id, id))
 
-    // Clean up project directory (non-blocking)
-    if (projectDir) {
-      import('child_process').then(({ exec }) => {
-        exec(`sudo rm -rf "${projectDir}"`, (err) => {
-          if (err) {
-            app.log.warn({ err, projectDir }, 'Failed to remove project directory')
-          } else {
-            app.log.info({ projectDir }, 'Project directory removed successfully')
-          }
-        })
-      }).catch((err) => {
-        app.log.warn({ err, projectDir }, 'Failed to import child_process')
-      })
-    }
-
-    // Clean up isolated config directory (rules, skills, caches, provider configs)
-    if (existing.linkId && projectOwner?.username) {
-      const isolatedConfigDir = `/var/lib/auroracraft/configs/auroracraft-${projectOwner.username.toLowerCase()}/${existing.linkId}`
-      import('child_process').then(({ exec }) => {
-        exec(`sudo rm -rf "${isolatedConfigDir}"`, (err) => {
-          if (err) {
-            app.log.warn({ err, isolatedConfigDir }, 'Failed to remove isolated config directory')
-          } else {
-            app.log.info({ isolatedConfigDir }, 'Isolated config directory removed successfully')
-          }
-        })
-      }).catch((err) => {
-        app.log.warn({ err, isolatedConfigDir }, 'Failed to import child_process for config cleanup')
-      })
-    }
+    // Remove workspace dir + isolated config + OpenCode history (non-blocking).
+    const ownerUsername = projectOwner?.username ?? request.user!.username
+    void deleteProjectArtifacts(ownerUsername, existing.linkId)
 
     return reply.status(204).send()
   })
@@ -611,24 +648,10 @@ export async function projectRoutes(app: FastifyInstance) {
   app.get('/api/projects/:id/files', { preHandler: [authMiddleware] }, async (request, reply) => {
     const { id } = request.params as { id: string }
 
-    const [project] = await db
-      .select()
-      .from(projects)
-      .where(and(eq(projects.id, id), eq(projects.userId, request.user!.id)))
-      .limit(1)
+    const resolved = await resolveProjectForFiles(request, reply, id, false)
+    if (!resolved) return
 
-    if (!project) {
-      return reply.status(404).send({ message: 'Project not found', statusCode: 404 })
-    }
-
-    if (!project.linkId) {
-      return { files: [] }
-    }
-
-    const username = request.user!.username
-    const projectDir = `/home/auroracraft-${username.toLowerCase()}/${project.linkId}`
-    const files = await readFileTree(projectDir, projectDir, 10)
-
+    const files = await readFileTree(resolved.projectDir, resolved.projectDir, 10)
     return { files }
   })
 
@@ -641,22 +664,9 @@ export async function projectRoutes(app: FastifyInstance) {
       return reply.status(400).send({ message: 'Missing path query parameter', statusCode: 400 })
     }
 
-    const [project] = await db
-      .select()
-      .from(projects)
-      .where(and(eq(projects.id, id), eq(projects.userId, request.user!.id)))
-      .limit(1)
-
-    if (!project) {
-      return reply.status(404).send({ message: 'Project not found', statusCode: 404 })
-    }
-
-    if (!project.linkId) {
-      return reply.status(404).send({ message: 'Project directory not found', statusCode: 404 })
-    }
-
-    const username = request.user!.username
-    const projectDir = `/home/auroracraft-${username.toLowerCase()}/${project.linkId}`
+    const resolved = await resolveProjectForFiles(request, reply, id, false)
+    if (!resolved) return
+    const { projectDir } = resolved
     const fullPath = path.resolve(projectDir, filePath)
 
     // Security: ensure the resolved path is within the project directory
@@ -684,22 +694,9 @@ export async function projectRoutes(app: FastifyInstance) {
       return reply.status(400).send({ message: parsed.error.issues[0].message, statusCode: 400 })
     }
 
-    const [project] = await db
-      .select()
-      .from(projects)
-      .where(and(eq(projects.id, id), eq(projects.userId, request.user!.id)))
-      .limit(1)
-
-    if (!project) {
-      return reply.status(404).send({ message: 'Project not found', statusCode: 404 })
-    }
-
-    if (!project.linkId) {
-      return reply.status(404).send({ message: 'Project directory not found', statusCode: 404 })
-    }
-
-    const username = request.user!.username
-    const projectDir = `/home/auroracraft-${username.toLowerCase()}/${project.linkId}`
+    const resolved = await resolveProjectForFiles(request, reply, id, true)
+    if (!resolved) return
+    const { projectDir } = resolved
     const fullPath = path.resolve(projectDir, parsed.data.path)
 
     if (!fullPath.startsWith(projectDir + '/')) {
@@ -725,22 +722,9 @@ export async function projectRoutes(app: FastifyInstance) {
       return reply.status(400).send({ message: parsed.error.issues[0].message, statusCode: 400 })
     }
 
-    const [project] = await db
-      .select()
-      .from(projects)
-      .where(and(eq(projects.id, id), eq(projects.userId, request.user!.id)))
-      .limit(1)
-
-    if (!project) {
-      return reply.status(404).send({ message: 'Project not found', statusCode: 404 })
-    }
-
-    if (!project.linkId) {
-      return reply.status(404).send({ message: 'Project directory not found', statusCode: 404 })
-    }
-
-    const username = request.user!.username
-    const projectDir = `/home/auroracraft-${username.toLowerCase()}/${project.linkId}`
+    const resolved = await resolveProjectForFiles(request, reply, id, true)
+    if (!resolved) return
+    const { projectDir } = resolved
     const fullPath = path.resolve(projectDir, parsed.data.path)
 
     if (!fullPath.startsWith(projectDir + '/')) {
@@ -777,22 +761,9 @@ export async function projectRoutes(app: FastifyInstance) {
       return reply.status(400).send({ message: parsed.error.issues[0].message, statusCode: 400 })
     }
 
-    const [project] = await db
-      .select()
-      .from(projects)
-      .where(and(eq(projects.id, id), eq(projects.userId, request.user!.id)))
-      .limit(1)
-
-    if (!project) {
-      return reply.status(404).send({ message: 'Project not found', statusCode: 404 })
-    }
-
-    if (!project.linkId) {
-      return reply.status(404).send({ message: 'Project directory not found', statusCode: 404 })
-    }
-
-    const username = request.user!.username
-    const projectDir = `/home/auroracraft-${username.toLowerCase()}/${project.linkId}`
+    const resolved = await resolveProjectForFiles(request, reply, id, true)
+    if (!resolved) return
+    const { projectDir } = resolved
     const fullPath = path.resolve(projectDir, parsed.data.path)
 
     if (!fullPath.startsWith(projectDir + '/') || fullPath === projectDir) {
@@ -817,22 +788,9 @@ export async function projectRoutes(app: FastifyInstance) {
       return reply.status(400).send({ message: parsed.error.issues[0].message, statusCode: 400 })
     }
 
-    const [project] = await db
-      .select()
-      .from(projects)
-      .where(and(eq(projects.id, id), eq(projects.userId, request.user!.id)))
-      .limit(1)
-
-    if (!project) {
-      return reply.status(404).send({ message: 'Project not found', statusCode: 404 })
-    }
-
-    if (!project.linkId) {
-      return reply.status(404).send({ message: 'Project directory not found', statusCode: 404 })
-    }
-
-    const username = request.user!.username
-    const projectDir = `/home/auroracraft-${username.toLowerCase()}/${project.linkId}`
+    const resolved = await resolveProjectForFiles(request, reply, id, true)
+    if (!resolved) return
+    const { projectDir } = resolved
     const oldFullPath = path.resolve(projectDir, parsed.data.oldPath)
     const newFullPath = path.resolve(projectDir, parsed.data.newPath)
 
@@ -916,22 +874,9 @@ export async function projectRoutes(app: FastifyInstance) {
       return reply.status(400).send({ message: 'Missing path query parameter', statusCode: 400 })
     }
 
-    const [project] = await db
-      .select()
-      .from(projects)
-      .where(and(eq(projects.id, id), eq(projects.userId, request.user!.id)))
-      .limit(1)
-
-    if (!project) {
-      return reply.status(404).send({ message: 'Project not found', statusCode: 404 })
-    }
-
-    if (!project.linkId) {
-      return reply.status(404).send({ message: 'Project directory not found', statusCode: 404 })
-    }
-
-    const username = request.user!.username
-    const projectDir = `/home/auroracraft-${username.toLowerCase()}/${project.linkId}`
+    const resolved = await resolveProjectForFiles(request, reply, id, false)
+    if (!resolved) return
+    const { projectDir } = resolved
     const fullPath = path.resolve(projectDir, filePath)
 
     if (!fullPath.startsWith(projectDir + '/')) {

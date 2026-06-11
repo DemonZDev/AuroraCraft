@@ -39,6 +39,7 @@ export async function authMiddleware(
       email: users.email,
       role: users.role,
       tier: users.tier,
+      suspended: users.suspended,
       createdAt: users.createdAt,
       updatedAt: users.updatedAt,
     })
@@ -85,6 +86,7 @@ export async function optionalAuthMiddleware(
       email: users.email,
       role: users.role,
       tier: users.tier,
+      suspended: users.suspended,
       createdAt: users.createdAt,
       updatedAt: users.updatedAt,
     })
@@ -118,6 +120,7 @@ declare module 'fastify' {
       email: string
       role: 'user' | 'admin'
       tier: 'free' | 'paid' | null
+      suspended: boolean
       createdAt: Date
       updatedAt: Date
     }

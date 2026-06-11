@@ -7,6 +7,7 @@ export interface User {
   aiTokens?: number
   tokensUsed?: number
   coderabbitEnabled?: boolean
+  suspended?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -26,6 +27,8 @@ export interface Project {
   javaVersion: string
   compiler: 'maven' | 'gradle' | 'both'
   visibility: 'public' | 'private'
+  suspended: boolean
+  suspendedReason?: string | null
   graphifyEnabled: boolean
   graphifyStatus: 'none' | 'building' | 'ready' | 'failed'
   graphifyBuiltAt: string | null
@@ -158,12 +161,32 @@ export interface AdminProject {
   id: string
   name: string
   status: 'active' | 'archived'
+  suspended: boolean
   software: string
   language: 'java' | 'kotlin'
   compiler: 'maven' | 'gradle' | 'both'
+  visibility?: 'public' | 'private'
+  linkId: string | null
+  userId?: string
   createdAt: string
   updatedAt: string
   ownerUsername: string | null
+  ownerSuspended?: boolean | null
+}
+
+// Single project + owner info for the admin workspace header (GET /api/admin/projects/:id).
+export interface AdminProjectDetail {
+  id: string
+  name: string
+  linkId: string | null
+  suspended: boolean
+  software: string
+  language: 'java' | 'kotlin'
+  compiler: 'maven' | 'gradle' | 'both'
+  javaVersion: string
+  ownerId: string | null
+  ownerUsername: string | null
+  ownerSuspended: boolean | null
 }
 
 // A single agent model as served by GET /api/ai/models (one row per provider+tag).

@@ -23,6 +23,7 @@ import AdminOverviewPage from '@/pages/admin/overview'
 import AdminUsersPage from '@/pages/admin/users'
 import AdminAIRuntimePage from '@/pages/admin/ai-runtime'
 import AdminProjectsPage from '@/pages/admin/projects'
+import AdminWorkspacePage from '@/pages/admin/workspace'
 
 export function AppRoutes() {
   return (
@@ -75,6 +76,7 @@ export function AppRoutes() {
           <Route path="admin/users" element={<AdminUsersPage />} />
           <Route path="admin/ai-runtime" element={<AdminAIRuntimePage />} />
           <Route path="admin/projects" element={<AdminProjectsPage />} />
+          <Route path="admin/projects/:projectId/workspace" element={<AdminWorkspacePage />} />
         </Route>
       </Route>
     </Routes>

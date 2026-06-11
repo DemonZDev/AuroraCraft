@@ -163,6 +163,7 @@ export async function authRoutes(app: FastifyInstance) {
       username: user.username,
       email: user.email,
       role: user.role,
+      suspended: user.suspended,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     }

@@ -41,7 +41,7 @@ async function getPublicProject(id: string) {
     })
     .from(projects)
     .innerJoin(users, eq(projects.userId, users.id))
-    .where(and(eq(projects.id, id), eq(projects.visibility, 'public'), eq(projects.status, 'active')))
+    .where(and(eq(projects.id, id), eq(projects.visibility, 'public'), eq(projects.status, 'active'), eq(projects.suspended, false), eq(users.suspended, false)))
     .limit(1)
   return row ?? null
 }
@@ -90,7 +90,7 @@ export async function communityRoutes(app: FastifyInstance) {
       sort?: string
     }
 
-    const conditions = [eq(projects.visibility, 'public'), eq(projects.status, 'active')]
+    const conditions = [eq(projects.visibility, 'public'), eq(projects.status, 'active'), eq(projects.suspended, false), eq(users.suspended, false)]
 
     if (search) {
       const searchCondition = or(
@@ -391,7 +391,7 @@ export async function communityRoutes(app: FastifyInstance) {
       })
       .from(projects)
       .innerJoin(users, eq(projects.userId, users.id))
-      .where(and(eq(projects.id, id), eq(projects.visibility, 'public'), eq(projects.status, 'active')))
+      .where(and(eq(projects.id, id), eq(projects.visibility, 'public'), eq(projects.status, 'active'), eq(projects.suspended, false), eq(users.suspended, false)))
       .limit(1)
 
     if (!sourceProject) {

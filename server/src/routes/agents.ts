@@ -257,6 +257,15 @@ export async function agentRoutes(app: FastifyInstance) {
       return reply.status(404).send({ message: 'Project not found', statusCode: 404 })
     }
 
+    if (request.user!.suspended || project.suspended) {
+      return reply.status(403).send({
+        message: request.user!.suspended
+          ? 'Your account is suspended. The AI agent is disabled.'
+          : 'This project is suspended. The AI agent is disabled.',
+        statusCode: 403,
+      })
+    }
+
     const [session] = await db
       .select()
       .from(agentSessions)
@@ -631,6 +640,15 @@ export async function agentRoutes(app: FastifyInstance) {
     const project = await verifyProjectOwnership(request.user!.id, projectId)
     if (!project) {
       return reply.status(404).send({ message: 'Project not found', statusCode: 404 })
+    }
+
+    if (request.user!.suspended || project.suspended) {
+      return reply.status(403).send({
+        message: request.user!.suspended
+          ? 'Your account is suspended. The AI agent is disabled.'
+          : 'This project is suspended. The AI agent is disabled.',
+        statusCode: 403,
+      })
     }
 
     const [session] = await db

@@ -28,6 +28,10 @@ export const projects = pgTable('projects', {
   graphifyEnabled: boolean('graphify_enabled').default(false).notNull(),
   graphifyStatus: graphifyStatusEnum('graphify_status').default('none').notNull(),
   graphifyBuiltAt: timestamp('graphify_built_at', { withTimezone: true }),
+  // Admin moderation: a suspended project is read-only for its owner (no AI, no edits,
+  // no builds) and is hidden from Community. Admins can still fully edit it.
+  suspended: boolean('suspended').default(false).notNull(),
+  suspendedReason: text('suspended_reason'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })

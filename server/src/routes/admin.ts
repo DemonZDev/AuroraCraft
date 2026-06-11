@@ -1,14 +1,32 @@
 import type { FastifyInstance } from 'fastify'
-import { sql, eq, desc, asc, and } from 'drizzle-orm'
+import { z } from 'zod'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
+import { sql, eq, desc, asc, and, or, ilike } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { users } from '../db/schema/users.js'
 import { projects } from '../db/schema/projects.js'
 import { agentSessions } from '../db/schema/agent-sessions.js'
-import { providerApiKeys } from '../db/schema/provider-api-keys.js'
+import { providerApiKeys, tokenTransactions } from '../db/schema/provider-api-keys.js'
 import { aiProviders } from '../db/schema/ai-providers.js'
 import { mcps } from '../db/schema/mcps.js'
+import { sessions } from '../db/schema/sessions.js'
 import { authMiddleware, adminGuard } from '../middleware/auth.js'
 import { grantTokens, getUserTokens, deductTokens } from '../utils/token-service.js'
+import { hashPassword } from '../utils/password.js'
+import { changeSystemUserPassword, deleteSystemUser, toSystemUsername } from '../utils/system-user.js'
+import { deleteProjectArtifacts } from '../utils/project-deletion.js'
+
+const execFileAsync = promisify(execFile)
+
+/** `rm -rf <path>` with sudo unless already root. Best-effort; logs are the caller's job. */
+async function sudoRmrf(targetPath: string): Promise<void> {
+  if (process.getuid?.() === 0) {
+    await execFileAsync('rm', ['-rf', targetPath])
+  } else {
+    await execFileAsync('sudo', ['rm', '-rf', targetPath])
+  }
+}
 
 export async function adminRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authMiddleware)
@@ -45,35 +63,106 @@ export async function adminRoutes(app: FastifyInstance) {
     return allUsers
   })
 
-  // List all projects with owner info (admin view)
-  app.get('/api/admin/projects', async () => {
-    const allProjects = await db
+  // List all projects with owner info (admin view). Optional ?search= matches
+  // project name OR owner username (case-insensitive).
+  app.get('/api/admin/projects', async (request) => {
+    const { search } = request.query as { search?: string }
+    const s = search?.trim()
+    const where = s ? or(ilike(projects.name, `%${s}%`), ilike(users.username, `%${s}%`)) : undefined
+
+    const q = db
       .select({
         id: projects.id,
         name: projects.name,
         status: projects.status,
+        suspended: projects.suspended,
         software: projects.software,
         language: projects.language,
         compiler: projects.compiler,
+        visibility: projects.visibility,
+        linkId: projects.linkId,
+        userId: projects.userId,
         createdAt: projects.createdAt,
         updatedAt: projects.updatedAt,
         ownerUsername: users.username,
+        ownerSuspended: users.suspended,
       })
       .from(projects)
       .leftJoin(users, eq(projects.userId, users.id))
-      .orderBy(desc(projects.createdAt))
 
-    return allProjects
+    return await (where ? q.where(where) : q).orderBy(desc(projects.createdAt))
   })
 
-  app.get('/api/admin/users/detailed', async () => {
-    const allUsers = await db
+  // Single project + owner info (powers the admin workspace header).
+  app.get('/api/admin/projects/:id', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const [row] = await db
+      .select({
+        id: projects.id,
+        name: projects.name,
+        linkId: projects.linkId,
+        suspended: projects.suspended,
+        software: projects.software,
+        language: projects.language,
+        compiler: projects.compiler,
+        javaVersion: projects.javaVersion,
+        ownerId: users.id,
+        ownerUsername: users.username,
+        ownerSuspended: users.suspended,
+      })
+      .from(projects)
+      .leftJoin(users, eq(projects.userId, users.id))
+      .where(eq(projects.id, id))
+      .limit(1)
+    if (!row) return reply.status(404).send({ message: 'Project not found', statusCode: 404 })
+    return row
+  })
+
+  // Suspend / unsuspend a single project.
+  app.patch('/api/admin/projects/:id', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { suspended, reason } = request.body as { suspended?: boolean; reason?: string }
+    if (typeof suspended !== 'boolean') {
+      return reply.status(400).send({ message: 'suspended (boolean) is required', statusCode: 400 })
+    }
+    const [existing] = await db.select({ id: projects.id }).from(projects).where(eq(projects.id, id)).limit(1)
+    if (!existing) return reply.status(404).send({ message: 'Project not found', statusCode: 404 })
+    await db
+      .update(projects)
+      .set({ suspended, suspendedReason: suspended ? (reason?.trim() || null) : null, updatedAt: new Date() })
+      .where(eq(projects.id, id))
+    return { success: true, suspended }
+  })
+
+  // Delete any project (workspace + isolated config + OpenCode history + DB rows).
+  app.delete('/api/admin/projects/:id', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const [existing] = await db
+      .select({ id: projects.id, linkId: projects.linkId, userId: projects.userId })
+      .from(projects)
+      .where(eq(projects.id, id))
+      .limit(1)
+    if (!existing) return reply.status(404).send({ message: 'Project not found', statusCode: 404 })
+
+    const [owner] = await db.select({ username: users.username }).from(users).where(eq(users.id, existing.userId)).limit(1)
+    await db.delete(projects).where(eq(projects.id, id))
+    if (owner?.username) void deleteProjectArtifacts(owner.username, existing.linkId)
+    return reply.status(204).send()
+  })
+
+  app.get('/api/admin/users/detailed', async (request) => {
+    const { search } = request.query as { search?: string }
+    const s = search?.trim()
+    const where = s ? or(ilike(users.username, `%${s}%`), ilike(users.email, `%${s}%`)) : undefined
+
+    const q = db
       .select({
         id: users.id,
         username: users.username,
         email: users.email,
         role: users.role,
         tier: users.tier,
+        suspended: users.suspended,
         aiTokens: users.aiTokens,
         tokensUsed: users.tokensUsed,
         coderabbitEnabled: users.coderabbitEnabled,
@@ -81,9 +170,8 @@ export async function adminRoutes(app: FastifyInstance) {
         updatedAt: users.updatedAt,
       })
       .from(users)
-      .orderBy(desc(users.createdAt))
 
-    return allUsers
+    return await (where ? q.where(where) : q).orderBy(desc(users.createdAt))
   })
 
   app.patch('/api/admin/users/:id/tier', async (request, reply) => {
@@ -168,6 +256,116 @@ export async function adminRoutes(app: FastifyInstance) {
 
     await deductTokens(id, amount, description || `Admin deduction by ${request.user!.username}`, undefined)
     return { success: true, deducted: amount, remainingBalance: currentBalance - amount }
+  })
+
+  // Update a user's email and/or password.
+  const updateUserSchema = z.object({
+    email: z.string().email().max(255).optional(),
+    password: z.string().min(8).max(128).optional(),
+  })
+  app.patch('/api/admin/users/:id', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const parsed = updateUserSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ message: parsed.error.issues[0].message, statusCode: 400 })
+    }
+    const { email, password } = parsed.data
+    if (!email && !password) {
+      return reply.status(400).send({ message: 'Provide an email and/or a password to update', statusCode: 400 })
+    }
+
+    const [user] = await db
+      .select({ id: users.id, username: users.username, email: users.email })
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1)
+    if (!user) return reply.status(404).send({ message: 'User not found', statusCode: 404 })
+
+    const updates: Record<string, unknown> = { updatedAt: new Date() }
+
+    if (email && email !== user.email) {
+      const [dup] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1)
+      if (dup && dup.id !== id) {
+        return reply.status(409).send({ message: 'That email is already in use', statusCode: 409 })
+      }
+      updates.email = email
+    }
+
+    if (password) {
+      updates.passwordHash = await hashPassword(password)
+    }
+
+    await db.update(users).set(updates).where(eq(users.id, id))
+
+    if (password) {
+      // Keep the Linux account password in sync (best-effort) and force a re-login.
+      await changeSystemUserPassword(user.username, password).catch((err) =>
+        app.log.warn({ err, userId: id }, 'Failed to sync Linux password'))
+      await db.delete(sessions).where(eq(sessions.userId, id))
+    }
+
+    return { success: true }
+  })
+
+  // Suspend / unsuspend a user. Admins and the acting admin themselves are protected.
+  app.patch('/api/admin/users/:id/suspended', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { suspended, reason } = request.body as { suspended?: boolean; reason?: string }
+    if (typeof suspended !== 'boolean') {
+      return reply.status(400).send({ message: 'suspended (boolean) is required', statusCode: 400 })
+    }
+    if (id === request.user!.id) {
+      return reply.status(400).send({ message: 'You cannot suspend your own account', statusCode: 400 })
+    }
+    const [target] = await db.select({ id: users.id, role: users.role }).from(users).where(eq(users.id, id)).limit(1)
+    if (!target) return reply.status(404).send({ message: 'User not found', statusCode: 404 })
+    if (target.role === 'admin') {
+      return reply.status(400).send({ message: 'Admin accounts cannot be suspended', statusCode: 400 })
+    }
+    await db
+      .update(users)
+      .set({ suspended, suspendedReason: suspended ? (reason?.trim() || null) : null, updatedAt: new Date() })
+      .where(eq(users.id, id))
+    return { success: true, suspended }
+  })
+
+  // Delete a user entirely: all projects (workspace + isolated config + OpenCode history),
+  // DB rows, the Linux home (userdel -r), and the user's isolated config base dir.
+  // Global shared caches are never touched. Admins and self are protected.
+  app.delete('/api/admin/users/:id', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    if (id === request.user!.id) {
+      return reply.status(400).send({ message: 'You cannot delete your own account', statusCode: 400 })
+    }
+    const [target] = await db
+      .select({ id: users.id, username: users.username, role: users.role })
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1)
+    if (!target) return reply.status(404).send({ message: 'User not found', statusCode: 404 })
+    if (target.role === 'admin') {
+      return reply.status(400).send({ message: 'Admin accounts cannot be deleted', statusCode: 400 })
+    }
+
+    // Clean up each project's on-disk + OpenCode artifacts (home dir is also removed below).
+    const userProjects = await db.select({ linkId: projects.linkId }).from(projects).where(eq(projects.userId, id))
+    for (const p of userProjects) {
+      await deleteProjectArtifacts(target.username, p.linkId)
+    }
+
+    // Pre-clean FK rows lacking ON DELETE CASCADE, then delete the user (cascades the rest).
+    await db.delete(providerApiKeys).where(eq(providerApiKeys.userId, id))
+    await db.delete(tokenTransactions).where(eq(tokenTransactions.userId, id))
+    await db.update(providerApiKeys).set({ createdBy: null }).where(eq(providerApiKeys.createdBy, id))
+    await db.delete(users).where(eq(users.id, id))
+
+    // Remove the Linux account + home and the user's isolated config base dir.
+    await deleteSystemUser(target.username)
+    const configBase = `/var/lib/auroracraft/configs/${toSystemUsername(target.username)}`
+    await sudoRmrf(configBase).catch((err) =>
+      app.log.warn({ err, configBase }, 'Failed to remove user isolated config base dir'))
+
+    return reply.status(204).send()
   })
 
   // ── Per-user keys: AI providers + MCPs ────────────────────────────────

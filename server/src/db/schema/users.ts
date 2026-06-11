@@ -18,6 +18,10 @@ export const users = pgTable('users', {
   coderabbitEnabled: boolean('coderabbit_enabled').default(false),
   coderabbitGrantedBy: uuid('coderabbit_granted_by').references((): any => users.id),
   coderabbitGrantedAt: timestamp('coderabbit_granted_at', { withTimezone: true }),
+  // Admin moderation: a suspended user keeps access but is read-only (no project
+  // creation, no AI, no edits/builds); their public projects are hidden from Community.
+  suspended: boolean('suspended').default(false).notNull(),
+  suspendedReason: text('suspended_reason'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { Plus, Search, MoreHorizontal, Trash2, Pencil, Archive, Settings } from 'lucide-react'
+import { Plus, Search, MoreHorizontal, Trash2, Pencil, Archive, Settings, Ban } from 'lucide-react'
 import { useProjects } from '@/hooks/use-projects'
+import { useAuth } from '@/hooks/use-auth'
 import { cn } from '@/lib/utils'
 import { SOFTWARE_LABELS } from '@/lib/software-options'
 import { CustomSelect } from '@/components/ui/custom-select'
@@ -27,6 +28,7 @@ type SortKey = 'name' | 'updatedAt'
 
 export default function DashboardPage() {
   const { projects, isLoading, deleteProject, isDeleting } = useProjects()
+  const { user } = useAuth()
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<SortKey>('updatedAt')
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null)
@@ -55,14 +57,35 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold tracking-tight text-text">Projects</h1>
           <p className="mt-1 text-sm text-text-muted">Manage your Minecraft plugin projects</p>
         </div>
-        <Link
-          to="/projects/new"
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
-        >
-          <Plus className="h-4 w-4" />
-          New Project
-        </Link>
+        {user?.suspended ? (
+          <button
+            disabled
+            title="Your account is suspended"
+            className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg bg-primary/40 px-4 py-2 text-sm font-medium text-primary-foreground opacity-60"
+          >
+            <Plus className="h-4 w-4" />
+            New Project
+          </button>
+        ) : (
+          <Link
+            to="/projects/new"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
+          >
+            <Plus className="h-4 w-4" />
+            New Project
+          </Link>
+        )}
       </div>
+
+      {user?.suspended && (
+        <div className="mt-6 flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3">
+          <Ban className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
+          <div className="text-sm">
+            <p className="font-medium text-text">Your account is suspended</p>
+            <p className="mt-0.5 text-text-muted">Your projects are read-only — you can't run the AI agent, edit files, or create new projects. Contact support if you believe this is a mistake.</p>
+          </div>
+        </div>
+      )}
 
       {!isLoading && projects.length > 0 && (
         <div className="mt-6 flex items-center gap-3">
@@ -224,13 +247,15 @@ export default function DashboardPage() {
               <p className="mt-1 max-w-sm text-sm text-text-muted">
                 Create your first Minecraft plugin project and let AI help you build it.
               </p>
-              <Link
-                to="/projects/new"
-                className="mt-6 inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
-              >
-                <Plus className="h-4 w-4" />
-                Create your first project
-              </Link>
+              {!user?.suspended && (
+                <Link
+                  to="/projects/new"
+                  className="mt-6 inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create your first project
+                </Link>
+              )}
             </div>
           )}
         </>
