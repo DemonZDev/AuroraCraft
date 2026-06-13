@@ -248,12 +248,55 @@ Workspace remembers chosen model per project in localStorage under
 `auroracraft:model:{projectId}`. Validated on page load against the available model list (`GET /api/ai/models`).
 Key file: `client/src/pages/workspace.tsx`
 
+### Animated Auth Scene (Login/Register)
+`/login` + `/register` render one shared `client/src/components/auth/auth-scene.tsx`
+(the page files are thin wrappers passing `initialMode`). Interactive SVG scene:
+ceiling-hung lamp (green = register, blue = login) with a frog on top.
+- Pull-rope (or the "Pull the rope" text button) toggles the mode: cord stretch
+  (scaleY 1.55, bead follows 80×(scale−1) px), lamp dip + swing, frog startle jump
+  (crouch → leg-kick launch → −80px apex → landing squash → rebound), staggered
+  via animation-delay. Mode is React state, not navigation — form values survive.
+- Frog gaze is layout-aware via `matchMedia('(min-width: 1024px)')` (= Tailwind `lg`,
+  where the grid stacks): desktop watch=right / away=left; mobile watch=down / away=up.
+  Watch = focus inside the form while passwords hidden; away = a password is visible.
+- Failed submit (server error or client validation) → head-shake "no".
+Keyframes: `client/src/index.css`, section "Auth: hanging lamp + frog scene".
+Two hard rules in Common Gotchas: bake transform pivots; keep interaction
+feedback alive under prefers-reduced-motion.
+
 ### Graphify Token Savings (Product Feature — Paid Only)
 End-user feature: paid users build a knowledge graph of their plugin project.
 Build command: `cd <workspace> && rm -rf graphify-out && graphify update . --force`
 Never use `graphify extract` (triggers paid LLM pass).
 GEMINI_API_KEY / GOOGLE_API_KEY must NEVER be set in server env.
 Key file: `server/src/utils/graphify-service.ts`
+
+### Legal Documents (Admin-Managed)
+Privacy Policy and Terms of Service are stored in the database and edited at runtime from **Admin Panel → Legal** — no code changes, no redeploy. The two seeded slugs are `privacy` and `terms`; each row is Markdown source plus metadata (title, version, effectiveDate). The public `/privacy` and `/terms` pages render the Markdown live via `react-markdown` + `remark-gfm` + `rehype-highlight`, with auto-generated heading anchors and a sticky right-side TOC. The admin editor is a split-pane (textarea + live preview on desktop, tabs on mobile) with title / version / effective-date fields and an immediate-save that invalidates both the admin and public TanStack-Query caches.
+
+**Table** (migration `0027_legal_documents.sql` — idempotent, seeds defaults):
+- `slug` (text, unique) — `privacy` | `terms`. **Immutable** (it's the public URL); renaming would 404 existing visitors.
+- `title`, `content` (markdown), `version`, `effectiveDate`, `createdAt`, `updatedAt`.
+
+**Rules:** the admin may update `title` / `content` / `version` / `effectiveDate`; the slug is part of the URL contract and is never editable. Content is rendered with `react-markdown` — it escapes HTML by default, so there's no XSS surface. Stale content lives only in the `content` text column; the rendered HTML is never stored. Slug charset is restricted to `[a-z0-9-]` (start/end alphanumeric).
+
+**Key files:**
+- `server/src/db/schema/legal-documents.ts` — Drizzle schema (uuid PK, slug unique, `text` content, `timestamp with time zone` for effective_date / created_at / updated_at).
+- `server/drizzle/0027_legal_documents.sql` — idempotent migration + hand-written seed (not generic boilerplate — describes the actual product: Argon2id hashes, AES-256-GCM key encryption, per-user Linux isolation at `/home/auroracraft-<username>/`, LiteLLM multi-key routing, Graphify AST-only build, the 18 supported platforms, Delaware governing law).
+- `server/src/routes/legal.ts` — public `GET /api/legal/:slug` + admin `GET/GET/PATCH /api/admin/legal[/:slug]` with Zod validation. Public route is unauthenticated; admin routes use the same `authMiddleware + adminGuard` pattern as `plan-settings`.
+- `client/src/hooks/use-legal.ts` — `useLegalDoc(slug)` (public), `useAdminLegalDocs` (list), `useAdminLegalDoc(slug)` (single), `useAdminLegalMutations` (PATCH). Mutation invalidates `['legal', slug]` AND `['admin', 'legal']` so the next `/privacy` or `/terms` page load reflects the new content.
+- `client/src/components/legal/legal-document-page.tsx` — shared public renderer; auto-slugifies h2/h3 headings (with a collision counter for duplicates), generates the TOC, wires `IntersectionObserver` for the active-section highlight.
+- `client/src/pages/admin/legal.tsx` + `legal-edit.tsx` — admin list + editor.
+- `client/src/index.css` — `.legal-prose` typography layer (760px reading column, 1.75 line-height, generous h2/h3 margins, scroll-margin-top: 5rem for anchor jumps).
+
+### Pricing Page
+The `/pricing` page is a single-page experience centered on a tactile **roll-ball** interaction: a draggable ball (with squash-and-stretch physics, a one-time "roll me" hint nudge that fires ~1.8s after mount, full keyboard accessibility via `←` / `→` / `Space` / `Enter`, and a click-to-flip flourish that adds an extra 360° spin) drives a morphing **plan card** that cross-fades between Free and Pro states — tier name, price, tokens-included line, CTA, and per-feature check/x icons that rotate into place. The card's border interpolates from neutral to primary blue as `progress` goes 0→1. Above the ball sits a **monthly / yearly** billing toggle implemented as a measured segmented control with a spring-animated slider; the morph card's price cell reflects the chosen cycle (yearly = 20% off, displayed as the discounted per-month value).
+
+Below the hero: a **feature comparison table** grouped by Workspace / AI Models / Quality (sticky header, Pro column tinted brand-blue, row hover highlight), a **token top-up** panel with three concrete "what does $X buy you" tiers, a native `<details>` FAQ (no JS, custom +→× chevron rotation), and a footer CTA. The page deliberately avoids decorative background meshes, gradient blobs, and ambient animations — solid dark surface, real type, calm hierarchy. Real prices + the feature matrix come from `/api/plan-settings` (admin-editable from **Admin Panel → Plans**).
+
+**Key files:**
+- `client/src/pages/pricing.tsx` — page, roll-ball physics (`BALL_SIZE`, `ROLL_MS`, `SETTLE` cubic-bezier, `travel()` px math), `BillingToggle` (measured spring slider), `FeatureGroupRows` (group-row table renderer).
+- `client/src/index.css` — `.spec-card`, `.billing-toggle`, `.compare-table`, `details.faq`, `.topup-card` styling (plain borders, no shimmer, no pulse, no corner stamps).
 
 ### Shared Caches
 | Cache | Location | Per-User Symlink |
@@ -293,6 +336,7 @@ When user types `/graphify`, invoke the `skill` tool with `skill: "graphify"` fi
 - `client/src/hooks/use-admin.ts` — admin panel data
 - `client/src/hooks/use-ai-admin.ts` — providers/models/MCPs CRUD
 - `client/src/hooks/use-graphify.ts` — graphify enable/remove/status
+- `client/src/hooks/use-legal.ts` — `useLegalDoc(slug)` (public) + admin `useAdminLegalDocs` / `useAdminLegalDoc` / `useAdminLegalMutations` (PATCH invalidates both `['legal', slug]` and `['admin', 'legal']` so saves go live immediately)
 
 ### API Routes
 - `server/src/routes/auth.ts` — login, register, logout, GitHub OAuth
@@ -303,6 +347,7 @@ When user types `/graphify`, invoke the `skill` tool with `skill: "graphify"` fi
 - `server/src/routes/internal.ts` — POST /internal/litellm/usage (machine-to-machine)
 - `server/src/routes/graphify.ts` — enable/remove/status + graph.html viewer
 - `server/src/routes/coderabbit.ts` — admin browser-OAuth login (initiate/complete/revoke) + per-project code review
+- `server/src/routes/legal.ts` — public `GET /api/legal/:slug` (no auth) + admin `GET /api/admin/legal` / `GET /api/admin/legal/:slug` / `PATCH /api/admin/legal/:slug` (the slug is immutable; admin edits `title` / `content` / `version` / `effectiveDate` only). Slug charset is restricted to `[a-z0-9-]`; unknown slug → 404; invalid slug → 400. Powers `/privacy` and `/terms` on the public side and the Admin Panel → Legal editor on the admin side.
 
 ---
 
@@ -353,6 +398,18 @@ Never use `graphify extract`. Never set GEMINI_API_KEY or GOOGLE_API_KEY in serv
 ### aurora-sandbox Not Currently Wired
 Wrapper declared but not passed to OpenCode spawn. Do not rely on it for command gating.
 Feature-level gating is done by skill presence, not the sandbox.
+
+### Auth Scene SVG: Bake Pivots, Never transform-box
+Some mobile WebKit builds resolve `transform-origin` against the SVG canvas corner on
+CSS-animated SVG elements — "works on desktop, dead on mobile". All auth-scene keyframes
+and inline transforms bake the pivot: `translate(p) rotate()/scale() translate(-p)`.
+Keep transitioned inline transforms (frog gaze) the same transform-list shape per state.
+
+### Auth Scene Reduced-Motion Policy
+`prefers-reduced-motion` disables only ambient loops (glow pulse, bead bob, blink).
+Rope tug / lamp swing / frog jump / head-shake stay enabled — phones often run with
+"Remove animations" (Android) / "Reduce Motion" (iOS) on, which otherwise made the
+whole interaction appear dead on mobile.
 
 ### OpenAI-Compatible Providers — Coverage & Upstream Limits
 All 3 surfaces work with any OpenAI-compatible provider (Agent via LiteLLM; Prompt Enhancer +

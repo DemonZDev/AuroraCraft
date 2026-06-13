@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Check, X, Sparkles, Coins } from 'lucide-react'
+import { Check, X, Sparkles, Coins, Plus, ArrowRight, Zap, Minus } from 'lucide-react'
 import { Link } from 'react-router'
 import { usePlanSettings, type PlanFeature } from '@/hooks/use-plan-settings'
 
+// ── Roll-ball physics ──────────────────────────────────────────────────────
 const BALL_SIZE = 44
 const ROLL_MS = 700
-// Spring-ish settle when the ball is released; instant while dragging.
 const SETTLE = 'cubic-bezier(0.34, 1.45, 0.64, 1)'
 
 // Fallbacks render the page instantly while /api/plan-settings loads.
@@ -25,35 +25,81 @@ const DEFAULT_FEATURES: PlanFeature[] = [
   { label: 'Code Review', free: false, pro: true },
 ]
 
+// Categorized for the comparison table.
+const FEATURE_GROUPS: { title: string; labels: string[] }[] = [
+  { title: 'Workspace', labels: ['Project Workspace', 'Download Plugin Jar', 'Download Project Files', 'Upload Project Zip', 'Fork Community Project', 'Git Integrations'] },
+  { title: 'AI Models',  labels: ['Free Models Access', 'Paid Models Access', 'Graphify Access', 'Web Search Access', 'Prompt Enhancer', 'Error Prompt Maker'] },
+  { title: 'Quality',    labels: ['Code Review'] },
+]
+
+const FAQS = [
+  {
+    q: 'What counts as a "token"?',
+    a: 'Tokens are how AuroraCraft measures how much the AI thinks. 1 token is roughly ¾ of a word. A short bug-fix iteration costs a few hundred; a full plugin (a complete OnJoin event handler with config, a /heal command, and a tab-completion hook) usually lands between 3,000 and 8,000 tokens. We bill per call — the meter in the workspace shows running cost in real time, so you never get a surprise bill.',
+  },
+  {
+    q: 'Can I bring my own OpenRouter / OpenAI / Anthropic key?',
+    a: 'Yes. From Admin Panel → API Keys you can attach one or more provider keys per project. Paid keys route through our per-project LiteLLM proxy with multi-key weighted routing, real-time per-call billing against your AuroraCraft balance, and auto-disable when a key hits its limit. Bring keys for any OpenAI-compatible provider.',
+  },
+  {
+    q: 'Do unused Pro tokens roll over?',
+    a: 'No — the monthly token allowance refreshes on the same calendar day each month as your first paid charge. Top-up tokens purchased separately are non-expiring. You can see the exact reset date in Workspace → Settings.',
+  },
+  {
+    q: 'What does Graphify actually save?',
+    a: 'Paid users can build a per-project knowledge graph of their plugin code (free users do not). When the AI works on a project with a graph, it queries that graph instead of opening every file — typical savings on a 30-file project are 40–60% of agent tokens. Build is AST-only and costs 0 AuroraCraft tokens.',
+  },
+  {
+    q: 'Is there a free trial of Pro?',
+    a: 'We do not run a timed trial. Instead, the Free plan is permanently free and includes the full Workspace plus the two free Zen models — you can build, compile, and download a real plugin without paying. Upgrade to Pro only when you want access to paid models (GPT-4 class, Claude, Gemini) or the advanced tools (Graphify, Code Review, Prompt Enhancer).',
+  },
+  {
+    q: 'How do refunds work?',
+    a: 'Email support@auroracraft.dev within 14 days of a charge and we will refund the most recent month, no questions asked. The unused portion of that month\'s token allowance is also returned to your account.',
+  },
+]
+
+const TOPUP_TIERS = [
+  { tokens: 1000,  label: 'Quick fix',       desc: 'A handful of small changes, a refactor, a config error.' },
+  { tokens: 5000,  label: 'Solid iteration', desc: 'A full bug fix + a couple of features, fully tested.' },
+  { tokens: 25000, label: 'Full plugin',     desc: 'A complete, working plugin with events, commands, GUI.' },
+]
+
 function formatUsd(n: number): string {
   return n % 1 === 0 ? `$${n.toFixed(0)}` : `$${parseFloat(n.toFixed(2))}`
 }
+function formatTokens(n: number): string {
+  return n.toLocaleString('en-US')
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// PAGE
+// ──────────────────────────────────────────────────────────────────────────
 
 export default function PricingPage() {
   const { settings } = usePlanSettings()
 
   const features = settings?.features?.length ? settings.features : DEFAULT_FEATURES
   const proPrice = settings?.proPriceUsd ?? 5
-  const proOriginal = settings?.proOriginalPriceUsd ?? 12.5
   const proTokens = settings?.proMonthlyTokens ?? 5000
   const tokenPer1k = settings?.tokenPricePer1kUsd ?? 1
-  const discount = proOriginal > proPrice ? Math.round((1 - proPrice / proOriginal) * 100) : 0
 
-  // progress: 0 = Free, 1 = Pro. Continuous while dragging so the card morphs live.
+  // Billing cycle: monthly / yearly (yearly = 2 months free, i.e. 20% off).
+  const [billing, setBilling] = useState<'monthly' | 'yearly'>('monthly')
+  const yearlyMultiplier = 0.8
+  const cyclePrice = billing === 'yearly' ? proPrice * 12 * yearlyMultiplier : proPrice
+
+  // Roll-ball state.
   const [progress, setProgress] = useState(0)
   const [dragging, setDragging] = useState(false)
-  // Extra whole turns added when the ball itself is clicked (the flourish spin).
   const [spinBoost, setSpinBoost] = useState(0)
-  // Measured track width drives the px math in render (refs must not be read there).
   const [trackWidth, setTrackWidth] = useState(288)
-
   const trackRef = useRef<HTMLDivElement>(null)
   const ballRef = useRef<HTMLDivElement>(null)
   const squashRef = useRef<HTMLDivElement>(null)
   const textureRef = useRef<HTMLDivElement>(null)
   const progressRef = useRef(0)
   const drag = useRef({ active: false, startX: 0, startP: 0, moved: false })
-  // A click event always follows a ball drag/tap; the track's click handler must ignore it.
   const suppressClickUntil = useRef(0)
   const hintAnims = useRef<Animation[]>([])
   const reduceMotion = useRef(window.matchMedia('(prefers-reduced-motion: reduce)').matches)
@@ -63,7 +109,6 @@ export default function PricingPage() {
     setProgress(v)
   }, [])
 
-  // Only used from event handlers (reading a ref in render is a lint error).
   const travel = useCallback(() => {
     const w = trackRef.current?.clientWidth ?? 288
     return Math.max(1, w - BALL_SIZE)
@@ -105,7 +150,6 @@ export default function PricingPage() {
         ],
         timing,
       ),
-      // The texture rotates by the matching arc length so the nudge reads as a roll.
       texture.animate(
         [
           { transform: 'rotate(0deg)' },
@@ -122,7 +166,6 @@ export default function PricingPage() {
     }
   }, [])
 
-  // Cartoon squash & stretch on every settle — damped jelly wobble.
   const playSquash = useCallback(() => {
     if (reduceMotion.current) return
     squashRef.current?.animate(
@@ -137,7 +180,6 @@ export default function PricingPage() {
     )
   }, [])
 
-  // Settle the ball on a side. `flourish` adds a full extra spin (ball click / keyboard toggle).
   const rollTo = useCallback(
     (target: 0 | 1, flourish = false) => {
       cancelHint()
@@ -163,7 +205,6 @@ export default function PricingPage() {
     },
     [cancelHint],
   )
-
   const onBallPointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (!drag.current.active) return
@@ -173,25 +214,18 @@ export default function PricingPage() {
     },
     [setProgressSync, travel],
   )
-
   const onBallPointerUp = useCallback(() => {
     if (!drag.current.active) return
     drag.current.active = false
     suppressClickUntil.current = performance.now() + 400
-    if (drag.current.moved) {
-      rollTo(progressRef.current >= 0.5 ? 1 : 0)
-    } else {
-      // A clean click on the ball — roll to the other side with an extra full spin.
-      rollTo(drag.current.startP < 0.5 ? 1 : 0, true)
-    }
+    if (drag.current.moved) rollTo(progressRef.current >= 0.5 ? 1 : 0)
+    else rollTo(drag.current.startP < 0.5 ? 1 : 0, true)
   }, [rollTo])
-
   const onBallPointerCancel = useCallback(() => {
     if (!drag.current.active) return
     drag.current.active = false
     rollTo(progressRef.current >= 0.5 ? 1 : 0)
   }, [rollTo])
-
   const onTrackClick = useCallback(
     (e: React.MouseEvent) => {
       if (performance.now() < suppressClickUntil.current) return
@@ -201,7 +235,6 @@ export default function PricingPage() {
     },
     [rollTo],
   )
-
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'ArrowRight') rollTo(1)
@@ -214,10 +247,10 @@ export default function PricingPage() {
     [rollTo],
   )
 
+  // Derived ball physics
   const p = progress
   const isPro = p >= 0.5
   const distance = p * Math.max(1, trackWidth - BALL_SIZE)
-  // Rolling, not sliding: rotation = distance / circumference × 360, plus the click flourish.
   const rotation = (distance / (Math.PI * BALL_SIZE)) * 360 + spinBoost
   const rollTransition = dragging ? 'none' : `transform ${ROLL_MS}ms ${SETTLE}`
   const fadeTransition = dragging ? 'none' : `opacity ${ROLL_MS}ms ease`
@@ -225,314 +258,550 @@ export default function PricingPage() {
     ? 'none'
     : `transform ${ROLL_MS}ms ${SETTLE}, opacity 500ms ease, color 450ms ease, box-shadow ${ROLL_MS}ms ease, border-color ${ROLL_MS}ms ease, background-color ${ROLL_MS}ms ease`
 
-  // Interpolated card accents: border #1e1e2e → primary blue, plus a growing glow.
+  // Card border interpolates from neutral to primary blue.
   const borderColor = `rgba(${Math.round(30 + (59 - 30) * p)}, ${Math.round(30 + (130 - 30) * p)}, ${Math.round(46 + (246 - 46) * p)}, ${0.55 + 0.45 * p})`
   const glow = `0 0 ${48 * p}px rgba(59, 130, 246, ${0.18 * p}), 0 8px 32px rgba(0, 0, 0, 0.35)`
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-24 sm:px-6">
-      <div className="mx-auto max-w-2xl text-center">
-        <h1 className="text-3xl font-bold tracking-tight text-text sm:text-4xl">
-          Simple, transparent pricing
-        </h1>
-        <p className="mt-4 text-text-muted">
-          Two plans. One little ball. Roll it to see what Pro unlocks.
-        </p>
-      </div>
+    <div className="relative">
+      {/* ═══════ HERO ═══════ */}
+      <section className="relative border-b border-border">
+        <div className="mx-auto max-w-7xl px-4 pb-20 pt-24 sm:px-6 sm:pt-28">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="spec-label">Pricing</p>
 
-      <div className="mx-auto mt-14 max-w-md">
-        {/* ——— The roller ——— */}
-        <div className="flex items-center justify-center gap-4 select-none">
-          <button
-            onClick={() => rollTo(0)}
-            className={`text-sm font-semibold transition-colors ${!isPro ? 'text-text' : 'text-text-dim hover:text-text-muted'}`}
-          >
-            Free
-          </button>
+            <h1 className="mt-4 text-4xl font-semibold tracking-tight text-text sm:text-5xl">
+              Start free. Pay only for the AI you use.
+            </h1>
 
-          <div
-            ref={trackRef}
-            onClick={onTrackClick}
-            className="relative h-14 w-64 cursor-pointer sm:w-72"
-            role="switch"
-            aria-checked={isPro}
-            aria-label="Toggle between Free and Pro plan"
-            tabIndex={0}
-            onKeyDown={onKeyDown}
-          >
-            {/* Track bed */}
-            <div className="absolute top-1/2 left-0 h-3 w-full -translate-y-1/2 rounded-full border border-border bg-surface" />
-            {/* Fill that chases the ball */}
-            <div
-              className="absolute top-1/2 left-0 h-3 -translate-y-1/2 rounded-full bg-gradient-to-r from-primary/30 to-primary"
-              style={{
-                width: `calc(${BALL_SIZE / 2}px + ${p} * (100% - ${BALL_SIZE}px))`,
-                transition: dragging ? 'none' : `width ${ROLL_MS}ms ${SETTLE}`,
-              }}
-            />
-            {/* Destination notches */}
-            <div className="absolute top-1/2 left-[5px] h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-text-dim/40" />
-            <div className="absolute top-1/2 right-[5px] h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-text-dim/40" />
+            <p className="mx-auto mt-4 max-w-xl text-text-muted">
+              AuroraCraft builds your Minecraft plugin with AI. You pay for the tokens
+              the AI actually spends — nothing else.
+            </p>
 
-            {/* The ball */}
-            <div
-              ref={ballRef}
-              onPointerDown={onBallPointerDown}
-              onPointerMove={onBallPointerMove}
-              onPointerUp={onBallPointerUp}
-              onPointerCancel={onBallPointerCancel}
-              onClick={(e) => e.stopPropagation()}
-              className="absolute top-1/2 left-0 z-10 cursor-grab touch-none active:cursor-grabbing"
-              style={{
-                width: BALL_SIZE,
-                height: BALL_SIZE,
-                transform: `translate(${distance}px, -50%)`,
-                transition: rollTransition,
-              }}
-            >
-              {/* Ground shadow — spreads and softens while the ball is held */}
-              <div
-                className="absolute -bottom-1.5 left-1/2 h-2 w-8 rounded-full bg-black/50 blur-[3px]"
-                style={{
-                  transform: `translateX(-50%) scaleX(${dragging ? 1.3 : 1})`,
-                  opacity: dragging ? 0.35 : 0.6,
-                  transition: 'transform 150ms ease, opacity 150ms ease',
-                }}
-              />
-              {/* Squash & stretch layer (WAAPI wobble on settle; slight lift while held) */}
-              <div
-                ref={squashRef}
-                className="h-full w-full"
-                style={{
-                  transformOrigin: '50% 85%',
-                  transform: dragging ? 'translateY(-2px) scale(1.05)' : undefined,
-                  transition: 'transform 150ms ease',
-                }}
+            <div className="mt-8 flex flex-col items-center gap-3">
+              <BillingToggle billing={billing} setBilling={setBilling} />
+              <p className="text-xs text-text-dim">
+                Cancel anytime · No card required to start
+              </p>
+            </div>
+          </div>
+
+          {/* ── The roller (the one distinctive thing) ── */}
+          <div className="mx-auto mt-14 max-w-2xl">
+            <div className="flex items-center justify-center gap-4 select-none">
+              <button
+                onClick={() => rollTo(0)}
+                className={`text-sm font-medium transition-colors ${!isPro ? 'text-text' : 'text-text-dim hover:text-text-muted'}`}
               >
-                {/* Sphere — lighting stays fixed; only the texture inside rotates */}
+                Free
+              </button>
+
+              <div
+                ref={trackRef}
+                onClick={onTrackClick}
+                className="relative h-14 w-64 cursor-pointer sm:w-80"
+                role="switch"
+                aria-checked={isPro}
+                aria-label="Toggle between Free and Pro plan"
+                tabIndex={0}
+                onKeyDown={onKeyDown}
+              >
+                <div className="absolute top-1/2 left-0 h-3 w-full -translate-y-1/2 rounded-full border border-border bg-surface" />
                 <div
-                  className="relative h-full w-full overflow-hidden rounded-full hover:brightness-110"
+                  className="absolute top-1/2 left-0 h-3 -translate-y-1/2 rounded-full bg-primary"
                   style={{
-                    boxShadow: `0 0 ${6 + 16 * p}px rgba(59, 130, 246, ${0.55 * p}), 0 3px 8px rgba(0, 0, 0, 0.45)`,
-                    transition: dragging
-                      ? 'filter 150ms ease'
-                      : `filter 150ms ease, box-shadow ${ROLL_MS}ms ease`,
+                    width: `calc(${BALL_SIZE / 2}px + ${p} * (100% - ${BALL_SIZE}px))`,
+                    transition: dragging ? 'none' : `width ${ROLL_MS}ms ${SETTLE}`,
+                  }}
+                />
+
+                {/* The ball */}
+                <div
+                  ref={ballRef}
+                  onPointerDown={onBallPointerDown}
+                  onPointerMove={onBallPointerMove}
+                  onPointerUp={onBallPointerUp}
+                  onPointerCancel={onBallPointerCancel}
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute top-1/2 left-0 z-10 cursor-grab touch-none active:cursor-grabbing"
+                  style={{
+                    width: BALL_SIZE,
+                    height: BALL_SIZE,
+                    transform: `translate(${distance}px, -50%)`,
+                    transition: rollTransition,
                   }}
                 >
-                  {/* Base shading (Free) */}
                   <div
-                    className="absolute inset-0"
+                    className="absolute -bottom-1.5 left-1/2 h-2 w-8 rounded-full bg-black/50 blur-[3px]"
                     style={{
-                      background:
-                        'radial-gradient(circle at 30% 27%, #d6d9e0 0%, #9095a1 30%, #565b66 62%, #262830 100%)',
+                      transform: `translateX(-50%) scaleX(${dragging ? 1.3 : 1})`,
+                      opacity: dragging ? 0.35 : 0.6,
+                      transition: 'transform 150ms ease, opacity 150ms ease',
                     }}
                   />
-                  {/* Pro shading cross-fades in as the ball rolls right */}
                   <div
-                    className="absolute inset-0"
+                    ref={squashRef}
+                    className="h-full w-full"
                     style={{
-                      background:
-                        'radial-gradient(circle at 30% 27%, #dbeafe 0%, #60a5fa 32%, #2563eb 64%, #1e3a8a 100%)',
-                      opacity: p,
-                      transition: fadeTransition,
+                      transformOrigin: '50% 85%',
+                      transform: dragging ? 'translateY(-2px) scale(1.05)' : undefined,
+                      transition: 'transform 150ms ease',
                     }}
-                  />
-                  {/* Rolling texture — seams + craters make the rotation readable */}
-                  <div
-                    ref={textureRef}
-                    className="absolute inset-0"
-                    style={{ transform: `rotate(${rotation}deg)`, transition: rollTransition }}
                   >
-                    <svg viewBox="0 0 44 44" className="h-full w-full" aria-hidden="true">
-                      <path
-                        d="M 4 16 Q 22 28 40 16"
-                        fill="none"
-                        stroke="rgba(0, 0, 0, 0.18)"
-                        strokeWidth="2"
-                        strokeLinecap="round"
+                    <div
+                      className="relative h-full w-full overflow-hidden rounded-full"
+                      style={{
+                        boxShadow: `0 0 ${6 + 16 * p}px rgba(59, 130, 246, ${0.55 * p}), 0 3px 8px rgba(0, 0, 0, 0.45)`,
+                        transition: dragging
+                          ? 'filter 150ms ease'
+                          : `filter 150ms ease, box-shadow ${ROLL_MS}ms ease`,
+                      }}
+                    >
+                      <div
+                        className="absolute inset-0"
+                        style={{
+                          background:
+                            'radial-gradient(circle at 30% 27%, #d6d9e0 0%, #9095a1 30%, #565b66 62%, #262830 100%)',
+                        }}
                       />
-                      <path
-                        d="M 4 28 Q 22 16 40 28"
-                        fill="none"
-                        stroke="rgba(0, 0, 0, 0.18)"
-                        strokeWidth="2"
-                        strokeLinecap="round"
+                      <div
+                        className="absolute inset-0"
+                        style={{
+                          background:
+                            'radial-gradient(circle at 30% 27%, #dbeafe 0%, #60a5fa 32%, #2563eb 64%, #1e3a8a 100%)',
+                          opacity: p,
+                          transition: fadeTransition,
+                        }}
                       />
-                      <circle cx="13" cy="10" r="2.2" fill="rgba(0, 0, 0, 0.2)" />
-                      <circle cx="31" cy="30" r="1.8" fill="rgba(0, 0, 0, 0.2)" />
-                      <circle cx="17" cy="34" r="1.3" fill="rgba(0, 0, 0, 0.18)" />
-                      <circle cx="29" cy="9" r="1.1" fill="rgba(255, 255, 255, 0.3)" />
-                    </svg>
+                      <div
+                        ref={textureRef}
+                        className="absolute inset-0"
+                        style={{ transform: `rotate(${rotation}deg)`, transition: rollTransition }}
+                      >
+                        <svg viewBox="0 0 44 44" className="h-full w-full" aria-hidden="true">
+                          <path
+                            d="M 4 16 Q 22 28 40 16"
+                            fill="none"
+                            stroke="rgba(0, 0, 0, 0.18)"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                          />
+                          <path
+                            d="M 4 28 Q 22 16 40 28"
+                            fill="none"
+                            stroke="rgba(0, 0, 0, 0.18)"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                          />
+                          <circle cx="13" cy="10" r="2.2" fill="rgba(0, 0, 0, 0.2)" />
+                          <circle cx="31" cy="30" r="1.8" fill="rgba(0, 0, 0, 0.2)" />
+                          <circle cx="17" cy="34" r="1.3" fill="rgba(0, 0, 0, 0.18)" />
+                          <circle cx="29" cy="9" r="1.1" fill="rgba(255, 255, 255, 0.3)" />
+                        </svg>
+                      </div>
+                      <div
+                        className="pointer-events-none absolute inset-0 rounded-full"
+                        style={{
+                          boxShadow:
+                            'inset -6px -8px 12px rgba(0, 0, 0, 0.45), inset 3px 5px 7px rgba(255, 255, 255, 0.16)',
+                        }}
+                      />
+                      <div
+                        className="pointer-events-none absolute rounded-full bg-white/60 blur-[2.5px]"
+                        style={{ width: 13, height: 8, top: '13%', left: '17%', transform: 'rotate(-28deg)' }}
+                      />
+                    </div>
                   </div>
-                  {/* Fixed lighting: top-left key light, bottom-right core shadow */}
-                  <div
-                    className="pointer-events-none absolute inset-0 rounded-full"
-                    style={{
-                      boxShadow:
-                        'inset -6px -8px 12px rgba(0, 0, 0, 0.45), inset 3px 5px 7px rgba(255, 255, 255, 0.16)',
-                    }}
-                  />
-                  {/* Specular highlight */}
-                  <div
-                    className="pointer-events-none absolute rounded-full bg-white/60 blur-[2.5px]"
-                    style={{ width: 13, height: 8, top: '13%', left: '17%', transform: 'rotate(-28deg)' }}
-                  />
                 </div>
+              </div>
+
+              <button
+                onClick={() => rollTo(1)}
+                className={`flex items-center gap-1.5 text-sm font-medium transition-colors ${isPro ? 'text-primary' : 'text-text-dim hover:text-text-muted'}`}
+              >
+                Pro
+                <Sparkles className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            <p className="mt-3 text-center text-xs text-text-dim">
+              Drag the ball, or press{' '}
+              <kbd className="rounded border border-border bg-surface px-1.5 py-0.5 font-mono text-[10px] text-text-muted">
+                ←
+              </kbd>{' '}
+              <kbd className="rounded border border-border bg-surface px-1.5 py-0.5 font-mono text-[10px] text-text-muted">
+                →
+              </kbd>
+            </p>
+
+            {/* ── The morphing card ── */}
+            <div
+              className="relative mt-8 rounded-xl border bg-surface p-8"
+              style={{
+                borderColor,
+                boxShadow: glow,
+                transition: morph,
+              }}
+            >
+              {/* Tier + one-line "best for" */}
+              <div className="relative flex items-baseline justify-between gap-4">
+                <div className="relative h-8">
+                  <h3
+                    className="absolute flex items-baseline gap-2 text-xl font-semibold text-text"
+                    style={{ opacity: 1 - p, transform: `translateY(${p * -8}px)`, transition: morph }}
+                  >
+                    Free
+                  </h3>
+                  <h3
+                    className="absolute flex items-baseline gap-2 text-xl font-semibold text-text"
+                    style={{ opacity: p, transform: `translateY(${(1 - p) * 8}px)`, transition: morph }}
+                  >
+                    Pro
+                    <Sparkles className="h-4 w-4 text-primary" />
+                  </h3>
+                </div>
+                <div className="relative h-6 flex items-center">
+                  <p
+                    className="absolute right-0 text-sm text-text-dim"
+                    style={{ opacity: 1 - p, transform: `translateY(${p * -6}px)`, transition: morph }}
+                  >
+                    For hobby builds and learning.
+                  </p>
+                  <p
+                    className="absolute right-0 text-sm text-text-dim"
+                    style={{ opacity: p, transform: `translateY(${(1 - p) * 6}px)`, transition: morph }}
+                  >
+                    For shipping and maintaining plugins.
+                  </p>
+                </div>
+              </div>
+
+              {/* Price + tokens */}
+              <div className="relative mt-5 h-14">
+                <div
+                  className="absolute flex items-baseline gap-1.5"
+                  style={{ opacity: 1 - p, transform: `translateY(${p * -8}px)`, transition: morph }}
+                >
+                  <span className="display-num text-5xl text-text">$0</span>
+                  <span className="text-sm text-text-dim">/ forever</span>
+                </div>
+                <div
+                  className="absolute flex items-baseline gap-1.5"
+                  style={{ opacity: p, transform: `translateY(${(1 - p) * 8}px)`, transition: morph }}
+                >
+                  <span className="display-num text-5xl text-text">
+                    {formatUsd(billing === 'yearly' ? cyclePrice / 12 : proPrice)}
+                  </span>
+                  <span className="text-sm text-text-dim">/ month</span>
+                </div>
+              </div>
+
+              {/* Tokens included */}
+              <div className="relative h-6">
+                <p
+                  className="absolute flex items-center gap-1.5 text-sm text-text-dim"
+                  style={{ opacity: 1 - p, transition: morph }}
+                >
+                  <Coins className="h-3.5 w-3.5" />
+                  Pay per use · {formatUsd(tokenPer1k)} / 1,000 tokens
+                </p>
+                <p
+                  className="absolute flex items-center gap-1.5 text-sm text-text-muted"
+                  style={{ opacity: p, transition: morph }}
+                >
+                  <Coins className="h-3.5 w-3.5 text-primary" />
+                  {formatTokens(proTokens)} tokens included every month
+                </p>
+              </div>
+
+              {/* Feature matrix */}
+              <ul className="mt-6 grid grid-cols-1 gap-y-2 border-t border-border pt-6 sm:grid-cols-2 sm:gap-x-8">
+                {features.map((feature, i) => {
+                  const included = isPro ? feature.pro : feature.free
+                  const changes = feature.free !== feature.pro
+                  const rowOpacity = changes ? 0.55 + 0.45 * (feature.pro ? p : 1 - p) : 1
+                  return (
+                    <li
+                      key={`${feature.label}-${i}`}
+                      className="flex items-center gap-2.5 text-sm text-text-muted"
+                      style={{ opacity: rowOpacity, transition: morph }}
+                    >
+                      <span className="relative h-4 w-4 shrink-0">
+                        <Check
+                          className="absolute h-4 w-4 text-success"
+                          style={{
+                            opacity: changes ? p : feature.free ? 1 : 0,
+                            transform: `scale(${changes ? 0.5 + 0.5 * p : 1}) rotate(${changes ? -90 + 90 * p : 0}deg)`,
+                            transition: morph,
+                          }}
+                        />
+                        <X
+                          className="absolute h-4 w-4 text-text-dim"
+                          style={{
+                            opacity: changes ? 1 - p : feature.free ? 0 : 1,
+                            transform: `scale(${changes ? 0.5 + 0.5 * (1 - p) : 1})`,
+                            transition: morph,
+                          }}
+                        />
+                      </span>
+                      <span className={included ? '' : 'text-text-dim'}>{feature.label}</span>
+                    </li>
+                  )
+                })}
+              </ul>
+
+              {/* CTAs */}
+              <div className="relative mt-6 h-11">
+                <Link
+                  to="/register"
+                  className="absolute inset-0 flex items-center justify-center rounded-lg border border-border bg-surface-hover text-sm font-medium text-text transition-colors hover:bg-accent"
+                  style={{ opacity: 1 - p, pointerEvents: isPro ? 'none' : 'auto', transition: morph }}
+                >
+                  Get started — free forever
+                </Link>
+                <Link
+                  to="/register"
+                  className="absolute inset-0 flex items-center justify-center gap-2 rounded-lg bg-primary text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
+                  style={{ opacity: p, pointerEvents: isPro ? 'auto' : 'none', transition: morph }}
+                >
+                  <Zap className="h-4 w-4" />
+                  Start with Pro
+                </Link>
               </div>
             </div>
           </div>
-
-          <button
-            onClick={() => rollTo(1)}
-            className={`flex items-center gap-1 text-sm font-semibold transition-colors ${isPro ? 'text-primary' : 'text-text-dim hover:text-text-muted'}`}
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            Pro
-          </button>
         </div>
+      </section>
 
-        {/* ——— The morphing plan card ——— */}
-        <div
-          className="relative mt-8 overflow-hidden rounded-2xl border bg-surface p-8"
-          style={{ borderColor, boxShadow: glow, transition: morph }}
-        >
-          {/* Pro ambience */}
-          <div
-            className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-primary/10 to-transparent"
-            style={{ opacity: p, transition: morph }}
-          />
+      {/* ═══════ FEATURE COMPARISON TABLE ═══════ */}
+      <section className="relative border-b border-border py-20 sm:py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+          <div className="mx-auto max-w-2xl">
+            <p className="spec-label">Comparison</p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-text sm:text-4xl">
+              What you get, line by line.
+            </h2>
+          </div>
 
-          {/* Plan name + discount badge */}
-          <div className="relative flex items-center justify-between">
-            <div className="relative h-7">
-              <h3
-                className="absolute text-lg font-semibold text-text"
-                style={{ opacity: 1 - p, transform: `translateY(${p * -8}px)`, transition: morph }}
-              >
-                Free
-              </h3>
-              <h3
-                className="absolute flex items-center gap-2 text-lg font-semibold text-text"
-                style={{ opacity: p, transform: `translateY(${(1 - p) * 8}px)`, transition: morph }}
-              >
-                Pro
-                <Sparkles className="h-4 w-4 text-primary" />
-              </h3>
+          <div className="mt-10 overflow-x-auto rounded-xl border border-border">
+            <table className="compare-table min-w-[640px]">
+              <thead>
+                <tr>
+                  <th className="w-[55%]">Feature</th>
+                  <th className="w-[22.5%] text-center">Free</th>
+                  <th className="col-pro w-[22.5%] text-center">Pro</th>
+                </tr>
+              </thead>
+              <tbody>
+                {FEATURE_GROUPS.map((group) => (
+                  <FeatureGroupRows
+                    key={group.title}
+                    title={group.title}
+                    features={features.filter((f) => group.labels.includes(f.label))}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════ TOKEN TOP-UP ═══════ */}
+      <section className="relative border-b border-border py-20 sm:py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+          <div className="grid items-start gap-12 lg:grid-cols-[1fr,1.4fr]">
+            <div>
+              <p className="spec-label">Token top-up</p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-text sm:text-4xl">
+                What does {formatUsd(tokenPer1k)} buy you?
+              </h2>
+              <p className="mt-4 max-w-md text-text-muted">
+                Tokens are billed per upstream call. The workspace meter shows running
+                cost in real time, so you never get a surprise bill. Top-ups never expire.
+              </p>
+              <dl className="mt-8 space-y-4 text-sm">
+                <div className="flex gap-4">
+                  <dt className="spec-label w-16 shrink-0 pt-0.5">Rate</dt>
+                  <dd className="text-text-muted">
+                    <span className="spec-value text-text">{formatUsd(tokenPer1k)}</span> per 1,000 tokens.
+                    Sub-token math; we always round UP to the nearest token.
+                  </dd>
+                </div>
+                <div className="flex gap-4">
+                  <dt className="spec-label w-16 shrink-0 pt-0.5">Never</dt>
+                  <dd className="text-text-muted">
+                    We don't bill for Graphify builds, failed calls, or model refusals.
+                  </dd>
+                </div>
+                <div className="flex gap-4">
+                  <dt className="spec-label w-16 shrink-0 pt-0.5">Expires</dt>
+                  <dd className="text-text-muted">
+                    Top-up tokens stay in your account until you spend them. Only the
+                    monthly Pro allowance refreshes.
+                  </dd>
+                </div>
+              </dl>
             </div>
-            {discount > 0 && (
-              <span
-                className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground"
-                style={{ opacity: p, transform: `scale(${0.8 + 0.2 * p})`, transition: morph }}
-              >
-                {discount}% OFF
-              </span>
-            )}
-          </div>
 
-          {/* Price */}
-          <div className="relative mt-4 h-14">
-            <div
-              className="absolute flex items-baseline gap-1"
-              style={{ opacity: 1 - p, transform: `translateY(${p * -10}px)`, transition: morph }}
-            >
-              <span className="text-4xl font-bold text-text">$0</span>
-              <span className="text-sm text-text-dim">/forever</span>
-            </div>
-            <div
-              className="absolute flex items-baseline gap-2"
-              style={{ opacity: p, transform: `translateY(${(1 - p) * 10}px)`, transition: morph }}
-            >
-              <span className="text-4xl font-bold text-text">{formatUsd(proPrice)}</span>
-              <span className="text-sm text-text-dim">/month</span>
-              {discount > 0 && (
-                <span className="text-base font-medium text-text-dim line-through">
-                  {formatUsd(proOriginal)}
-                </span>
-              )}
+            <div className="grid gap-3 sm:grid-cols-3">
+              {TOPUP_TIERS.map((tier) => {
+                const cost = (tier.tokens / 1000) * tokenPer1k
+                return (
+                  <div key={tier.tokens} className="rounded-xl border border-border p-5">
+                    <div className="spec-label">{tier.label}</div>
+                    <div className="spec-value mt-3 text-2xl text-text">
+                      {formatTokens(tier.tokens)}
+                      <span className="ml-1 text-xs text-text-dim">tokens</span>
+                    </div>
+                    <p className="mt-3 text-sm leading-relaxed text-text-muted">
+                      {tier.desc}
+                    </p>
+                    <div className="spec-value mt-5 text-xs text-text-dim">
+                      ≈ {formatUsd(cost)} one-time
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
+        </div>
+      </section>
 
-          {/* Tokens line */}
-          <div className="relative h-6">
-            <p
-              className="absolute text-sm text-text-muted"
-              style={{ opacity: 1 - p, transition: morph }}
-            >
-              Start building plugins with AI, free.
-            </p>
-            <p
-              className="absolute flex items-center gap-1.5 text-sm font-medium text-primary"
-              style={{ opacity: p, transition: morph }}
-            >
-              <Coins className="h-4 w-4" />
-              {proTokens.toLocaleString()} tokens included every month
-            </p>
-          </div>
-
-          {/* CTA */}
-          <div className="relative mt-6 h-11">
-            <Link
-              to="/register"
-              className="absolute inset-0 flex items-center justify-center rounded-lg border border-border bg-surface-hover text-sm font-medium text-text transition-colors hover:bg-accent"
-              style={{ opacity: 1 - p, pointerEvents: isPro ? 'none' : 'auto', transition: morph }}
-            >
-              Get Started
-            </Link>
-            <Link
-              to="/register"
-              className="absolute inset-0 flex items-center justify-center rounded-lg bg-primary text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
-              style={{ opacity: p, pointerEvents: isPro ? 'auto' : 'none', transition: morph }}
-            >
-              Upgrade to Pro
-            </Link>
-          </div>
-
-          {/* Feature matrix — icons flip ✕ → ✓ as the ball rolls */}
-          <ul className="mt-8 space-y-3">
-            {features.map((feature, i) => {
-              const included = isPro ? feature.pro : feature.free
-              const changes = feature.free !== feature.pro
-              const rowOpacity = changes ? 0.55 + 0.45 * (feature.pro ? p : 1 - p) : 1
-              return (
-                <li
-                  key={`${feature.label}-${i}`}
-                  className="flex items-center gap-3 text-sm text-text-muted"
-                  style={{ opacity: rowOpacity, transition: morph }}
-                >
-                  <span className="relative h-4 w-4 shrink-0">
-                    <Check
-                      className="absolute h-4 w-4 text-success"
-                      style={{
-                        opacity: changes ? p : feature.free ? 1 : 0,
-                        transform: `scale(${changes ? 0.5 + 0.5 * p : 1}) rotate(${changes ? -90 + 90 * p : 0}deg)`,
-                        transition: morph,
-                      }}
-                    />
-                    <X
-                      className="absolute h-4 w-4 text-text-dim"
-                      style={{
-                        opacity: changes ? 1 - p : feature.free ? 0 : 1,
-                        transform: `scale(${changes ? 0.5 + 0.5 * (1 - p) : 1})`,
-                        transition: morph,
-                      }}
-                    />
+      {/* ═══════ FAQ ═══════ */}
+      <section className="relative border-b border-border py-20 sm:py-24">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6">
+          <p className="spec-label text-center">Questions</p>
+          <h2 className="mt-3 text-center text-3xl font-semibold tracking-tight text-text sm:text-4xl">
+            The ones we get asked the most.
+          </h2>
+          <div className="mt-10">
+            {FAQS.map((f) => (
+              <details key={f.q} className="faq">
+                <summary>
+                  {f.q}
+                  <span className="chev">
+                    <Plus className="h-3.5 w-3.5" />
                   </span>
-                  <span className={included ? 'text-text-muted' : ''}>{feature.label}</span>
-                </li>
-              )
-            })}
-          </ul>
+                </summary>
+                <div className="answer">{f.a}</div>
+              </details>
+            ))}
+          </div>
         </div>
+      </section>
 
-        {/* Token top-up note */}
-        <p className="mt-6 text-center text-sm text-text-dim">
-          Need more tokens? Top up anytime for{' '}
-          <span className="font-medium text-text-muted">
-            {formatUsd(tokenPer1k)} / 1,000 tokens
-          </span>
-          .
-        </p>
-      </div>
+      {/* ═══════ FOOTER CTA ═══════ */}
+      <section className="py-20">
+        <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
+          <h2 className="text-2xl font-semibold tracking-tight text-text sm:text-3xl">
+            Ready to ship your first plugin?
+          </h2>
+          <p className="mt-3 text-text-muted">
+            Free forever for small projects. No card required to start.
+          </p>
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <Link
+              to="/register"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
+            >
+              Create your account
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              to="/community"
+              className="inline-flex items-center gap-2 rounded-lg border border-border px-5 py-2.5 text-sm font-medium text-text transition-colors hover:bg-surface-hover"
+            >
+              Browse community plugins
+            </Link>
+          </div>
+        </div>
+      </section>
     </div>
+  )
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Sub-components
+// ──────────────────────────────────────────────────────────────────────────
+
+function BillingToggle({
+  billing,
+  setBilling,
+}: {
+  billing: 'monthly' | 'yearly'
+  setBilling: (b: 'monthly' | 'yearly') => void
+}) {
+  const monthlyRef = useRef<HTMLButtonElement>(null)
+  const yearlyRef = useRef<HTMLButtonElement>(null)
+  const [slider, setSlider] = useState<{ left: number; width: number }>({ left: 3, width: 100 })
+
+  const measure = useCallback(() => {
+    const target = billing === 'monthly' ? monthlyRef.current : yearlyRef.current
+    if (!target) return
+    setSlider({ left: target.offsetLeft, width: target.offsetWidth })
+  }, [billing])
+
+  useLayoutEffect(() => {
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [measure])
+
+  return (
+    <div className="billing-toggle" role="tablist" aria-label="Billing cycle">
+      <span
+        className="slider"
+        style={{ transform: `translateX(${slider.left - 3}px)`, width: slider.width }}
+        aria-hidden="true"
+      />
+      <button
+        ref={monthlyRef}
+        role="tab"
+        aria-selected={billing === 'monthly'}
+        onClick={() => setBilling('monthly')}
+        className={billing === 'monthly' ? 'is-active' : ''}
+      >
+        Monthly
+      </button>
+      <button
+        ref={yearlyRef}
+        role="tab"
+        aria-selected={billing === 'yearly'}
+        onClick={() => setBilling('yearly')}
+        className={billing === 'yearly' ? 'is-active' : ''}
+      >
+        Yearly
+        <span className="save-chip">−20%</span>
+      </button>
+    </div>
+  )
+}
+
+function FeatureGroupRows({
+  title,
+  features,
+}: {
+  title: string
+  features: PlanFeature[]
+}) {
+  if (!features.length) return null
+  return (
+    <>
+      <tr className="group-row">
+        <td colSpan={3}>{title}</td>
+      </tr>
+      {features.map((feature) => (
+        <tr key={feature.label}>
+          <td>{feature.label}</td>
+          <td className="text-center">
+            {feature.free ? <Check className="mx-auto h-4 w-4 text-success" /> : <Minus className="mx-auto h-4 w-4 text-text-dim/60" />}
+          </td>
+          <td className="col-pro text-center">
+            {feature.pro ? <Check className="mx-auto h-4 w-4 text-primary" /> : <Minus className="mx-auto h-4 w-4 text-text-dim/60" />}
+          </td>
+        </tr>
+      ))}
+    </>
   )
 }

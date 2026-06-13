@@ -4,7 +4,7 @@ import { ErrorPromptMakerModal } from '@/components/error-prompt-maker-modal'
 import { useToolModels, useHasToolKey, usePromptToolMutations, usePromptToolJob, useActivePromptToolJob, isTerminal } from '@/hooks/use-prompt-tools'
 import { SOFTWARE_LABELS } from '@/lib/software-options'
 import { CustomSelect } from '@/components/ui/custom-select'
-import { Link, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
@@ -56,6 +56,8 @@ import {
   Coins,
   Network,
   LogOut,
+  MoreVertical,
+  FileArchive,
 } from 'lucide-react'
 import Editor from '@monaco-editor/react'
 import { cn } from '@/lib/utils'
@@ -84,6 +86,9 @@ import type {
 } from '@/types'
 import { GlassyPromptModal, GlassyConfirmModal, useToasts } from '@/components/ui/glassy'
 import { GraphifyControls } from '@/components/graphify-controls'
+import { ActionSheet, HeaderMenu, type ActionSection, type WorkspaceAction } from '@/components/workspace/workspace-actions'
+import { PanelDivider, PANEL_DEFAULTS, MIN_EDITOR_WIDTH, clampPanel, loadPanelSizes, savePanelSizes, type PanelKey } from '@/components/workspace/resizable'
+import { useGraphify } from '@/hooks/use-graphify'
 
 /** Sentinel `selectedFile` value that makes EditorPanel render the Graphify web view
  *  (rendered graph) instead of Monaco. Cannot collide with a real relative file path. */
@@ -1396,7 +1401,7 @@ const ChatInput = memo(function ChatInput({ onSend, disabled, isRunning, isCance
             <span className="text-[9px] text-text-dim/50">tkn</span>
           </div>
         )}
-        <span className="text-[10px] text-text-dim/40">Ctrl+Enter</span>
+        <span className="hidden text-[10px] text-text-dim/40 md:inline">Ctrl+Enter</span>
       </div>
       <div className="chatbox-glow flex items-end gap-2 rounded-xl border border-border bg-background p-1.5">
         <textarea
@@ -1450,7 +1455,7 @@ function ChatEmptyState({ onSessionCreated, createSession, selectedModel, select
 
   return (
     <>
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto overscroll-contain p-4">
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <div className="mb-3 rounded-xl bg-primary/10 p-3">
             <MessageSquare className="h-6 w-6 text-primary" />
@@ -1681,7 +1686,7 @@ function ChatSession({ projectId, sessionId, pendingMessage, onPendingMessageSen
 
   return (
     <>
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto overscroll-contain p-4">
         {messages.length === 0 && !showVirtualAgentMessage ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <div className="mb-3 rounded-xl bg-primary/10 p-3">
@@ -1831,7 +1836,7 @@ function FileTreePanel({ files, filesLoading, refetchFiles, onFileSelect, select
   }
 
   return (
-    <div className={cn("h-full overflow-y-auto bg-surface py-2", disabled && "pointer-events-none opacity-50")}>
+    <div className={cn("h-full overflow-y-auto overscroll-contain bg-surface py-2", disabled && "pointer-events-none opacity-50")}>
       <div className="mb-2 flex items-center justify-between px-3">
         <p className="text-xs font-medium uppercase tracking-wider text-text-dim">Files</p>
         <div className="flex items-center gap-1">
@@ -2075,6 +2080,7 @@ function EditorPanel({ projectId, selectedFile, fileOps, disabled, onExitGraphVi
           }}
           options={{
             minimap: { enabled: false },
+            automaticLayout: true,
             fontSize: 13,
             fontFamily: "'JetBrains Mono', 'Fira Code', ui-monospace, monospace",
             lineNumbers: 'on',
@@ -2152,8 +2158,7 @@ export default function WorkspacePage() {
   const [layoutMode, setLayoutMode] = useState<string>('chat-first')
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [jars, setJars] = useState<{ maven: string | null; gradle: string | null }>({ maven: null, gradle: null })
-  const [jarMenuOpen, setJarMenuOpen] = useState(false)
-  const jarMenuRef = useRef<HTMLDivElement>(null)
+  const [actionSheetOpen, setActionSheetOpen] = useState(false)
   const [githubConnected, setGithubConnected] = useState(false)
   const [githubUsername, setGithubUsername] = useState<string | null>(null)
   const [gitStatus, setGitStatus] = useState<{ connected: boolean; repoUrl: string | null; repoBranch: string | null; githubAuth: boolean } | null>(null)
@@ -2211,6 +2216,91 @@ export default function WorkspacePage() {
 
   const [aiRunning, setAiRunning] = useState(false)
   const stopAiRef = useRef<(() => void) | null>(null)
+  const navigate = useNavigate()
+
+  // The workspace is an app-like screen: panels scroll internally, the document
+  // itself must not. We pin the body to the viewport with position:fixed instead
+  // of plain overflow:hidden — overflow:hidden alone *freezes* whatever scroll
+  // offset the page already had (the "stuck drifted past the bottom nav, can't
+  // move" bug), whereas fixed+inset-0 forces it back to the top-left and keeps
+  // it there. The prior offset is captured and restored on unmount.
+  useEffect(() => {
+    const html = document.documentElement
+    const body = document.body
+    const scrollY = window.scrollY
+    const prev = {
+      htmlOverscroll: html.style.overscrollBehavior,
+      bodyPosition: body.style.position,
+      bodyTop: body.style.top,
+      bodyLeft: body.style.left,
+      bodyRight: body.style.right,
+      bodyWidth: body.style.width,
+      bodyOverflow: body.style.overflow,
+    }
+    html.style.overscrollBehavior = 'none'
+    body.style.position = 'fixed'
+    body.style.top = '0'
+    body.style.left = '0'
+    body.style.right = '0'
+    body.style.width = '100%'
+    body.style.overflow = 'hidden'
+    return () => {
+      html.style.overscrollBehavior = prev.htmlOverscroll
+      body.style.position = prev.bodyPosition
+      body.style.top = prev.bodyTop
+      body.style.left = prev.bodyLeft
+      body.style.right = prev.bodyRight
+      body.style.width = prev.bodyWidth
+      body.style.overflow = prev.bodyOverflow
+      window.scrollTo(0, scrollY)
+    }
+  }, [])
+
+  // ── Graphify (mobile action-sheet rows; desktop uses <GraphifyControls/>) ──
+  const {
+    graphify,
+    enable: enableGraphify,
+    isEnabling: isEnablingGraphify,
+    remove: removeGraphify,
+    isRemoving: isRemovingGraphify,
+  } = useGraphify(projectId ?? '', isPaid)
+  const graphifyStatus = graphify?.status ?? 'none'
+  const graphifyBuilding = graphifyStatus === 'building' || isEnablingGraphify
+  const [graphifyRemoveOpen, setGraphifyRemoveOpen] = useState(false)
+
+  // ── Desktop resizable panels (VS Code-style) ────────────────────────
+  const layoutRef = useRef<HTMLDivElement>(null)
+  const [panelSizes, setPanelSizes] = useState(loadPanelSizes)
+  const panelSizesRef = useRef(panelSizes)
+  panelSizesRef.current = panelSizes
+  const dragOriginRef = useRef(panelSizes)
+
+  const beginPanelDrag = useCallback(() => {
+    dragOriginRef.current = { ...panelSizesRef.current }
+  }, [])
+
+  const resizePanel = useCallback((panel: PanelKey, dx: number) => {
+    setPanelSizes(prev => {
+      const containerWidth = layoutRef.current?.clientWidth ?? window.innerWidth
+      const other = panel === 'chat' ? prev.tree : prev.chat
+      // Keep the editor usable no matter how far the user drags.
+      const editorCap = containerWidth - other - MIN_EDITOR_WIDTH
+      const next = clampPanel(panel, Math.min(dragOriginRef.current[panel] + dx, editorCap))
+      return next === prev[panel] ? prev : { ...prev, [panel]: next }
+    })
+  }, [])
+
+  const endPanelDrag = useCallback(() => {
+    savePanelSizes(panelSizesRef.current)
+  }, [])
+
+  const resetPanel = useCallback((panel: PanelKey) => {
+    setPanelSizes(prev => {
+      const next = { ...prev, [panel]: PANEL_DEFAULTS[panel] }
+      savePanelSizes(next)
+      return next
+    })
+  }, [])
 
   // ── Prompt Enhancer ─────────────────────────────────────────────
   const hasToolKey = useHasToolKey()
@@ -2565,19 +2655,6 @@ const openInBuiltAutoFix = () => {
       .catch(() => setJars({ maven: null, gradle: null }))
   }, [projectId])
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (jarMenuRef.current && !jarMenuRef.current.contains(e.target as Node)) setJarMenuOpen(false)
-    }
-    if (jarMenuOpen) document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [jarMenuOpen])
-
-  const downloadJar = (type: 'maven' | 'gradle') => {
-    window.location.href = `/api/projects/${projectId}/jars/${type}/download`
-    setJarMenuOpen(false)
-  }
-
   const fetchGitStatus = useCallback(async () => {
     if (!projectId) return
     try {
@@ -2784,6 +2861,43 @@ const openInBuiltAutoFix = () => {
     }
   }
 
+  // Shared chrome bits for both layouts.
+  const headerBtn =
+    'inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-text-muted transition-colors hover:bg-surface-hover hover:text-text disabled:opacity-40 disabled:cursor-not-allowed'
+  const repoSlug = gitStatus?.repoUrl?.replace('https://github.com/', '') ?? 'repository'
+
+  // Download rows shared by the desktop Download menu and the mobile action sheet.
+  const downloadActions: WorkspaceAction[] = [
+    {
+      id: 'jar-maven',
+      icon: Package,
+      label: 'Plugin JAR · Maven',
+      description: 'Latest compiled Maven build',
+      disabled: !jars.maven,
+      hint: jars.maven ? undefined : 'Not built',
+      href: jars.maven ? `/api/projects/${projectId}/jars/maven/download` : undefined,
+    },
+    {
+      id: 'jar-gradle',
+      icon: Package,
+      label: 'Plugin JAR · Gradle',
+      description: 'Latest compiled Gradle build',
+      disabled: !jars.gradle,
+      hint: jars.gradle ? undefined : 'Not built',
+      href: jars.gradle ? `/api/projects/${projectId}/jars/gradle/download` : undefined,
+    },
+    ...(isPaid
+      ? [{
+          id: 'zip',
+          icon: FileArchive,
+          label: 'Project source (ZIP)',
+          description: 'Full workspace as a ZIP archive',
+          href: `/api/projects/${projectId}/download/zip`,
+          download: true,
+        } satisfies WorkspaceAction]
+      : []),
+  ]
+
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
@@ -2947,171 +3061,184 @@ const openInBuiltAutoFix = () => {
       ? [{ id: 'chat' as const, icon: MessageCircle, label: 'Chat' }, { id: 'files' as const, icon: FolderTree, label: 'Files' }, { id: 'code' as const, icon: Code2, label: 'Code' }]
       : [{ id: 'code' as const, icon: Code2, label: 'Code' }, { id: 'files' as const, icon: FolderTree, label: 'Files' }, { id: 'chat' as const, icon: MessageCircle, label: 'Chat' }]
 
+    // Every workspace action lives here with a name and a plain-words description,
+    // grouped by purpose — replaces the old strip of unlabeled header icons that
+    // overflowed once git + review + graphify all appeared.
+    const sheetSections: ActionSection[] = [
+      {
+        id: 'workspace',
+        title: 'Workspace',
+        actions: [
+          {
+            id: 'layout',
+            icon: ArrowLeftRight,
+            label: `Switch to ${isChatFirst ? 'Code' : 'Chat'} First`,
+            description: 'Reorder the workspace around how you work',
+            disabled: isWorkspaceLocked,
+            onSelect: () => void toggleLayout(),
+          },
+          {
+            id: 'settings',
+            icon: Settings,
+            label: 'Project settings',
+            description: 'Platform, visibility & project info',
+            onSelect: () => navigate(`/project/${projectId}/settings`),
+          },
+        ],
+      },
+      ...(isPaid
+        ? [{
+            id: 'git',
+            title: 'Source control',
+            actions: gitStatus?.connected
+              ? [
+                  { id: 'push', icon: Upload, label: 'Push to GitHub', description: 'Commit your changes & push to the repo', tone: 'primary', disabled: isWorkspaceLocked, onSelect: () => void handleOpenPushModal() },
+                  { id: 'reset', icon: RotateCcw, label: 'Reset from Git', description: 'Discard local files & re-clone the repo', tone: 'warning', disabled: isWorkspaceLocked, onSelect: () => setResetModalOpen(true) },
+                  { id: 'repo', icon: GitBranch, label: 'Repository', description: `${repoSlug} · ${gitStatus.repoBranch ?? 'main'}`, tone: 'success', hint: 'Connected', disabled: isWorkspaceLocked, onSelect: () => setGitConnectModalOpen(true) },
+                ]
+              : [
+                  { id: 'connect', icon: GitBranch, label: 'Connect repository', description: 'Link GitHub to push, review & reset', disabled: isWorkspaceLocked, onSelect: () => setGitConnectModalOpen(true) },
+                ],
+          } satisfies ActionSection]
+        : []),
+      ...(isPaid && coderabbitEnabled && gitStatus?.connected
+        ? [{
+            id: 'review',
+            title: 'Code review',
+            actions: [
+              { id: 'review', icon: Shield, label: 'Review code', description: 'AI-review your uncommitted changes', tone: 'primary', disabled: isWorkspaceLocked, onSelect: () => setReviewModalOpen(true) },
+              { id: 'history', icon: ListTodo, label: 'Review history', description: 'Past reviews & one-tap auto-fix', disabled: isWorkspaceLocked, onSelect: () => { fetchReviewHistory(); setReviewHistoryOpen(true) } },
+            ],
+          } satisfies ActionSection]
+        : []),
+      ...(isPaid
+        ? [{
+            id: 'graphify',
+            title: 'Graphify',
+            actions: graphifyBuilding
+              ? [{ id: 'graph-building', icon: Network, label: 'Building knowledge graph…', description: 'Usually takes under a minute', loading: true, disabled: true }]
+              : graphifyStatus === 'ready'
+                ? [
+                    { id: 'graph-open', icon: Network, label: 'Open knowledge graph', description: 'Interactive map of your project code', tone: 'primary', onSelect: handleViewGraph },
+                    { id: 'graph-remove', icon: Trash2, label: 'Remove Graphify', description: 'Delete the graph & turn off token saving', tone: 'danger', disabled: isWorkspaceLocked || isRemovingGraphify, onSelect: () => setGraphifyRemoveOpen(true) },
+                  ]
+                : graphifyStatus === 'failed'
+                  ? [
+                      { id: 'graph-retry', icon: RefreshCw, label: 'Retry graph build', description: 'The last build failed — run it again', tone: 'warning', disabled: isWorkspaceLocked, onSelect: () => void enableGraphify().catch(() => addToast('Could not start the graph build', 'error')) },
+                      { id: 'graph-remove', icon: Trash2, label: 'Remove Graphify', description: 'Delete the graph & turn off token saving', tone: 'danger', disabled: isWorkspaceLocked || isRemovingGraphify, onSelect: () => setGraphifyRemoveOpen(true) },
+                    ]
+                  : [
+                      { id: 'graph-enable', icon: Coins, label: 'Save tokens using Graphify', description: 'Free local code graph — the AI reads less, you spend less', tone: 'primary', disabled: isWorkspaceLocked, onSelect: () => void enableGraphify().catch(() => addToast('Could not start the graph build', 'error')) },
+                    ],
+          } satisfies ActionSection]
+        : []),
+      {
+        id: 'download',
+        title: 'Download',
+        actions: downloadActions,
+      },
+    ]
+
     return (
       <>
         <ToastContainer />
-        {workspaceBanner}
-        {reviewLock?.status === 'error' && (
-          <div className="shrink-0 flex items-center justify-between gap-2 bg-red-500/90 py-2 px-4 text-sm font-medium text-white backdrop-blur z-50">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="h-4 w-4" />
-              <span>{reviewLock.error || 'Review failed'}</span>
+        <div className="flex h-[100dvh] flex-col overflow-hidden bg-background">
+          {workspaceBanner}
+          {reviewLock?.status === 'error' && (
+            <div className="z-50 flex shrink-0 items-center justify-between gap-2 bg-red-500/90 px-4 py-2 text-sm font-medium text-white backdrop-blur">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" />
+                <span>{reviewLock.error || 'Review failed'}</span>
+              </div>
+              <button onClick={() => dismissReviewError(reviewLock.reviewId)} className="rounded bg-white/20 px-2 py-0.5 text-xs hover:bg-white/30">Dismiss</button>
             </div>
-            <button onClick={() => dismissReviewError(reviewLock.reviewId)} className="rounded bg-white/20 px-2 py-0.5 text-xs hover:bg-white/30">Dismiss</button>
-          </div>
-        )}
-        <div className="flex h-[100dvh] flex-col bg-background">
-        <header className="flex h-11 shrink-0 items-center gap-3 border-b border-border bg-surface/80 backdrop-blur-sm px-3">
-          <Link to="/dashboard" className="text-text-dim hover:text-text-muted">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-          <span className="truncate text-sm font-medium text-text">{project.name}</span>
-          <span className="shrink-0 rounded bg-accent px-1.5 py-0.5 text-[10px] text-text-dim">{SOFTWARE_LABELS[project.software] ?? project.software}</span>
-          <div className="ml-auto flex items-center gap-1.5">
-            {isPaid && (
-              <>
-                {gitStatus?.connected ? (
-                  <>
-                    <button
-                      onClick={handleOpenPushModal}
-                      disabled={isWorkspaceLocked}
-                      className="rounded-md p-1.5 text-text-dim hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed"
-                      title="Push to GitHub"
-                    >
-                      <Upload className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => setResetModalOpen(true)}
-                      disabled={isWorkspaceLocked}
-                      className="rounded-md p-1.5 text-orange-500 hover:text-orange-600 disabled:opacity-40 disabled:cursor-not-allowed"
-                      title="Reset from Git"
-                    >
-                      <RotateCcw className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => setGitConnectModalOpen(true)}
-                      disabled={isWorkspaceLocked}
-                      className="flex items-center gap-1 rounded-md p-1.5 text-green-500 hover:text-green-600 disabled:opacity-40 disabled:cursor-not-allowed"
-                      title={`Connected: ${gitStatus.repoUrl?.replace('https://github.com/', '') || 'repo'}`}
-                    >
-                      <GitBranch className="h-3.5 w-3.5" />
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => setGitConnectModalOpen(true)}
-                    disabled={isWorkspaceLocked}
-                    className="rounded-md p-1.5 text-text-dim hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed"
-                    title="Connect Git Repository"
-                  >
-                    <GitBranch className="h-3.5 w-3.5" />
-                  </button>
-                )}
-                {coderabbitEnabled && gitStatus?.connected && (
-                  <>
-                    <button
-                      onClick={() => setReviewModalOpen(true)}
-                      disabled={isWorkspaceLocked}
-                      className="rounded-md p-1.5 text-blue-500 hover:text-blue-600 disabled:opacity-40 disabled:cursor-not-allowed"
-                      title="Review Code"
-                    >
-                      <Shield className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (isWorkspaceLocked) return
-                        fetchReviewHistory()
-                        setReviewHistoryOpen(true)
-                      }}
-                      disabled={isWorkspaceLocked}
-                      className="rounded-md p-1.5 text-text-dim hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed"
-                      title="Review History"
-                    >
-                      <ListTodo className="h-3.5 w-3.5" />
-                    </button>
-                  </>
-                )}
-              </>
-            )}
-            <button onClick={toggleLayout} disabled={isWorkspaceLocked} className="rounded-md p-1.5 text-text-dim hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed" title={isChatFirst ? 'Switch to Code First' : 'Switch to Chat First'}>
-              <ArrowLeftRight className="h-3.5 w-3.5" />
-            </button>
-            <GraphifyControls projectId={projectId ?? ''} isPaid={isPaid} compact onViewGraph={handleViewGraph} disabled={isWorkspaceLocked} />
-            {isPaid && (
-              <a href={`/api/projects/${projectId}/download/zip`} download className="rounded-md p-1.5 text-text-dim hover:text-text-muted" title="Download project">
-                <Download className="h-3.5 w-3.5" />
-              </a>
-            )}
-            <div className="relative" ref={jarMenuRef}>
-              <button 
-                onClick={() => !isWorkspaceLocked && setJarMenuOpen(!jarMenuOpen)} 
-                className={cn("rounded-md p-1.5 text-text-dim hover:text-text-muted", (!jars.maven && !jars.gradle) && "opacity-40 cursor-not-allowed", isWorkspaceLocked && "opacity-40 cursor-not-allowed")} 
-                title="Download plugin JAR"
-                disabled={(!jars.maven && !jars.gradle) || isWorkspaceLocked}
-              >
-                <Package className="h-3.5 w-3.5" />
-              </button>
-              {jarMenuOpen && (
-                <div className="absolute right-0 top-full mt-1 w-32 rounded-md border border-border bg-surface shadow-lg z-50">
-                  <button
-                    onClick={() => downloadJar('maven')}
-                    disabled={!jars.maven}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-surface-hover disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Maven
-                  </button>
-                  <button
-                    onClick={() => downloadJar('gradle')}
-                    disabled={!jars.gradle}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-surface-hover disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Gradle
-                  </button>
-                </div>
-              )}
-            </div>
-            <Link to={`/project/${projectId}/settings`} className={cn("rounded-md p-1.5 text-text-dim hover:text-text-muted", isWorkspaceLocked && "opacity-40 pointer-events-none")} title="Settings">
-              <Settings className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-        </header>
+          )}
 
-        <div className="flex-1 overflow-hidden">
-          <div className={cn('flex h-full flex-col', mobileTab !== 'chat' && 'hidden')}>
-            <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
-              <MessageSquare className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium text-text">AI Assistant</span>
+          <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-surface/80 px-3 backdrop-blur-sm">
+            <Link
+              to="/dashboard"
+              aria-label="Back to dashboard"
+              className="-ml-1.5 rounded-lg p-1.5 text-text-dim transition-colors hover:text-text-muted active:bg-surface-hover"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <span className="truncate text-sm font-medium text-text">{project.name}</span>
+              <span className="shrink-0 rounded bg-accent px-1.5 py-0.5 text-[10px] text-text-dim">{SOFTWARE_LABELS[project.software] ?? project.software}</span>
             </div>
-            <ChatPanel
-              projectId={project.id}
-              selectedModel={selectedModel}
-              selectedSpeed={selectedSpeed}
-              onModelChange={setSelectedModel}
-              onSpeedChange={setSelectedSpeed}
-              onRefreshFiles={refetchFiles}
-              onFileSelect={handleFileSelect}
-              autoFixPayload={autoFixPayload}
-              onAutoFixComplete={() => setAutoFixPayload(null)}
-              workspaceDisabled={isWorkspaceLocked}
-              onAiRunningChange={setAiRunning}
-              onBeforeSend={requestEnhance}
-              stopAiRef={stopAiRef}
-            />
+            <button
+              type="button"
+              onClick={() => setActionSheetOpen(true)}
+              aria-haspopup="dialog"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-surface-hover/40 px-2.5 py-1.5 text-xs font-medium text-text-muted transition-colors hover:text-text active:bg-surface-hover"
+            >
+              <MoreVertical className="h-3.5 w-3.5" />
+              Actions
+            </button>
+          </header>
+
+          <div className="flex-1 overflow-hidden">
+            <div className={cn('flex h-full flex-col', mobileTab !== 'chat' && 'hidden')}>
+              <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+                <MessageSquare className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium text-text">AI Assistant</span>
+              </div>
+              <ChatPanel
+                projectId={project.id}
+                selectedModel={selectedModel}
+                selectedSpeed={selectedSpeed}
+                onModelChange={setSelectedModel}
+                onSpeedChange={setSelectedSpeed}
+                onRefreshFiles={refetchFiles}
+                onFileSelect={handleFileSelect}
+                autoFixPayload={autoFixPayload}
+                onAutoFixComplete={() => setAutoFixPayload(null)}
+                workspaceDisabled={isWorkspaceLocked}
+                onAiRunningChange={setAiRunning}
+                onBeforeSend={requestEnhance}
+                stopAiRef={stopAiRef}
+              />
+            </div>
+            <div className={cn('h-full', mobileTab !== 'files' && 'hidden')}>
+              <FileTreePanel files={files} filesLoading={filesLoading} refetchFiles={refetchFiles} onFileSelect={handleFileSelect} selectedFile={selectedFile} fileOps={fileOps} disabled={isWorkspaceLocked} />
+            </div>
+            <div className={cn('h-full', mobileTab !== 'code' && 'hidden')}>
+              <EditorPanel projectId={project.id} selectedFile={selectedFile} fileOps={fileOps} disabled={isWorkspaceLocked} onExitGraphView={() => setSelectedFile(null)} />
+            </div>
           </div>
-          <div className={cn('h-full', mobileTab !== 'files' && 'hidden')}>
-            <FileTreePanel files={files} filesLoading={filesLoading} refetchFiles={refetchFiles} onFileSelect={handleFileSelect} selectedFile={selectedFile} fileOps={fileOps} disabled={isWorkspaceLocked} />
-          </div>
-          <div className={cn('h-full', mobileTab !== 'code' && 'hidden')}>
-            <EditorPanel projectId={project.id} selectedFile={selectedFile} fileOps={fileOps} disabled={isWorkspaceLocked} onExitGraphView={() => setSelectedFile(null)} />
-          </div>
+
+          <nav
+            className="flex min-h-14 shrink-0 items-center justify-around border-t border-border bg-surface pb-[env(safe-area-inset-bottom)]"
+            aria-label="Navigation"
+          >
+            {mobileTabs.map((tab) => (
+              <MobileTabButton key={tab.id} active={mobileTab === tab.id} icon={tab.icon} label={tab.label} onClick={() => setMobileTab(tab.id)} />
+            ))}
+          </nav>
         </div>
 
-        <nav className="flex h-14 shrink-0 items-center justify-around border-t border-border bg-surface" aria-label="Navigation">
-          {mobileTabs.map((tab) => (
-            <MobileTabButton key={tab.id} active={mobileTab === tab.id} icon={tab.icon} label={tab.label} onClick={() => setMobileTab(tab.id)} />
-          ))}
-        </nav>
-      </div>
+        <ActionSheet
+          open={actionSheetOpen}
+          onClose={() => setActionSheetOpen(false)}
+          title={project.name}
+          subtitle={isWorkspaceLocked
+            ? 'Workspace is busy — some actions are paused'
+            : `${SOFTWARE_LABELS[project.software] ?? project.software} · ${project.language}`}
+          sections={sheetSections}
+        />
+
+        <GlassyConfirmModal
+          isOpen={graphifyRemoveOpen}
+          onClose={() => setGraphifyRemoveOpen(false)}
+          onConfirm={async () => {
+            await removeGraphify()
+            setGraphifyRemoveOpen(false)
+          }}
+          title="Remove Graphify"
+          description="This deletes the project's knowledge graph and turns off Graphify. You can re-enable it anytime."
+          icon={Trash2}
+          confirmText="Remove"
+        />
 
         {/* Push to GitHub Modal */}
         {pushModalOpen && (
@@ -3674,7 +3801,7 @@ const openInBuiltAutoFix = () => {
 }
 
   return (
-    <div className="flex h-screen flex-col bg-background">
+    <div className="flex h-screen flex-col overflow-hidden bg-background">
       <ToastContainer />
       {workspaceBanner}
       {reviewLock?.status === 'error' && (
@@ -3686,182 +3813,165 @@ const openInBuiltAutoFix = () => {
           <button onClick={() => dismissReviewError(reviewLock.reviewId)} className="rounded bg-white/20 px-2 py-0.5 text-xs hover:bg-white/30">Dismiss</button>
         </div>
       )}
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-surface/80 backdrop-blur-sm px-4">
-        <div className="flex items-center gap-3">
-          <Link to="/dashboard" className="text-text-dim hover:text-text-muted">
+      <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border bg-surface/80 px-4 backdrop-blur-sm">
+        <div className="flex min-w-0 items-center gap-3">
+          <Link to="/dashboard" aria-label="Back to dashboard" className="text-text-dim transition-colors hover:text-text-muted">
             <ArrowLeft className="h-4 w-4" />
           </Link>
-          <span className="text-sm font-medium text-text">{project.name}</span>
-          <span className="rounded bg-accent px-2 py-0.5 text-xs text-text-dim">{SOFTWARE_LABELS[project.software] ?? project.software}</span>
-          <span className="rounded bg-accent px-2 py-0.5 text-xs text-text-dim">{project.language}</span>
+          <span className="truncate text-sm font-medium text-text">{project.name}</span>
+          <span className="hidden shrink-0 rounded bg-accent px-2 py-0.5 text-xs text-text-dim sm:inline">{SOFTWARE_LABELS[project.software] ?? project.software}</span>
+          <span className="hidden shrink-0 rounded bg-accent px-2 py-0.5 text-xs text-text-dim lg:inline">{project.language}</span>
         </div>
-        <div className="flex items-center gap-2">
-          {isPaid && (
-            <>
-              {gitStatus?.connected ? (
-                <>
-                  <button
-                    onClick={handleOpenPushModal}
-                    disabled={isWorkspaceLocked}
-                    className="rounded-md border border-border p-1.5 text-text-dim hover:bg-surface-hover hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed"
-                    title="Push to GitHub"
-                  >
-                    <Upload className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => setResetModalOpen(true)}
-                    disabled={isWorkspaceLocked}
-                    className="rounded-md border border-orange-500 p-1.5 text-orange-500 hover:bg-orange-50 disabled:opacity-40 disabled:cursor-not-allowed"
-                    title="Reset from Git"
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => setGitConnectModalOpen(true)}
-                    disabled={isWorkspaceLocked}
-                    className="flex items-center gap-1.5 rounded-md border border-green-500 p-1.5 text-green-500 hover:bg-green-50 disabled:opacity-40 disabled:cursor-not-allowed"
-                    title={`Connected: ${gitStatus.repoUrl?.replace('https://github.com/', '') || 'repo'}`}
-                  >
-                    <GitBranch className="h-4 w-4" />
-                    <span className="text-[10px] font-medium">{gitStatus.repoBranch}</span>
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={() => setGitConnectModalOpen(true)}
-                  disabled={isWorkspaceLocked}
-                  className="rounded-md border border-border p-1.5 text-text-dim hover:bg-surface-hover hover:text-text-muted disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="Connect Git Repository"
-                >
-                  <GitBranch className="h-4 w-4" />
-                </button>
-              )}
-              {coderabbitEnabled && gitStatus?.connected && (
-                <>
-                  <button
-                    onClick={() => setReviewModalOpen(true)}
-                    disabled={isWorkspaceLocked}
-                    className="rounded-md border border-blue-500 p-1.5 text-blue-500 hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed"
-                    title="Review Code"
-                  >
-                    <Shield className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (isWorkspaceLocked) return
-                      fetchReviewHistory()
-                      setReviewHistoryOpen(true)
-                    }}
-                    disabled={isWorkspaceLocked}
-                    className="rounded-md border border-border p-1.5 text-text-dim hover:bg-surface-hover disabled:opacity-40 disabled:cursor-not-allowed"
-                    title="Review History"
-                  >
-                    <ListTodo className="h-4 w-4" />
-                  </button>
-                </>
-              )}
-            </>
-          )}
+        <div className="flex shrink-0 items-center gap-2">
+          {isPaid && (gitStatus?.connected ? (
+            <HeaderMenu
+              icon={GitBranch}
+              label={gitStatus.repoBranch || 'Git'}
+              dot="success"
+              disabled={isWorkspaceLocked}
+              title={`Connected: ${repoSlug}`}
+              width="w-72"
+              sections={[
+                {
+                  id: 'repo',
+                  title: repoSlug,
+                  actions: [
+                    { id: 'push', icon: Upload, label: 'Push to GitHub', description: 'Commit your changes & push to the repo', tone: 'primary', onSelect: () => void handleOpenPushModal() },
+                    { id: 'reset', icon: RotateCcw, label: 'Reset from Git', description: 'Discard local files & re-clone the repo', tone: 'warning', onSelect: () => setResetModalOpen(true) },
+                  ],
+                },
+                ...(coderabbitEnabled
+                  ? [{
+                      id: 'review',
+                      title: 'Code review',
+                      actions: [
+                        { id: 'review', icon: Shield, label: 'Review code', description: 'AI-review your uncommitted changes', tone: 'primary' as const, onSelect: () => setReviewModalOpen(true) },
+                        { id: 'history', icon: ListTodo, label: 'Review history', description: 'Past reviews & one-click auto-fix', onSelect: () => { fetchReviewHistory(); setReviewHistoryOpen(true) } },
+                      ],
+                    }]
+                  : []),
+                {
+                  id: 'manage',
+                  actions: [
+                    { id: 'manage', icon: GitBranch, label: 'Manage repository', description: 'Change repo, branch or disconnect', onSelect: () => setGitConnectModalOpen(true) },
+                  ],
+                },
+              ]}
+            />
+          ) : (
+            <button onClick={() => setGitConnectModalOpen(true)} disabled={isWorkspaceLocked} className={headerBtn} title="Link GitHub to push, review & reset">
+              <GitBranch className="h-3.5 w-3.5" />
+              Connect Git
+            </button>
+          ))}
+
           <button
             onClick={toggleLayout}
             disabled={isWorkspaceLocked}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-text-muted transition-colors hover:bg-surface-hover hover:text-text disabled:opacity-40 disabled:cursor-not-allowed"
-            title={isChatFirst ? 'Switch to Code First' : 'Switch to Code First'}
+            className={headerBtn}
+            title={isChatFirst ? 'Put the code editor first' : 'Put the chat first'}
           >
             <ArrowLeftRight className="h-3.5 w-3.5" />
             {isChatFirst ? 'Chat First' : 'Code First'}
           </button>
+
           <button
             className="inline-flex items-center gap-1.5 rounded-md bg-success/10 px-3 py-1.5 text-xs font-medium text-success opacity-50"
             disabled
+            title="Compile (coming soon)"
           >
             <Play className="h-3 w-3" />
             Compile
           </button>
+
           <GraphifyControls projectId={projectId ?? ''} isPaid={isPaid} onViewGraph={handleViewGraph} disabled={isWorkspaceLocked} />
-          {isPaid && (
-            <a
-              href={`/api/projects/${projectId}/download/zip`}
-              download
-              className="rounded-md border border-border p-1.5 text-text-dim transition-colors hover:bg-surface-hover hover:text-text-muted"
-              title="Download project as ZIP"
-            >
-              <Download className="h-4 w-4" />
-            </a>
-          )}
-          <Link
-            to={`/project/${projectId}/settings`}
-            className="rounded-md border border-border p-1.5 text-text-dim transition-colors hover:bg-surface-hover hover:text-text-muted"
-            title="Project Settings"
-          >
-            <Settings className="h-4 w-4" />
+
+          <HeaderMenu
+            icon={Download}
+            label="Download"
+            title="Download builds & source"
+            width="w-72"
+            sections={[{ id: 'download', actions: downloadActions }]}
+          />
+
+          <Link to={`/project/${projectId}/settings`} className={headerBtn} title="Platform, visibility & project info">
+            <Settings className="h-3.5 w-3.5" />
+            Settings
           </Link>
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div ref={layoutRef} className="flex flex-1 overflow-hidden">
         {isChatFirst ? (
           <>
-            <aside className="flex w-[400px] shrink-0 flex-col border-r border-border bg-surface">
+            <aside className="flex shrink-0 flex-col border-r border-border bg-surface" style={{ width: panelSizes.chat }}>
               <div className="flex items-center gap-2 border-b border-border px-4 py-3">
                 <MessageSquare className="h-4 w-4 text-primary" />
                 <span className="text-sm font-medium text-text">AI Assistant</span>
               </div>
               <ChatPanel
-              projectId={project.id}
-              selectedModel={selectedModel}
-              selectedSpeed={selectedSpeed}
-              onModelChange={setSelectedModel}
-              onSpeedChange={setSelectedSpeed}
-              onRefreshFiles={refetchFiles}
-              onFileSelect={handleFileSelect}
-              autoFixPayload={autoFixPayload}
-              onAutoFixComplete={() => setAutoFixPayload(null)}
-              workspaceDisabled={isWorkspaceLocked}
-              onAiRunningChange={setAiRunning}
-              onBeforeSend={requestEnhance}
-              stopAiRef={stopAiRef}
-            />
+                projectId={project.id}
+                selectedModel={selectedModel}
+                selectedSpeed={selectedSpeed}
+                onModelChange={setSelectedModel}
+                onSpeedChange={setSelectedSpeed}
+                onRefreshFiles={refetchFiles}
+                onFileSelect={handleFileSelect}
+                autoFixPayload={autoFixPayload}
+                onAutoFixComplete={() => setAutoFixPayload(null)}
+                workspaceDisabled={isWorkspaceLocked}
+                onAiRunningChange={setAiRunning}
+                onBeforeSend={requestEnhance}
+                stopAiRef={stopAiRef}
+              />
             </aside>
 
-            <aside className="w-56 shrink-0 overflow-hidden border-r border-border">
+            <PanelDivider label="Resize chat panel" onDragStart={beginPanelDrag} onDelta={(dx) => resizePanel('chat', dx)} onDragEnd={endPanelDrag} onReset={() => resetPanel('chat')} />
+
+            <aside className="shrink-0 overflow-hidden border-r border-border" style={{ width: panelSizes.tree }}>
               <FileTreePanel files={files} filesLoading={filesLoading} refetchFiles={refetchFiles} onFileSelect={handleFileSelect} selectedFile={selectedFile} fileOps={fileOps} disabled={isWorkspaceLocked} />
             </aside>
 
-            <main className="flex-1 overflow-hidden">
+            <PanelDivider label="Resize file tree" onDragStart={beginPanelDrag} onDelta={(dx) => resizePanel('tree', dx)} onDragEnd={endPanelDrag} onReset={() => resetPanel('tree')} />
+
+            <main className="min-w-0 flex-1 overflow-hidden">
               <EditorPanel projectId={project.id} selectedFile={selectedFile} fileOps={fileOps} disabled={isWorkspaceLocked} onExitGraphView={() => setSelectedFile(null)} />
             </main>
           </>
         ) : (
           <>
-            <aside className="w-56 shrink-0 overflow-hidden border-r border-border">
+            <aside className="shrink-0 overflow-hidden border-r border-border" style={{ width: panelSizes.tree }}>
               <FileTreePanel files={files} filesLoading={filesLoading} refetchFiles={refetchFiles} onFileSelect={handleFileSelect} selectedFile={selectedFile} fileOps={fileOps} disabled={isWorkspaceLocked} />
             </aside>
 
-            <main className="flex-1 overflow-hidden">
+            <PanelDivider label="Resize file tree" onDragStart={beginPanelDrag} onDelta={(dx) => resizePanel('tree', dx)} onDragEnd={endPanelDrag} onReset={() => resetPanel('tree')} />
+
+            <main className="min-w-0 flex-1 overflow-hidden">
               <EditorPanel projectId={project.id} selectedFile={selectedFile} fileOps={fileOps} disabled={isWorkspaceLocked} onExitGraphView={() => setSelectedFile(null)} />
             </main>
 
-            <aside className="flex w-[400px] shrink-0 flex-col border-l border-border bg-surface">
+            <PanelDivider label="Resize chat panel" onDragStart={beginPanelDrag} onDelta={(dx) => resizePanel('chat', -dx)} onDragEnd={endPanelDrag} onReset={() => resetPanel('chat')} />
+
+            <aside className="flex shrink-0 flex-col border-l border-border bg-surface" style={{ width: panelSizes.chat }}>
               <div className="flex items-center gap-2 border-b border-border px-4 py-3">
                 <MessageSquare className="h-4 w-4 text-primary" />
                 <span className="text-sm font-medium text-text">AI Assistant</span>
               </div>
               <ChatPanel
-              projectId={project.id}
-              selectedModel={selectedModel}
-              selectedSpeed={selectedSpeed}
-              onModelChange={setSelectedModel}
-              onSpeedChange={setSelectedSpeed}
-              onRefreshFiles={refetchFiles}
-              onFileSelect={handleFileSelect}
-              autoFixPayload={autoFixPayload}
-              onAutoFixComplete={() => setAutoFixPayload(null)}
-              workspaceDisabled={isWorkspaceLocked}
-              onAiRunningChange={setAiRunning}
-              onBeforeSend={requestEnhance}
-              stopAiRef={stopAiRef}
-            />
+                projectId={project.id}
+                selectedModel={selectedModel}
+                selectedSpeed={selectedSpeed}
+                onModelChange={setSelectedModel}
+                onSpeedChange={setSelectedSpeed}
+                onRefreshFiles={refetchFiles}
+                onFileSelect={handleFileSelect}
+                autoFixPayload={autoFixPayload}
+                onAutoFixComplete={() => setAutoFixPayload(null)}
+                workspaceDisabled={isWorkspaceLocked}
+                onAiRunningChange={setAiRunning}
+                onBeforeSend={requestEnhance}
+                stopAiRef={stopAiRef}
+              />
             </aside>
           </>
         )}

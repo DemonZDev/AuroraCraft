@@ -780,7 +780,12 @@ export class OpenCodeBridge implements BridgeInterface {
     return this.streamResponse(task, () => {})
   }
 
-  async createOrResolveSession(baseUrl: string, directory: string, title?: string, existingId?: string, forceNew?: boolean): Promise<string> {
+  // Resolves the existing OpenCode session (by id, then by title) before creating a
+  // new one. Sessions persist in the isolated HOME's storage across instance
+  // restarts and are NOT bound to a provider/model (each prompt selects its own),
+  // so reuse is always preferred — it is what carries chat context across messages
+  // and across model/provider switches.
+  async createOrResolveSession(baseUrl: string, directory: string, title?: string, existingId?: string): Promise<string> {
     // Helper: fetch with a hard race timeout — AbortSignal.timeout can fail
     // to abort in some Node.js runtimes, so Promise.race guards against hangs.
     const fetchSafe = async (url: string, init: RequestInit, timeoutMs: number) => {
@@ -793,17 +798,21 @@ export class OpenCodeBridge implements BridgeInterface {
       }
     }
 
-    if (!forceNew && existingId) {
+    // Scope lookups to the project directory (same as the create below) so a
+    // freshly restarted instance resolves sessions persisted by its predecessor.
+    const dirParam = directory ? `?directory=${encodeURIComponent(directory)}` : ''
+
+    if (existingId) {
       try {
-        const res = await fetchSafe(`${baseUrl}/session/${existingId}`, { method: 'GET' }, 5000)
+        const res = await fetchSafe(`${baseUrl}/session/${existingId}${dirParam}`, { method: 'GET' }, 5000)
         if (res.ok) return existingId
       } catch { /* session not found, create new */ }
     }
 
     // Try to find existing session by title (project link name)
-    if (!forceNew && title) {
+    if (title) {
       try {
-        const res = await fetchSafe(`${baseUrl}/session`, { method: 'GET' }, 5000)
+        const res = await fetchSafe(`${baseUrl}/session${dirParam}`, { method: 'GET' }, 5000)
         if (res.ok) {
           const sessions = (await res.json()) as OpenCodeSession[]
           const matching = sessions.find((s) => s.title === title)

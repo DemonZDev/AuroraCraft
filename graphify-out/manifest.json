@@ -2335,8 +2335,8 @@
     "semantic_hash": ""
   },
   "/root/AuroraCraft/.claude/settings.local.json": {
-    "mtime": 1781205665.719004,
-    "ast_hash": "d30991da92915ce1e1ef8b588ce08471",
+    "mtime": 1781297202.1455421,
+    "ast_hash": "5f53ebce78e3d757c72e9468a4764af5",
     "semantic_hash": ""
   },
   "/root/AuroraCraft/server/tsconfig.json": {
@@ -2605,8 +2605,8 @@
     "semantic_hash": ""
   },
   "/root/AuroraCraft/server/src/utils/provider-config.ts": {
-    "mtime": 1780744585.5467632,
-    "ast_hash": "1ce9c55754e1c29ec04c8a49253d1026",
+    "mtime": 1781296065.8474364,
+    "ast_hash": "33ae6026b7cb18eb4361fece45e22b1d",
     "semantic_hash": ""
   },
   "/root/AuroraCraft/server/src/utils/opencode-cleanup.ts": {
@@ -2740,8 +2740,8 @@
     "semantic_hash": ""
   },
   "/root/AuroraCraft/server/src/bridges/opencode.ts": {
-    "mtime": 1780850924.7881832,
-    "ast_hash": "481cf9d066f9e1009cbd704b76c0a675",
+    "mtime": 1781296129.2936094,
+    "ast_hash": "3a3ad71cf9087d288db60126858ce5fd",
     "semantic_hash": ""
   },
   "/root/AuroraCraft/server/src/bridges/litellm-process-manager.ts": {
@@ -2780,8 +2780,8 @@
     "semantic_hash": ""
   },
   "/root/AuroraCraft/server/src/routes/agents.ts": {
-    "mtime": 1781160048.6211164,
-    "ast_hash": "5a1e394eac9360dc2b95578b991903c0",
+    "mtime": 1781296110.733559,
+    "ast_hash": "23e630047ca56f7b70e90eb9febaaa11",
     "semantic_hash": ""
   },
   "/root/AuroraCraft/server/src/routes/admin.ts": {
@@ -2940,8 +2940,8 @@
     "semantic_hash": ""
   },
   "/root/AuroraCraft/client/src/pages/workspace.tsx": {
-    "mtime": 1781162814.3205845,
-    "ast_hash": "b88709333c3f60e0a76f9e074ce0486d",
+    "mtime": 1781334761.4402797,
+    "ast_hash": "045ba2d51987d369b1de83e1a6f71e84",
     "semantic_hash": ""
   },
   "/root/AuroraCraft/client/src/pages/community-project.tsx": {
@@ -3070,8 +3070,8 @@
     "semantic_hash": ""
   },
   "/root/AuroraCraft/client/src/components/graphify-controls.tsx": {
-    "mtime": 1780566822.2909214,
-    "ast_hash": "fd429bc079e526fea9fa34ead8db00bf",
+    "mtime": 1781300173.090662,
+    "ast_hash": "bdfd832656017fdc5543187cb7064de6",
     "semantic_hash": ""
   },
   "/root/AuroraCraft/client/src/components/prompt-enhancer-modal.tsx": {
@@ -3140,8 +3140,8 @@
     "semantic_hash": ""
   },
   "/root/AuroraCraft/README.md": {
-    "mtime": 1781126325.2549648,
-    "ast_hash": "14eab4e14917c85277f7808b79fc08c3",
+    "mtime": 1781297344.1769288,
+    "ast_hash": "d944642a3aad6223c829a65aa978fa08",
     "semantic_hash": ""
   },
   "/root/AuroraCraft/routing.md": {
@@ -3150,13 +3150,13 @@
     "semantic_hash": ""
   },
   "/root/AuroraCraft/AGENTS.md": {
-    "mtime": 1781126273.5068297,
-    "ast_hash": "48850f49245e175532cbaa86e7d90299",
+    "mtime": 1781297554.9644966,
+    "ast_hash": "7604c04d7ed9ddc78d7169232b983198",
     "semantic_hash": ""
   },
   "/root/AuroraCraft/CLAUDE.md": {
-    "mtime": 1781126249.2687626,
-    "ast_hash": "a8f7de945476bbd6762ad3d9d47b44c8",
+    "mtime": 1781297375.0300136,
+    "ast_hash": "96f8668e52e621a62191fdd23375b92e",
     "semantic_hash": ""
   },
   "/root/AuroraCraft/design-systems/README.md": {
@@ -11300,8 +11300,8 @@
     "semantic_hash": ""
   },
   "/root/AuroraCraft/client/index.html": {
-    "mtime": 1781039785.7381232,
-    "ast_hash": "26e0c41afeba06162df6f64262913b96",
+    "mtime": 1781334797.0473769,
+    "ast_hash": "6da2ea2b646c54357b58858e979df7f1",
     "semantic_hash": ""
   },
   "/root/AuroraCraft/skills/open-design-landing/assets/lab-3.png": {
@@ -11392,6 +11392,16 @@
   "/root/AuroraCraft/client/src/components/auth/auth-scene.tsx": {
     "mtime": 1781212297.2552807,
     "ast_hash": "0c987a3dbc733cb72ed2a83837e29a76",
+    "semantic_hash": ""
+  },
+  "/root/AuroraCraft/client/src/components/workspace/resizable.tsx": {
+    "mtime": 1781300143.5505817,
+    "ast_hash": "0354f929df2f38d84a9e3bf78a51bf36",
+    "semantic_hash": ""
+  },
+  "/root/AuroraCraft/client/src/components/workspace/workspace-actions.tsx": {
+    "mtime": 1781300033.4562821,
+    "ast_hash": "f4e9c034eaac3aee27bf5a1c00e7fda7",
     "semantic_hash": ""
   }
 }

@@ -22,6 +22,7 @@ import { graphifyRoutes } from './routes/graphify.js'
 import { promptToolRoutes } from './routes/prompt-tools.js'
 import { internalRoutes } from './routes/internal.js'
 import { planSettingsRoutes } from './routes/plan-settings.js'
+import { legalRoutes } from './routes/legal.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -56,6 +57,7 @@ await app.register(graphifyRoutes)
 await app.register(promptToolRoutes)
 await app.register(internalRoutes)
 await app.register(planSettingsRoutes)
+await app.register(legalRoutes)
 
 // Serve built client in production
 const clientDist = path.resolve(__dirname, '../../client/dist')

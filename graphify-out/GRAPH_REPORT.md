@@ -1,16 +1,16 @@
-# Graph Report - AuroraCraft  (2026-06-11)
+# Graph Report - AuroraCraft  (2026-06-13)
 
 ## Corpus Check
-- 1485 files · ~2,179,007 words
+- 1487 files · ~2,182,519 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 33627 nodes · 33355 edges · 2258 communities (2230 shown, 28 thin omitted)
-- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 113 edges (avg confidence: 0.8)
+- 33654 nodes · 33389 edges · 2252 communities (2224 shown, 28 thin omitted)
+- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 119 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `e42d352c`
+- Built from commit: `062a2e17`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -1949,9 +1949,6 @@
 - [[_COMMUNITY_Community 1931|Community 1931]]
 - [[_COMMUNITY_Community 1932|Community 1932]]
 - [[_COMMUNITY_Community 1933|Community 1933]]
-- [[_COMMUNITY_Community 1934|Community 1934]]
-- [[_COMMUNITY_Community 1935|Community 1935]]
-- [[_COMMUNITY_Community 1936|Community 1936]]
 - [[_COMMUNITY_Community 1937|Community 1937]]
 - [[_COMMUNITY_Community 1938|Community 1938]]
 - [[_COMMUNITY_Community 1939|Community 1939]]
@@ -2171,10 +2168,8 @@
 - [[_COMMUNITY_Community 2153|Community 2153]]
 - [[_COMMUNITY_Community 2154|Community 2154]]
 - [[_COMMUNITY_Community 2155|Community 2155]]
-- [[_COMMUNITY_Community 2156|Community 2156]]
 - [[_COMMUNITY_Community 2157|Community 2157]]
 - [[_COMMUNITY_Community 2158|Community 2158]]
-- [[_COMMUNITY_Community 2159|Community 2159]]
 - [[_COMMUNITY_Community 2160|Community 2160]]
 - [[_COMMUNITY_Community 2161|Community 2161]]
 - [[_COMMUNITY_Community 2162|Community 2162]]
@@ -2214,7 +2209,6 @@
 - [[_COMMUNITY_Community 2196|Community 2196]]
 - [[_COMMUNITY_Community 2197|Community 2197]]
 - [[_COMMUNITY_Community 2198|Community 2198]]
-- [[_COMMUNITY_Community 2199|Community 2199]]
 - [[_COMMUNITY_Community 2200|Community 2200]]
 - [[_COMMUNITY_Community 2201|Community 2201]]
 - [[_COMMUNITY_Community 2202|Community 2202]]
@@ -2242,7 +2236,7 @@
 - [[_COMMUNITY_Community 2229|Community 2229]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `cn()` - 43 edges
+1. `cn()` - 48 edges
 2. `CORE DIRECTIVE: IMAGE-FIRST WEBSITE DESIGN TO CODE` - 39 edges
 3. `CORE DIRECTIVE: PREMIUM MOBILE APP IMAGE DIRECTION` - 39 edges
 4. `DeckStage` - 29 edges
@@ -2258,30 +2252,30 @@
   client/src/pages/new-project.tsx → client/src/lib/utils.ts
 - `GitConnectionModal()` --calls--> `cn()`  [INFERRED]
   client/src/pages/workspace.tsx → client/src/lib/utils.ts
-- `ReadOnlyFileTreeNode()` --calls--> `cn()`  [INFERRED]
-  client/src/pages/community-project.tsx → client/src/lib/utils.ts
-- `ChatMessage()` --calls--> `cn()`  [INFERRED]
-  client/src/pages/community-project.tsx → client/src/lib/utils.ts
-- `DownloadDropdown()` --calls--> `cn()`  [INFERRED]
-  client/src/pages/community-project.tsx → client/src/lib/utils.ts
+- `FileTreeNode()` --calls--> `cn()`  [INFERRED]
+  client/src/pages/workspace.tsx → client/src/lib/utils.ts
+- `FileOpBadge()` --calls--> `cn()`  [INFERRED]
+  client/src/pages/workspace.tsx → client/src/lib/utils.ts
+- `StreamingThinkingBadge()` --calls--> `cn()`  [INFERRED]
+  client/src/pages/workspace.tsx → client/src/lib/utils.ts
 
-## Communities (2258 total, 28 thin omitted)
+## Communities (2252 total, 28 thin omitted)
 
 ### Community 0 - "Community 0"
-Cohesion: 0.06
-Nodes (40): db, authMiddleware(), FastifyRequest, optionalAuthMiddleware(), authRoutes(), loginSchema, registerSchema, communityRoutes() (+32 more)
+Cohesion: 0.04
+Nodes (70): processManager, client, Database, db, adminGuard(), authMiddleware(), FastifyRequest, optionalAuthMiddleware() (+62 more)
 
 ### Community 1 - "Community 1"
 Cohesion: 0.06
-Nodes (48): client, Database, execFileAsync, sudoRmrf(), aiAdminRoutes(), mcpBodySchema, mcpUpdateSchema, modelBodySchema (+40 more)
+Nodes (45): execFileAsync, sudoRmrf(), aiAdminRoutes(), mcpBodySchema, mcpUpdateSchema, modelBodySchema, modelConflict(), modelUpdateSchema (+37 more)
 
 ### Community 2 - "Community 2"
-Cohesion: 0.07
-Nodes (25): BridgeRegistry, BUILD_ARTIFACT_RE, cleanAssistantText(), FileAction, OpenCodeBridge, OpenCodeEvent, OpenCodeMessage, OpenCodePart (+17 more)
+Cohesion: 0.05
+Nodes (34): AgentExecutor, cleanBadgeMarkers(), AgentExecutionContext, AgentExecutionResult, AgentStatus, AgentStreamCallback, BridgeRegistry, BUILD_ARTIFACT_RE (+26 more)
 
 ### Community 3 - "Community 3"
 Cohesion: 0.06
-Nodes (37): BalanceExhaustedError, ChatTarget, EnhanceInput, EnhanceStyle, ErrorFixInput, IssueRef, meteredChatCompletion(), PromptToolBilling (+29 more)
+Nodes (38): BalanceExhaustedError, ChatTarget, EnhanceInput, EnhanceStyle, ErrorFixInput, IssueRef, meteredChatCompletion(), PromptToolBilling (+30 more)
 
 ### Community 4 - "Community 4"
 Cohesion: 0.04
@@ -2325,7 +2319,7 @@ Nodes (41): 1. Visual Theme & Atmosphere, 2. Color Palette & Roles, 3. Typograph
 
 ### Community 14 - "Community 14"
 Cohesion: 0.05
-Nodes (43): A paid model's upstream returns an error / 429, Adding a second API key fails with a unique-constraint error, Admin cannot downgrade user to free tier, Backend won't start, code:bash (./auroracraft.sh restart), code:bash (pg_isready), code:bash (# Check if opencode is globally accessible), code:bash (netstat -tuln | grep -E "900[0-9]|99[0-9][0-9]") (+35 more)
+Nodes (43): A paid model's upstream returns an error / 429, Adding a second API key fails with a unique-constraint error, Admin cannot downgrade user to free tier, AI says "I cannot compile" or "Compilation unavailable", Backend won't start, code:bash (./auroracraft.sh restart), code:bash (pg_isready), code:bash (# Check if opencode is globally accessible) (+35 more)
 
 ### Community 15 - "Community 15"
 Cohesion: 0.05
@@ -2496,8 +2490,8 @@ Cohesion: 0.05
 Nodes (38): 1. Visual Theme & Atmosphere, 2. Color Palette & Roles, 3. Typography Rules, 4. Component Stylings, 5. Layout Principles, 6. Depth & Elevation, 7. Do's and Don'ts, 8. Responsive Behavior (+30 more)
 
 ### Community 57 - "Community 57"
-Cohesion: 0.08
-Nodes (23): useAgentSessions(), useFileContent(), useAgentModels(), buildRenderBlocksFromMetadata(), buildRenderBlocksFromStreaming(), ChatInput, ChatPanel(), EditorPanel() (+15 more)
+Cohesion: 0.07
+Nodes (28): useAgentSessions(), useAgentModels(), buildRenderBlocksFromMetadata(), buildRenderBlocksFromStreaming(), ChatInput, ChatPanel(), EditorPanel(), FileOpBadge() (+20 more)
 
 ### Community 58 - "Community 58"
 Cohesion: 0.05
@@ -2508,8 +2502,8 @@ Cohesion: 0.05
 Nodes (37): 1. Visual Theme & Atmosphere, 2. Color Palette & Roles, 3. Typography Rules, 4. Component Stylings, 5. Layout Principles, 6. Depth & Elevation, 7. Do's and Don'ts, 8. Responsive Behavior (+29 more)
 
 ### Community 60 - "Community 60"
-Cohesion: 0.09
-Nodes (26): execFileAsync, LiteLLMAcquireOptions, LiteLLMInstance, resolveUserIds(), userIdCache, sendMessageSchema, sessionModelTracker, convertToYAML() (+18 more)
+Cohesion: 0.11
+Nodes (26): execFileAsync, LiteLLMAcquireOptions, LiteLLMInstance, resolveUserIds(), userIdCache, sendMessageSchema, sessionModelTracker, ResolvedModel (+18 more)
 
 ### Community 61 - "Community 61"
 Cohesion: 0.05
@@ -2525,7 +2519,7 @@ Nodes (37): 1. Visual Theme & Atmosphere, 2. Color Palette & Roles, 3. Typograph
 
 ### Community 64 - "Community 64"
 Cohesion: 0.05
-Nodes (38): description, java_version, link_id, logo, name, software, versions, name (+30 more)
+Nodes (39): description, java_version, layout_mode, link_id, logo, name, software, name (+31 more)
 
 ### Community 65 - "Community 65"
 Cohesion: 0.05
@@ -2540,8 +2534,8 @@ Cohesion: 0.05
 Nodes (37): 1. Visual Theme & Atmosphere, 2. Color Palette & Roles, 3. Typography Rules, 4. Component Stylings, 5. Layout Principles, 6. Depth & Elevation, 7. Do's and Don'ts, 8. Responsive Behavior (+29 more)
 
 ### Community 68 - "Community 68"
-Cohesion: 0.05
-Nodes (38): code:bash (apt update && apt install -y curl ca-certificates build-esse), code:bash (cd /root   # or your preferred deployment directory), code:bash (cp .env.example .env), code:bash (# Generate a secret), code:env (# Database), code:bash (sudo -u postgres psql <<'SQL'), code:bash (PGPASSWORD=auroracraft psql -U auroracraft -d auroracraft -h), code:bash (cd /root/AuroraCraft/server) (+30 more)
+Cohesion: 0.06
+Nodes (35): code:bash (apt update && apt install -y curl ca-certificates build-esse), code:bash (cd /root   # or your preferred deployment directory), code:bash (cp .env.example .env), code:bash (# Generate a secret), code:env (# Database), code:bash (sudo -u postgres psql <<'SQL'), code:bash (PGPASSWORD=auroracraft psql -U auroracraft -d auroracraft -h), code:bash (cd /root/AuroraCraft/server) (+27 more)
 
 ### Community 69 - "Community 69"
 Cohesion: 0.05
@@ -2624,8 +2618,8 @@ Cohesion: 0.06
 Nodes (34): 1. Visual Theme & Atmosphere, 2. Color Palette & Roles, 3. Typography Rules, 4. Component Stylings, 5. Layout Principles, 6. Depth & Elevation, 7. Do's and Don'ts, 8. Responsive Behavior (+26 more)
 
 ### Community 89 - "Community 89"
-Cohesion: 0.07
-Nodes (34): name, notNull, primaryKey, type, agent_model, created_at, history_json, kind (+26 more)
+Cohesion: 0.12
+Nodes (18): created_at, project_id, user_id, default, name, notNull, primaryKey, type (+10 more)
 
 ### Community 90 - "Community 90"
 Cohesion: 0.06
@@ -2652,8 +2646,8 @@ Cohesion: 0.06
 Nodes (32): 10. Player Information, 1. NO plugin.yml — Use @Plugin Annotation, 2. Dependency Injection via @Inject, 3. Event System: @Subscribe NOT @EventHandler, 4. No World/Block/Entity/Inventory API, 5. Server Switching, 6. Messaging: Adventure Components NATIVE, 7. Plugin Messaging Channels (+24 more)
 
 ### Community 96 - "Community 96"
-Cohesion: 0.06
-Nodes (32): description, java_version, link_id, logo, name, versions, name, notNull (+24 more)
+Cohesion: 0.05
+Nodes (39): description, java_version, link_id, logo, name, versions, visibility, name (+31 more)
 
 ### Community 97 - "Community 97"
 Cohesion: 0.06
@@ -2665,7 +2659,7 @@ Nodes (33): description, layout_mode, link_id, logo, name, software, versions, n
 
 ### Community 99 - "Community 99"
 Cohesion: 0.07
-Nodes (29): AdminAIRuntimePage(), ALL_USAGES, Badge(), IconBtn(), McpForm(), Modal(), ModelForm(), ProviderForm() (+21 more)
+Nodes (28): AdminAIRuntimePage(), ALL_USAGES, Badge(), IconBtn(), McpForm(), Modal(), ModelForm(), ProviderForm() (+20 more)
 
 ### Community 100 - "Community 100"
 Cohesion: 0.06
@@ -2688,8 +2682,8 @@ Cohesion: 0.06
 Nodes (30): 10. Responsive Behavior, 11. Imagery, 12. Agent Prompt Guide, 1. Visual Theme & Atmosphere, 2. Color, 3. Typography, 4. Spacing & Grid, 5. Layout & Composition (+22 more)
 
 ### Community 105 - "Community 105"
-Cohesion: 0.09
-Nodes (19): processManager, adminGuard(), adminRoutes(), agentRoutes(), healthRoutes(), internalRoutes(), usageSchema, DEFAULT_FEATURES (+11 more)
+Cohesion: 0.18
+Nodes (8): useProjects(), DashboardPage(), SortKey, compilers, javaVersions, NewProjectPage(), steps, VisibilitySelector()
 
 ### Community 106 - "Community 106"
 Cohesion: 0.06
@@ -3400,8 +3394,8 @@ Cohesion: 0.07
 Nodes (26): 1. Style anchor (always prepend), 2. Variable slots (substitute per render), 3. Per-slot composition templates, 4. Chinese project input template, 5. Calling convention, `about.png` — 1:1 (1024×1024), Atelier Zero — Image Generation Prompt Pack, `capabilities.png` — 1:1 (1024×1024) (+18 more)
 
 ### Community 291 - "Community 291"
-Cohesion: 0.12
-Nodes (17): AgentExecutor, cleanBadgeMarkers(), AgentExecutionContext, AgentExecutionResult, AgentStatus, AgentStreamCallback, MessagePart, AgentLog (+9 more)
+Cohesion: 0.25
+Nodes (7): clampPanel(), loadPanelSizes(), PANEL_DEFAULTS, PANEL_LIMITS, PanelDivider(), PanelKey, PanelSizes
 
 ### Community 292 - "Community 292"
 Cohesion: 0.07
@@ -3964,8 +3958,8 @@ Cohesion: 0.08
 Nodes (25): brandId, classes, elements, fixture, classCount, description, elementCount, selectorCount (+17 more)
 
 ### Community 432 - "Community 432"
-Cohesion: 0.12
-Nodes (17): project_likes_project_id_projects_id_fk, project_likes_user_id_users_id_fk, columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom (+9 more)
+Cohesion: 0.08
+Nodes (26): project_likes_project_id_projects_id_fk, project_likes_user_id_users_id_fk, columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom (+18 more)
 
 ### Community 433 - "Community 433"
 Cohesion: 0.08
@@ -4156,8 +4150,8 @@ Cohesion: 0.08
 Nodes (25): columns, concurrently, isUnique, method, name, with, columnsFrom, columnsTo (+17 more)
 
 ### Community 480 - "Community 480"
-Cohesion: 0.08
-Nodes (25): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, columns (+17 more)
+Cohesion: 0.09
+Nodes (21): columns, concurrently, isUnique, method, name, with, dialect, id (+13 more)
 
 ### Community 481 - "Community 481"
 Cohesion: 0.08
@@ -4296,8 +4290,8 @@ Cohesion: 0.09
 Nodes (21): Authoring rules (important), Before you author anything — ALWAYS ask or recommend, Catalogs (load when needed), code:bash (npx skills add https://github.com/lewislulu/html-ppt-skill), code:bash (./scripts/new-deck.sh my-talk), code:html (<link rel="stylesheet" id="theme-link" href="../assets/theme), code:bash (./scripts/render.sh templates/theme-showcase.html       # on), code:block5 (html-ppt/) (+13 more)
 
 ### Community 515 - "Community 515"
-Cohesion: 0.12
-Nodes (16): expires_at, token, user_id, name, notNull, primaryKey, type, columns (+8 more)
+Cohesion: 0.09
+Nodes (22): created_at, expires_at, token, user_id, default, name, notNull, primaryKey (+14 more)
 
 ### Community 516 - "Community 516"
 Cohesion: 0.09
@@ -4329,7 +4323,7 @@ Nodes (22): sessions_user_id_users_id_fk, checkConstraints, compositePrimaryKeys
 
 ### Community 523 - "Community 523"
 Cohesion: 0.09
-Nodes (22): expires_at, id, token, user_id, name, notNull, primaryKey, type (+14 more)
+Nodes (22): created_at, expires_at, token, user_id, default, name, notNull, primaryKey (+14 more)
 
 ### Community 524 - "Community 524"
 Cohesion: 0.09
@@ -4345,7 +4339,7 @@ Nodes (22): sessions_user_id_users_id_fk, checkConstraints, compositePrimaryKeys
 
 ### Community 527 - "Community 527"
 Cohesion: 0.09
-Nodes (22): email, password_hash, updated_at, username, name, notNull, primaryKey, type (+14 more)
+Nodes (23): email, password_hash, role, username, name, notNull, primaryKey, type (+15 more)
 
 ### Community 528 - "Community 528"
 Cohesion: 0.09
@@ -4408,8 +4402,8 @@ Cohesion: 0.10
 Nodes (20): 1. Visual Theme & Atmosphere, 2. Color Palette & Roles, 3. Typography Rules, 4. Component Stylings, 5. Spacing & Layout, 6. Motion, 7. Usage Guardrails, Brand Accent (+12 more)
 
 ### Community 543 - "Community 543"
-Cohesion: 0.13
-Nodes (17): CommunityProjectsParams, useCommunityFileContent(), useCommunityMessages(), useCommunityProject(), useCommunityProjectFiles(), useForkProject(), useLikeProject(), useProjectAccess() (+9 more)
+Cohesion: 0.09
+Nodes (24): CommunityProjectsParams, useCommunityFileContent(), useCommunityMessages(), useCommunityProject(), useCommunityProjectFiles(), useCommunityProjects(), useForkProject(), useLikeProject() (+16 more)
 
 ### Community 544 - "Community 544"
 Cohesion: 0.10
@@ -4420,8 +4414,8 @@ Cohesion: 0.10
 Nodes (20): Class inventory (must exist in `template.html`), code:html (<section class="section hero" data-od-id="hero">), code:html (<section class="section" data-od-id="hero-split">), code:html (<section class="section" data-od-id="features">), code:html (<section class="section" data-od-id="stats">), code:html (<section class="section" data-od-id="quote">), code:html (<section class="section" data-od-id="cta-strip" style="text-), code:html (<section class="section" data-od-id="log">) (+12 more)
 
 ### Community 546 - "Community 546"
-Cohesion: 0.10
-Nodes (20): aurora-sandbox Is Not Currently Wired, code:js (script: '/root/AuroraCraft/node_modules/.pnpm/tsx@4.22.3/nod), code:block5 (opencode-knowledge/), CodeRabbit Login Is Browser-OAuth, Not API Key, Common Gotchas, Drizzle Migration Tracking Drift, Dynamic Rules & Skills System, Graphify Builds Must Stay AST-Only (0 tokens) (+12 more)
+Cohesion: 0.09
+Nodes (22): aurora-sandbox Is Not Currently Wired, Auth Scene: Reduced-Motion Must Not Kill Interaction Feedback, Auth Scene: SVG Transforms Must Bake Their Pivots (Mobile), code:js (script: '/root/AuroraCraft/node_modules/.pnpm/tsx@4.22.3/nod), code:block5 (opencode-knowledge/), CodeRabbit Login Is Browser-OAuth, Not API Key, Common Gotchas, Drizzle Migration Tracking Drift (+14 more)
 
 ### Community 547 - "Community 547"
 Cohesion: 0.10
@@ -5225,7 +5219,7 @@ Nodes (18): dialect, enums, public.user_role, id, _meta, columns, schemas, table
 
 ### Community 747 - "Community 747"
 Cohesion: 0.11
-Nodes (19): created_at, project_id, status, default, name, notNull, primaryKey, type (+11 more)
+Nodes (19): project_id, status, updated_at, name, notNull, primaryKey, type, columns (+11 more)
 
 ### Community 748 - "Community 748"
 Cohesion: 0.11
@@ -5328,8 +5322,8 @@ Cohesion: 0.11
 Nodes (19): title_i18n, ar, de, en, es, fr, id, it (+11 more)
 
 ### Community 773 - "Community 773"
-Cohesion: 0.13
-Nodes (11): AdminOverviewPage(), AdminProjectsPage(), useDebounced(), AdminUsersPage(), useDebounced(), useAdminProject(), useAdminProjectMutations(), useAdminProjects() (+3 more)
+Cohesion: 0.14
+Nodes (10): AdminOverviewPage(), AdminProjectsPage(), useDebounced(), AdminUsersPage(), useDebounced(), useAdminProjectMutations(), useAdminProjects(), useAdminStats() (+2 more)
 
 ### Community 774 - "Community 774"
 Cohesion: 0.14
@@ -5660,8 +5654,8 @@ Cohesion: 0.11
 Nodes (18): checkConstraints, compositePrimaryKeys, foreignKeys, indexes, isRLSEnabled, name, policies, schema (+10 more)
 
 ### Community 856 - "Community 856"
-Cohesion: 0.11
-Nodes (18): opencode_session_id, project_id, status, name, notNull, primaryKey, type, name (+10 more)
+Cohesion: 0.08
+Nodes (24): opencode_session_id, project_id, status, updated_at, name, notNull, primaryKey, type (+16 more)
 
 ### Community 857 - "Community 857"
 Cohesion: 0.11
@@ -5692,8 +5686,8 @@ Cohesion: 0.11
 Nodes (17): 1. Meta Information & Core Directive, 2. THE "ABSOLUTE ZERO" DIRECTIVE (STRICT ANTI-PATTERNS), 3. THE CREATIVE VARIANCE ENGINE, 4. HAPTIC MICRO-AESTHETICS (COMPONENT MASTERY), 5. MOTION CHOREOGRAPHY (FLUID DYNAMICS), 6. PERFORMANCE GUARDRAILS, 7. EXECUTION PROTOCOL, 8. PRE-OUTPUT CHECKLIST (+9 more)
 
 ### Community 864 - "Community 864"
-Cohesion: 0.12
-Nodes (17): AI Agent Sandbox, AI Runtime (Admin-Managed: Providers, Models & MCPs), API Key Isolation (Per-Project), API Key Routing & Real-Time Billing, Architecture Overview, code:block46 (User sends AI message), code:block47 (/var/lib/auroracraft/configs/{user}/{linkId}/.local/share/op), code:json ({) (+9 more)
+Cohesion: 0.11
+Nodes (18): AI Agent Sandbox, AI Runtime (Admin-Managed: Providers, Models & MCPs), Animated Login / Register Scene, API Key Isolation (Per-Project), API Key Routing & Real-Time Billing, Architecture Overview, code:block46 (User sends AI message), code:block47 (/var/lib/auroracraft/configs/{user}/{linkId}/.local/share/op) (+10 more)
 
 ### Community 865 - "Community 865"
 Cohesion: 0.12
@@ -5729,11 +5723,11 @@ Nodes (17): created_at, log_type, message, default, name, notNull, primaryKey, t
 
 ### Community 873 - "Community 873"
 Cohesion: 0.12
-Nodes (17): created_at, log_type, message, default, name, notNull, primaryKey, type (+9 more)
+Nodes (17): id, log_type, message, default, name, notNull, primaryKey, type (+9 more)
 
 ### Community 874 - "Community 874"
-Cohesion: 0.12
-Nodes (17): id, log_type, message, default, name, notNull, primaryKey, type (+9 more)
+Cohesion: 0.06
+Nodes (33): content, id, log_type, message, metadata, session_id, name, notNull (+25 more)
 
 ### Community 875 - "Community 875"
 Cohesion: 0.12
@@ -5752,8 +5746,8 @@ Cohesion: 0.29
 Nodes (7): visibility, default, name, notNull, primaryKey, type, typeSchema
 
 ### Community 879 - "Community 879"
-Cohesion: 0.15
-Nodes (14): AdminWorkspacePage(), useFileOperations(), useProjectFiles(), PromptToolJobStatus, PromptToolJobView, TERMINAL, ToolModelOption, ToolModelsResponse (+6 more)
+Cohesion: 0.11
+Nodes (18): AdminWorkspacePage(), GraphifyControls(), useAdminProject(), useFileOperations(), useProjectFiles(), GraphifyState, useGraphify(), PromptToolJobStatus (+10 more)
 
 ### Community 880 - "Community 880"
 Cohesion: 0.12
@@ -5844,8 +5838,8 @@ Cohesion: 0.12
 Nodes (16): expires_at, token, user_id, name, notNull, primaryKey, type, columns (+8 more)
 
 ### Community 902 - "Community 902"
-Cohesion: 0.09
-Nodes (22): email, password_hash, updated_at, username, name, notNull, primaryKey, type (+14 more)
+Cohesion: 0.12
+Nodes (16): email, password_hash, username, name, notNull, primaryKey, type, name (+8 more)
 
 ### Community 903 - "Community 903"
 Cohesion: 0.12
@@ -5948,8 +5942,8 @@ Cohesion: 0.13
 Nodes (15): assets, skills, od, capabilities, context, kind, mode, pipeline (+7 more)
 
 ### Community 928 - "Community 928"
-Cohesion: 0.13
-Nodes (15): AI Runtime (DB-Managed), API Key Isolation (Per-Project), API Key Routing & Real-Time Billing, Architecture, code:block4 (opencode-knowledge/), Dynamic Rules & Skills System, graphify (Dev Tooling — For THIS Repo), Graphify Token Savings (Product Feature — Paid Only) (+7 more)
+Cohesion: 0.12
+Nodes (16): AI Runtime (DB-Managed), Animated Auth Scene (Login/Register), API Key Isolation (Per-Project), API Key Routing & Real-Time Billing, Architecture, code:block4 (opencode-knowledge/), Dynamic Rules & Skills System, graphify (Dev Tooling — For THIS Repo) (+8 more)
 
 ### Community 929 - "Community 929"
 Cohesion: 0.13
@@ -6680,8 +6674,8 @@ Cohesion: 0.13
 Nodes (14): author, name, url, compat, agentSkills, description, homepage, license (+6 more)
 
 ### Community 1112 - "Community 1112"
-Cohesion: 0.13
-Nodes (14): dialect, id, prevId, checkConstraints, compositePrimaryKeys, indexes, isRLSEnabled, name (+6 more)
+Cohesion: 0.22
+Nodes (9): columnsFrom, columnsTo, name, onDelete, onUpdate, tableFrom, tableTo, agent_logs_session_id_agent_sessions_id_fk (+1 more)
 
 ### Community 1113 - "Community 1113"
 Cohesion: 0.13
@@ -6912,8 +6906,8 @@ Cohesion: 0.14
 Nodes (13): code:block1 (web-prototype/), code:block2 (<artifact identifier="kebab-case-slug" type="text/html" titl), Hard rules (the seed protects most of these — don't fight it), Output contract, Resource map, Step 0 — Pre-flight (do this once before writing anything), Step 1 — Prepare the artifact from the seed, Step 2 — Plan the section list (+5 more)
 
 ### Community 1170 - "Community 1170"
-Cohesion: 0.15
-Nodes (13): aurora-sandbox Not Currently Wired, CodeRabbit Login Is Browser-OAuth, Not API Key, Common Gotchas, Drizzle Migration Tracking Drift, Graphify Build Must Stay AST-Only, MCP Config Validation, Multi-Key Unique Index, OpenAI-Compatible Providers — Coverage & Upstream Limits (+5 more)
+Cohesion: 0.13
+Nodes (15): aurora-sandbox Not Currently Wired, Auth Scene Reduced-Motion Policy, Auth Scene SVG: Bake Pivots, Never transform-box, CodeRabbit Login Is Browser-OAuth, Not API Key, Common Gotchas, Drizzle Migration Tracking Drift, Graphify Build Must Stay AST-Only, MCP Config Validation (+7 more)
 
 ### Community 1171 - "Community 1171"
 Cohesion: 0.15
@@ -7181,7 +7175,7 @@ Nodes (12): 1.1 Documentation Files (Existing), 1.2 OpenCode Knowledge Base (Exi
 
 ### Community 1237 - "Community 1237"
 Cohesion: 0.17
-Nodes (11): 13. Reload Safety, 1. API Usage Rules, 3. Build System Rules, 4. Language-Specific Rules, 5. AI-Generated Code Risk Statistics, Auto-generated for {SOFTWARE} | {COMPILER} | {LANGUAGE}, code:java (public class ReloadSubCommand implements SubCommand {), Minecraft Plugin Development Rules (+3 more)
+Nodes (11): 15. Workflow Rules, 1. API Usage Rules, 3. Build System Rules, 4. Language-Specific Rules, 5. AI-Generated Code Risk Statistics, Auto-generated for {SOFTWARE} | {COMPILER} | {LANGUAGE}, Critical Workflow Rules, Mandatory Development Workflow (+3 more)
 
 ### Community 1238 - "Community 1238"
 Cohesion: 0.17
@@ -7396,8 +7390,8 @@ Cohesion: 0.18
 Nodes (10): 1. Visual Theme & Atmosphere, 2. Color, 3. Typography, 4. Spacing & Grid, 5. Layout & Composition, 6. Components, 7. Motion & Interaction, 8. Voice & Brand (+2 more)
 
 ### Community 1291 - "Community 1291"
-Cohesion: 0.08
-Nodes (22): useIsMobile(), useProject(), useProjects(), useProjectStats(), DashboardPage(), SortKey, compilers, javaVersions (+14 more)
+Cohesion: 0.14
+Nodes (14): useIsMobile(), useProject(), useProjectStats(), compilersToValue(), CompilerTab(), javaVersions, OverviewForm, OverviewTab() (+6 more)
 
 ### Community 1292 - "Community 1292"
 Cohesion: 0.18
@@ -7820,8 +7814,8 @@ Cohesion: 0.25
 Nodes (7): Banned Output Patterns, Baseline, code:block1 ([PAUSED — X of Y complete. Send "continue" to resume from: n), Execution Process, Full-Output Enforcement, Handling Long Outputs, Quick Check
 
 ### Community 1397 - "Community 1397"
-Cohesion: 0.29
-Nodes (7): useCommunityProjects(), CommunityPage(), formatDate(), languageOptions, ProjectCard(), softwareOptions, sortOptions
+Cohesion: 0.33
+Nodes (5): useFileContent(), EditorPanel(), FileTreeNode(), FileTreePanel(), getLanguageFromPath()
 
 ### Community 1398 - "Community 1398"
 Cohesion: 0.39
@@ -7960,8 +7954,8 @@ Cohesion: 0.29
 Nodes (7): role, default, name, notNull, primaryKey, type, typeSchema
 
 ### Community 1432 - "Community 1432"
-Cohesion: 0.09
-Nodes (23): content, metadata, role, session_id, name, notNull, primaryKey, type (+15 more)
+Cohesion: 0.29
+Nodes (7): language, default, name, notNull, primaryKey, type, typeSchema
 
 ### Community 1433 - "Community 1433"
 Cohesion: 0.29
@@ -7976,8 +7970,8 @@ Cohesion: 0.29
 Nodes (7): compiler, default, name, notNull, primaryKey, type, typeSchema
 
 ### Community 1436 - "Community 1436"
-Cohesion: 0.29
-Nodes (7): language, default, name, notNull, primaryKey, type, typeSchema
+Cohesion: 0.50
+Nodes (4): code:bash (cd /root/AuroraCraft/server), code:bash (# Verify DB user exists), code:bash (adduser --disabled-password --gecos "" auroracraft-admin), Step 13 — Seed the Database
 
 ### Community 1437 - "Community 1437"
 Cohesion: 0.29
@@ -7992,8 +7986,8 @@ Cohesion: 0.29
 Nodes (7): language, default, name, notNull, primaryKey, type, typeSchema
 
 ### Community 1440 - "Community 1440"
-Cohesion: 0.29
-Nodes (7): visibility, default, name, notNull, primaryKey, type, typeSchema
+Cohesion: 0.40
+Nodes (5): versions, name, notNull, primaryKey, type
 
 ### Community 1441 - "Community 1441"
 Cohesion: 0.29
@@ -8152,8 +8146,8 @@ Cohesion: 0.33
 Nodes (5): Atelier Zero Usage, Avoid, Design Highlights, Do, Read Order
 
 ### Community 1480 - "Community 1480"
-Cohesion: 0.33
-Nodes (6): API Routes, Database Schema, Frontend State Management, Key Patterns, Model Selection Persistence, Thinking Tag Parsing
+Cohesion: 0.29
+Nodes (7): Animated Auth Scene (Login/Register), API Routes, Database Schema, Frontend State Management, Key Patterns, Model Selection Persistence, Thinking Tag Parsing
 
 ### Community 1481 - "Community 1481"
 Cohesion: 0.33
@@ -8756,8 +8750,8 @@ Cohesion: 0.33
 Nodes (6): software, default, name, notNull, primaryKey, type
 
 ### Community 1632 - "Community 1632"
-Cohesion: 0.33
-Nodes (6): layout_mode, default, name, notNull, primaryKey, type
+Cohesion: 0.67
+Nodes (3): API key visible in workspace editor / opencode.json, code:bash (./auroracraft.sh restart), code:bash (# Should show only $schema, permission, tools (no apiKey))
 
 ### Community 1633 - "Community 1633"
 Cohesion: 0.33
@@ -8768,8 +8762,8 @@ Cohesion: 0.33
 Nodes (6): software, default, name, notNull, primaryKey, type
 
 ### Community 1635 - "Community 1635"
-Cohesion: 0.40
-Nodes (5): error, name, notNull, primaryKey, type
+Cohesion: 0.05
+Nodes (41): name, notNull, primaryKey, type, agent_model, error, history_json, input_json (+33 more)
 
 ### Community 1636 - "Community 1636"
 Cohesion: 0.33
@@ -9268,8 +9262,8 @@ Cohesion: 0.40
 Nodes (5): useCase, en, zh-CN, exampleOutputs, query
 
 ### Community 1760 - "Community 1760"
-Cohesion: 0.40
-Nodes (3): GraphifyControls(), GraphifyState, useGraphify()
+Cohesion: 0.67
+Nodes (3): code:bash (# The knowledge base ships with the source code at:), code:bash (find /root/AuroraCraft/opencode-knowledge -name "*.md" | wc ), Step 15.5 — Initialize Knowledge Base (Required for Platform-Specific AI Rules)
 
 ### Community 1761 - "Community 1761"
 Cohesion: 0.40
@@ -9960,24 +9954,12 @@ Cohesion: 0.40
 Nodes (5): email, name, notNull, primaryKey, type
 
 ### Community 1933 - "Community 1933"
-Cohesion: 0.40
-Nodes (5): style, name, notNull, primaryKey, type
-
-### Community 1934 - "Community 1934"
-Cohesion: 0.40
-Nodes (5): input_json, name, notNull, primaryKey, type
-
-### Community 1935 - "Community 1935"
-Cohesion: 0.40
-Nodes (5): nim_model, name, notNull, primaryKey, type
-
-### Community 1936 - "Community 1936"
-Cohesion: 0.40
-Nodes (5): result_json, name, notNull, primaryKey, type
+Cohesion: 0.67
+Nodes (3): code:bash (./auroracraft.sh web), code:bash (echo "=== AuroraCraft Deployment Verification ==="), Step 19 — Verify Full Deployment
 
 ### Community 1937 - "Community 1937"
 Cohesion: 0.67
-Nodes (3): AI says "I cannot compile" or "Compilation unavailable", code:bash (./auroracraft.sh restart), code:bash (grep "AGENT_SYSTEM_PROMPT" /root/AuroraCraft/server/src/brid)
+Nodes (3): code:bash (adduser --disabled-password --gecos "" auroracraft-{username), code:bash (USER="auroracraft-{username}"), Linux user not created on registration
 
 ### Community 1938 - "Community 1938"
 Cohesion: 0.40
@@ -10845,15 +10827,11 @@ Nodes (4): API Routes, Database Schema, Frontend State, Key Patterns
 
 ### Community 2154 - "Community 2154"
 Cohesion: 0.67
-Nodes (3): API key visible in workspace editor / opencode.json, code:bash (./auroracraft.sh restart), code:bash (# Should show only $schema, permission, tools (no apiKey))
+Nodes (3): 13. Reload Safety, code:java (public class ReloadSubCommand implements SubCommand {), Why `/reload` Is Dangerous and What to Do Instead
 
 ### Community 2155 - "Community 2155"
 Cohesion: 0.50
 Nodes (4): code:bash (cd /root/AuroraCraft), code:bash (./auroracraft.sh), code:bash (./auroracraft.sh web), Step 17 — Start with PM2
-
-### Community 2156 - "Community 2156"
-Cohesion: 0.50
-Nodes (4): code:bash (apt update && apt install -y openjdk-21-jdk maven gradle), code:bash (java -version    # openjdk version "21.0.x"), code:bash (apt install -y openjdk-8-jdk openjdk-11-jdk openjdk-17-jdk o), Step 5 — Java, Maven & Gradle (Required for Plugin Compilation)
 
 ### Community 2157 - "Community 2157"
 Cohesion: 0.50
@@ -10862,10 +10840,6 @@ Nodes (4): code:bash (curl -fsSL https://raw.githubusercontent.com/opencode-ai/o
 ### Community 2158 - "Community 2158"
 Cohesion: 0.50
 Nodes (4): code:block70 (ERROR service=mcp key=firecrawl command=["npx","-y","firecra), code:bash (# Make /root/.nvm traversable for other Linux users), code:bash (./auroracraft.sh restart), Firecrawl MCP not working / "Executable not found in $PATH: npx"
-
-### Community 2159 - "Community 2159"
-Cohesion: 0.67
-Nodes (3): code:bash (./auroracraft.sh web), code:bash (echo "=== AuroraCraft Deployment Verification ==="), Step 19 — Verify Full Deployment
 
 ### Community 2160 - "Community 2160"
 Cohesion: 0.50
@@ -11023,10 +10997,6 @@ Nodes (4): 1.A Dial Inference (design read → dial values), 1.B Use-Case Preset
 Cohesion: 0.67
 Nodes (3): CRITICAL: Before ANY UI work — load the skill first, UI Generation — OpenDesign Skills, UI Rules (enforced — no exceptions)
 
-### Community 2199 - "Community 2199"
-Cohesion: 0.67
-Nodes (3): 15. Workflow Rules, Critical Workflow Rules, Mandatory Development Workflow
-
 ### Community 2200 - "Community 2200"
 Cohesion: 0.67
 Nodes (3): code:bash (sudo -u postgres psql -d auroracraft -c \), code:bash (sudo -u postgres psql -d auroracraft -c \), Unexpected token charges / balance dropped fast
@@ -11056,24 +11026,24 @@ Cohesion: 0.67
 Nodes (3): AgentState, SetMessagesParams, Message
 
 ## Knowledge Gaps
-- **25322 isolated node(s):** `name`, `version`, `private`, `workspaces`, `dev` (+25317 more)
+- **25338 isolated node(s):** `name`, `version`, `private`, `workspaces`, `dev` (+25333 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **28 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `columns` connect `Community 96` to `Community 1440`, `Community 1441`, `Community 1442`, `Community 1633`, `Community 1634`, `Community 875`, `Community 531`, `Community 532`, `Community 534`, `Community 122`?**
+- **Why does `columns` connect `Community 96` to `Community 1441`, `Community 1442`, `Community 1633`, `Community 1634`, `Community 875`, `Community 531`, `Community 532`, `Community 534`, `Community 122`?**
   _High betweenness centrality (0.000) - this node is a cross-community bridge._
 - **Why does `user_id` connect `Community 531` to `Community 96`?**
   _High betweenness centrality (0.000) - this node is a cross-community bridge._
 - **Why does `status` connect `Community 122` to `Community 96`?**
   _High betweenness centrality (0.000) - this node is a cross-community bridge._
-- **Are the 42 inferred relationships involving `cn()` (e.g. with `Badge()` and `IconBtn()`) actually correct?**
-  _`cn()` has 42 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 47 inferred relationships involving `cn()` (e.g. with `Badge()` and `IconBtn()`) actually correct?**
+  _`cn()` has 47 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `name`, `version`, `private` to the rest of the system?**
-  _25322 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _25338 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 0` be split into smaller, more focused modules?**
-  _Cohesion score 0.05608322026232474 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.036188369152970926 - nodes in this community are weakly interconnected._
 - **Should `Community 1` be split into smaller, more focused modules?**
-  _Cohesion score 0.05764145954521417 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05868118572292801 - nodes in this community are weakly interconnected._

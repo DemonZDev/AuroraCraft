@@ -1,6 +1,6 @@
 import { Link, Outlet, useLocation } from 'react-router'
 import { Navbar } from './navbar'
-import { LayoutDashboard, Users, Cpu, FolderKanban, CreditCard, Menu } from 'lucide-react'
+import { LayoutDashboard, Users, Cpu, FolderKanban, CreditCard, FileText, Menu } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
 
@@ -10,6 +10,7 @@ const sidebarItems = [
   { label: 'AI Runtime', href: '/admin/ai-runtime', icon: Cpu },
   { label: 'Projects', href: '/admin/projects', icon: FolderKanban },
   { label: 'Plans', href: '/admin/plans', icon: CreditCard },
+  { label: 'Legal', href: '/admin/legal', icon: FileText },
 ]
 
 export function AdminLayout() {

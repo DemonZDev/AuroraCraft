@@ -1,4 +1,4 @@
-import { writeFile, mkdir, chmod } from 'fs/promises'
+import { writeFile, readFile, mkdir, chmod } from 'fs/promises'
 import type { ResolvedModel } from './ai-runtime.js'
 
 // @ai-sdk/openai-compatible is used for all OpenAI-compatible providers in the
@@ -120,6 +120,23 @@ export async function writeUserConfig(
   const configPath = `${configDir}/opencode.json`
   await writeFile(configPath, JSON.stringify(config, null, 2), 'utf8')
   await chmod(configPath, 0o600)
+}
+
+/** Read the previously written isolated per-project config (null when absent
+ *  or unparsable). This is the file that actually carries the `provider`
+ *  section, so it is the ONLY valid baseline for detecting provider changes
+ *  between messages — the workspace opencode.json is a secretless stub that
+ *  never contains `provider`.
+ */
+export async function readIsolatedProjectConfig(
+  projectDir: string,
+): Promise<OpenCodeConfig | null> {
+  const configPath = `${getProjectConfigDirectory(projectDir)}/.config/opencode/opencode.json`
+  try {
+    return JSON.parse(await readFile(configPath, 'utf8')) as OpenCodeConfig
+  } catch {
+    return null
+  }
 }
 
 /** Write the full provider config (with real API key) to the isolated

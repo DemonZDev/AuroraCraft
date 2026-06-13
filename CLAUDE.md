@@ -212,6 +212,33 @@ Paid users click **"Save tokens using Graphify"** in the workspace to build a pe
 
 **Critical:** never set `GEMINI_API_KEY` / `GOOGLE_API_KEY` in the server environment — they are the only keys graphify reads, and their presence would turn a free AST build into a paid LLM build. The build command unsets them defensively.
 
+### Legal Documents (Admin-Managed)
+Privacy Policy and Terms of Service are stored in the database and edited at runtime from **Admin Panel → Legal** — no code changes, no redeploy. The two seeded slugs are `privacy` and `terms`; each row is Markdown source plus metadata (title, version, effectiveDate). The public `/privacy` and `/terms` pages render the Markdown live via `react-markdown` + `remark-gfm` + `rehype-highlight`, with auto-generated heading anchors and a sticky right-side TOC. The admin editor is a split-pane (textarea + live preview on desktop, tabs on mobile) with title / version / effective-date fields and an immediate-save that invalidates both the admin and public TanStack-Query caches.
+
+**Table** (migration `0027_legal_documents.sql` — idempotent, seeds defaults):
+- `slug` (text, unique) — `privacy` | `terms`. **Immutable** (it's the public URL); renaming would 404 existing visitors.
+- `title`, `content` (markdown), `version`, `effectiveDate`, `createdAt`, `updatedAt`.
+
+**Rules:** the admin may update `title` / `content` / `version` / `effectiveDate`; the slug is part of the URL contract and is never editable. Content is rendered with `react-markdown` — it escapes HTML by default, so there's no XSS surface. Stale content lives only in the `content` text column; the rendered HTML is never stored. Slug charset is restricted to `[a-z0-9-]` (start/end alphanumeric).
+
+**Key files:**
+- `server/src/db/schema/legal-documents.ts` — Drizzle schema (uuid PK, slug unique, `text` content, `timestamp with time zone` for effective_date / created_at / updated_at).
+- `server/drizzle/0027_legal_documents.sql` — idempotent migration + hand-written seed (not generic boilerplate — describes the actual product: Argon2id hashes, AES-256-GCM key encryption, per-user Linux isolation at `/home/auroracraft-<username>/`, LiteLLM multi-key routing, Graphify AST-only build, the 18 supported platforms, Delaware governing law).
+- `server/src/routes/legal.ts` — public `GET /api/legal/:slug` + admin `GET/GET/PATCH /api/admin/legal[/:slug]` with Zod validation. Public route is unauthenticated; admin routes use the same `authMiddleware + adminGuard` pattern as `plan-settings`.
+- `client/src/hooks/use-legal.ts` — `useLegalDoc(slug)` (public), `useAdminLegalDocs` (list), `useAdminLegalDoc(slug)` (single), `useAdminLegalMutations` (PATCH). Mutation invalidates `['legal', slug]` AND `['admin', 'legal']` so the next `/privacy` or `/terms` page load reflects the new content.
+- `client/src/components/legal/legal-document-page.tsx` — shared public renderer; auto-slugifies h2/h3 headings (with a collision counter for duplicates), generates the TOC, wires `IntersectionObserver` for the active-section highlight.
+- `client/src/pages/admin/legal.tsx` + `legal-edit.tsx` — admin list + editor.
+- `client/src/index.css` — `.legal-prose` typography layer (760px reading column, 1.75 line-height, generous h2/h3 margins, scroll-margin-top: 5rem for anchor jumps).
+
+### Pricing Page
+The `/pricing` page is a single-page experience centered on a tactile **roll-ball** interaction: a draggable ball (with squash-and-stretch physics, a one-time "roll me" hint nudge that fires ~1.8s after mount, full keyboard accessibility via `←` / `→` / `Space` / `Enter`, and a click-to-flip flourish that adds an extra 360° spin) drives a morphing **plan card** that cross-fades between Free and Pro states — tier name, price, tokens-included line, CTA, and per-feature check/x icons that rotate into place. The card's border interpolates from neutral to primary blue as `progress` goes 0→1. Above the ball sits a **monthly / yearly** billing toggle implemented as a measured segmented control with a spring-animated slider; the morph card's price cell reflects the chosen cycle (yearly = 20% off, displayed as the discounted per-month value).
+
+Below the hero: a **feature comparison table** grouped by Workspace / AI Models / Quality (sticky header, Pro column tinted brand-blue, row hover highlight), a **token top-up** panel with three concrete "what does $X buy you" tiers, a native `<details>` FAQ (no JS, custom +→× chevron rotation), and a footer CTA. The page deliberately avoids decorative background meshes, gradient blobs, and ambient animations — solid dark surface, real type, calm hierarchy. Real prices + the feature matrix come from `/api/plan-settings` (admin-editable from **Admin Panel → Plans**).
+
+**Key files:**
+- `client/src/pages/pricing.tsx` — page, roll-ball physics (`BALL_SIZE`, `ROLL_MS`, `SETTLE` cubic-bezier, `travel()` px math), `BillingToggle` (measured spring slider), `FeatureGroupRows` (group-row table renderer).
+- `client/src/index.css` — `.spec-card`, `.billing-toggle`, `.compare-table`, `details.faq`, `.topup-card` styling (plain borders, no shimmer, no pulse, no corner stamps).
+
 ### Shared Caches
 OpenCode plugins, Gradle dependencies, and Maven artifacts are shared across all users to prevent storage duplication. Every `auroracraft-{username}` user has symlinks pointing to shared directories:
 
@@ -249,6 +276,7 @@ OpenCode plugins, Gradle dependencies, and Maven artifacts are shared across all
 - **Admin:** `client/src/hooks/use-admin.ts` — Admin panel data fetching (users, projects, stats)
 - **AI Runtime (admin):** `client/src/hooks/use-ai-admin.ts` — providers/models/MCPs CRUD + per-user multi-key mutations (used by `pages/admin/ai-runtime.tsx` and the `UserKeysModal` in `pages/admin/users.tsx`); `use-ai-models.ts` — model list for the workspace picker (model ids are `ai_models` UUIDs, not slugs)
 - **Graphify:** `client/src/hooks/use-graphify.ts` — Enable/remove/status with build polling (paid-only); buttons + viewer in `client/src/components/graphify-controls.tsx`
+- **Legal:** `client/src/hooks/use-legal.ts` — `useLegalDoc(slug)` (public, used by `/privacy` and `/terms`); admin `useAdminLegalDocs` (list) + `useAdminLegalDoc(slug)` (single) + `useAdminLegalMutations` (PATCH; invalidates both `['legal', slug]` and `['admin', 'legal']` so saves go live immediately)
 
 ### API Routes
 - **Auth:** `server/src/routes/auth.ts` — Login, register, logout, GitHub OAuth
@@ -261,6 +289,7 @@ OpenCode plugins, Gradle dependencies, and Maven artifacts are shared across all
 - **CodeRabbit:** `server/src/routes/coderabbit.ts` — admin-driven **browser OAuth** login (`/api/admin/users/:id/coderabbit/initiate` → `/complete` → `/revoke`) plus per-project AI code review of uncommitted changes (`/api/projects/:id/coderabbit/...`). Login is OAuth, **not** API-key based — see the [CodeRabbit OAuth login](#coderabbit-login-is-browser-oauth-not-api-key) gotcha
 - **GitHub:** `server/src/routes/github.ts` — OAuth callback, repo import
 - **Graphify:** `server/src/routes/graphify.ts` — Enable/remove/status + `graph.html` viewer (paid-only)
+- **Legal:** `server/src/routes/legal.ts` — public `GET /api/legal/:slug` (no auth) + admin `GET /api/admin/legal` / `GET /api/admin/legal/:slug` / `PATCH /api/admin/legal/:slug` (the slug is immutable; admin edits `title` / `content` / `version` / `effectiveDate` only). Slug charset is restricted to `[a-z0-9-]`; unknown slug → 404; invalid slug → 400. Powers `/privacy` and `/terms` on the public side and the Admin Panel → Legal editor on the admin side.
 
 ### Thinking Tag Parsing
 Some models (DeepSeek via Fireworks/Blueminds) emit reasoning as plain text rather than native reasoning parts. The bridge parses three formats automatically:
@@ -274,6 +303,17 @@ Some models (DeepSeek via Fireworks/Blueminds) emit reasoning as plain text rath
 The workspace remembers the chosen AI model and speed per project across page refreshes. Selection is saved to `localStorage` under key `auroracraft:model:{projectId}`. On page load, the saved model is validated against the available model list (from `GET /api/ai/models`); if it is no longer available it falls back to the first usable model.
 
 **Key file:** `client/src/pages/workspace.tsx` — `useEffect` hook loads saved model from localStorage
+
+### Animated Auth Scene (Login/Register)
+`/login` and `/register` both render one shared component — `client/src/components/auth/auth-scene.tsx` (`pages/login.tsx` / `register.tsx` are thin wrappers passing `initialMode`). The page is an interactive SVG scene: a ceiling-hung lamp with a frog perched on top and a pull-rope.
+
+**Behaviors:**
+- **Lamp color = mode:** green (`success` token) = register, blue (`primary`) = login. Toggling retints the glow, light cone, bead, and form accents via `fill`/class transitions.
+- **Pull-rope toggles login⇄register** (the "Pull the rope" text button under the form triggers the same toggle): the cord elastically stretches (`scaleY` to 1.55; the bead translates `80 × (scale − 1)` px in lockstep), the lamp dips and swings, and the frog does a choreographed startle jump — crouch → leg-kick launch → −80px apex (arms dangle off the rim) → landing squash → rebound — sequenced with `animation-delay` (tug → swing → jump). Mode is React state, **not** navigation, so typed form values survive toggling.
+- **Layout-aware gaze** (`useIsDesktopLayout()` = `matchMedia('(min-width: 1024px)')`, the same Tailwind `lg` breakpoint where the page grid switches): desktop (form **beside** the lamp): watch = look right, password-revealed = turn face left. Mobile (form **below**): watch = look down, revealed = look up. Watch fires while focus is inside the form and passwords are hidden.
+- **Failed login/register** (server error or client-side validation) → head-shake "no". Idle life: blinking, glow pulse, bead bob hint.
+
+**Key files:** `client/src/components/auth/auth-scene.tsx` (scene + both forms + logic), `client/src/index.css` (section "Auth: hanging lamp + frog scene" — all keyframes), `client/src/pages/login.tsx` / `register.tsx` (wrappers). Two hard-won mobile rules live in Common Gotchas below: bake transform pivots, and don't kill interaction feedback under reduced motion.
 
 ## Common Gotchas
 
@@ -385,6 +425,12 @@ The Graphify build command is `graphify update . --force` (the no-LLM path) and 
 
 ### aurora-sandbox Is Not Currently Wired
 See Architecture → AI Agent Sandbox. The wrapper is declared but not passed to the OpenCode spawn, so editing it does **not** change runtime behavior. Don't rely on it for command gating.
+
+### Auth Scene: SVG Transforms Must Bake Their Pivots (Mobile)
+Never use `transform-box` / `transform-origin` on the auth scene's CSS-animated SVG elements. Some mobile WebKit builds resolve the origin against the SVG canvas corner for animated SVG elements — the symptom is "works on desktop Chrome, broken on phones". Every keyframe and inline gaze transform instead bakes the pivot into the value: `translate(px, py) rotate()/scale() translate(-px, -py)`. Also keep every state of a *transitioned* inline transform (the frog gaze) the same transform-list shape, so transitions interpolate smoothly instead of jumping.
+
+### Auth Scene: Reduced-Motion Must Not Kill Interaction Feedback
+The auth scene's `prefers-reduced-motion` block disables **only the ambient loops** (glow pulse, bead bob, blink). The user-triggered feedback (rope tug, lamp swing, frog jump, head shake) must stay enabled — phones commonly run with "Remove animations" (Android) / "Reduce Motion" (iOS) on, and disabling everything made the whole rope interaction appear dead on mobile while desktop worked.
 
 ### Multi-Key Requires the Legacy Unique Index Dropped
 There was a `UNIQUE(user_id, provider)` index on `provider_api_keys` (migration 0012) that blocks a second key per provider. Migration `0021_api_key_routing.sql` **drops it** (`DROP INDEX IF EXISTS idx_provider_api_keys_user_provider`) so paid providers can hold multiple keys. If adding a 2nd key fails with `duplicate key value violates unique constraint "idx_provider_api_keys_user_provider"`, 0021 wasn't applied — apply it via `psql -1 -f`. Single-key-per-user for **free** providers is now enforced in the admin route (`admin.ts`), not the DB.

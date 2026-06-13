@@ -18,10 +18,9 @@ import { generateOpenCodeKnowledge } from '../utils/opencode-knowledge.js'
 import { resolveModelById, listModelsForUsage, listModelsForLiteLLM, canUseModel, getUserProviderKeyMap, getUserRoutedKeysByProvider, type ResolvedModel } from '../utils/ai-runtime.js'
 import { buildUserMcpServers } from '../utils/mcp-runtime.js'
 import { getUserTokens, calculateMaxOutputTokens, MIN_PREMIUM_BALANCE } from '../utils/token-service.js'
-import { generateProviderConfig, generateLiteLLMProviderConfig, generateMinimalProjectConfig, writeProjectConfig, writeIsolatedProjectConfig, writeZenAuthJson } from '../utils/provider-config.js'
+import { generateProviderConfig, generateLiteLLMProviderConfig, generateMinimalProjectConfig, writeProjectConfig, readIsolatedProjectConfig, writeIsolatedProjectConfig, writeZenAuthJson } from '../utils/provider-config.js'
 import { generateLiteLLMConfig, writeLiteLLMConfig } from '../utils/litellm-config.js'
 import { litellmProcessManager } from '../bridges/litellm-process-manager.js'
-import { readFile } from 'fs/promises'
 
 const sendMessageSchema = z.object({
   content: z.string().min(1).max(50000),
@@ -37,8 +36,6 @@ const sendMessageSchema = z.object({
   model: z.string().max(100).optional(),
   speed: z.string().max(40).optional(),
 })
-
-const sessionModelTracker = new Map<string, string>()
 
 async function verifyProjectOwnership(userId: string, projectId: string) {
   const [project] = await db
@@ -437,18 +434,25 @@ export async function agentRoutes(app: FastifyInstance) {
         const fullConfig = (litellmUrl && litellmMasterKey)
           ? generateLiteLLMProviderConfig(resolvedModel, litellmUrl, litellmMasterKey)
           : generateProviderConfig(resolvedModel, userApiKey)
+
+        // Detect provider changes against the PREVIOUS isolated config — the file
+        // that actually carries the `provider` section. The workspace opencode.json
+        // is a secretless stub with no `provider` key, so comparing against it made
+        // every non-Zen message register as "provider changed" (undefined vs object),
+        // which force-stopped OpenCode and re-created the session on every message,
+        // losing all chat context. Read BEFORE the write below overwrites the file.
+        const oldIsolatedConfig = await readIsolatedProjectConfig(projectDir)
+        providerChanged = JSON.stringify(oldIsolatedConfig?.provider) !== JSON.stringify(fullConfig.provider)
         await writeIsolatedProjectConfig(projectDir, fullConfig)
 
-        // Detect provider changes by comparing the old project config.
-        const oldConfigStr = await readFile(`${projectDir}/opencode.json`, 'utf8').catch(() => null)
-        const oldProvider = oldConfigStr ? JSON.parse(oldConfigStr).provider : undefined
-        providerChanged = JSON.stringify(oldProvider) !== JSON.stringify(fullConfig.provider)
-
         if (providerChanged) {
+          // OpenCode only reads opencode.json at startup, so a REAL provider change
+          // (different provider block, new LiteLLM port) needs an instance restart.
+          // The OpenCode session itself is still reused — see below.
           app.log.info({ projectDir, provider: provider.slug }, 'Provider config changed — restarting OpenCode instance')
           await processManager.forceStop(projectDir)
         }
-        app.log.info({ projectDir, provider: provider.slug, model: resolvedModel.id, viaLiteLLM: !!litellmUrl }, 'Wrote provider config')
+        app.log.info({ projectDir, provider: provider.slug, model: resolvedModel.id, viaLiteLLM: !!litellmUrl, providerChanged }, 'Wrote provider config')
       } catch (err) {
         app.log.warn({ err, projectDir }, 'Failed to write provider config')
       }
@@ -477,12 +481,6 @@ export async function agentRoutes(app: FastifyInstance) {
     let opencodeSessionId: string | undefined
 
     if (bridgeName === 'opencode') {
-      // Track model per session — force new OpenCode session when model changes
-      const requestedModel = parsed.data.model ?? ''
-      const lastModel = sessionModelTracker.get(sessionId)
-      const modelChanged = !!(requestedModel && lastModel && requestedModel !== lastModel)
-      if (requestedModel) sessionModelTracker.set(sessionId, requestedModel)
-
       // Generate project-specific rules and skills for OpenCode
       try {
         await generateOpenCodeKnowledge(project, username)
@@ -503,16 +501,13 @@ export async function agentRoutes(app: FastifyInstance) {
         app.log.warn({ err, sessionId }, 'Failed to start OpenCode instance')
       }
 
-      // Pre-create or resolve the OpenCode session so the SSE endpoint can subscribe immediately
+      // Pre-create or resolve the OpenCode session so the SSE endpoint can subscribe
+      // immediately. The SAME OpenCode session is reused even when the provider or
+      // model changed: sessions are not bound to a provider — every prompt carries
+      // its own {providerID, modelID} — and the chat history lives in the isolated
+      // HOME's .local/share/opencode storage, which survives instance restarts.
+      // Reusing it is what preserves context when the user switches models mid-chat.
       opencodeSessionId = session.opencodeSessionId ?? undefined
-
-      // When provider config changes (e.g., switching from direct provider to
-      // LiteLLM), the old session was created with the old model/provider settings.
-      // Force a new OpenCode session so it picks up the new config.
-      if (providerChanged) {
-        app.log.info({ sessionId, projectDir }, 'Provider changed — forcing new OpenCode session')
-        opencodeSessionId = undefined
-      }
 
       if (instanceUrl) {
         try {
@@ -521,7 +516,6 @@ export async function agentRoutes(app: FastifyInstance) {
             projectDir,
             project.linkId ?? project.name,
             opencodeSessionId,
-            providerChanged,
           )
 
           // Save opencodeSessionId early so SSE endpoint can pick it up

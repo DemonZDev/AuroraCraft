@@ -10,6 +10,7 @@ AI-powered Minecraft plugin development platform. Describe what you want and an 
 - **Real-Time Per-Call Billing** — Cost is metered **per upstream LLM call** (not estimated up front) through a local LiteLLM proxy. Each call debits the user's AuroraCraft token balance (with the 20% commission) **and** the serving key's dollar limit (raw provider cost). If the balance hits zero mid-run, the agent is stopped immediately. The Prompt Enhancer and Error Prompt Maker are billed the same way
 - **MCP Servers (Admin-Managed)** — Admins add any Model Context Protocol server (web search, scraping, custom tools) from **Admin Panel → AI Runtime → MCPs**. `api`-type MCPs take a per-user key (e.g. Firecrawl); `non_api` MCPs run for everyone. No longer Firecrawl-only or hardcoded
 - **Graphify Token Savings** — Paid users can build a per-project code knowledge graph (`graph.json` + `graph.html`) with **zero AI/token cost** (AST-only). The AI agent then queries the graph (`graphify query/path/explain`) instead of re-reading files, and an interactive graph viewer renders inside the workspace editor
+- **Admin-Editable Legal Pages** — **Privacy Policy** and **Terms of Service** are stored in the database and edited from **Admin Panel → Legal**. Markdown source, live preview, version + effective date. Changes go live immediately on Save. See [Legal Documents](#legal-documents-admin-managed)
 - **Project Management** — Create, configure, and manage multiple plugin projects
 - **Real-Time Streaming** — Live streaming of AI responses with thinking blocks, file operations, and progress tracking
 - **Monaco Code Editor** — Built-in code editor with syntax highlighting and file tree navigation
@@ -797,6 +798,18 @@ CodeRabbit access is granted **per user** by an admin through a **browser OAuth 
 - The `--api-key` login method is intentionally **not** used (some plans do not offer API keys).
 - Requires **tmux** on the server (see Step 8).
 
+### 4.5. Edit the Privacy Policy & Terms of Service (Recommended)
+
+The Privacy Policy and Terms of Service are seeded on first migration, but you should review and customize them for your jurisdiction, refund policy, support email, and business details before launch.
+
+1. Sign in as an **admin** user
+2. Open **Admin Panel → Legal**
+3. Click the **Privacy Policy** or **Terms of Service** row
+4. Edit the **Title**, **Version**, **Effective date**, and **Markdown content** in the split-view editor
+5. Click **Save** — the public `/privacy` and `/terms` pages reflect the new content immediately
+
+Content is stored as Markdown, so you can use GFM tables, fenced code blocks, and inline code. The effective date is normalized to UTC midnight of the day you pick.
+
 ### 5. Configure User Token Balances (Optional)
 
 New users start with 0 AI tokens. To let users access premium models, administrators must grant tokens via the Admin Panel:
@@ -1095,6 +1108,57 @@ The rules template includes a section with quantified AI mistake frequencies (so
 
 These statistics help the AI self-audit — it knows its own common mistakes and double-checks them.
 
+### Legal Documents (Admin-Managed)
+
+The **Privacy Policy** and **Terms of Service** pages are stored in the database and edited at runtime from **Admin Panel → Legal**. No code edits, no redeploy — admins can revise the policy and it goes live the instant they save.
+
+**Table** (migration `0027_legal_documents.sql`):
+- `slug` (unique) — `privacy` | `terms`. The public URL is `/<slug>`. Immutable after launch (renaming would 404 existing visitors).
+- `title` — display title (`Privacy Policy` / `Terms of Service`).
+- `content` — Markdown source. Rendered on the client with `react-markdown` + `remark-gfm` + `rehype-highlight`. The admin edits the source, the public page renders it.
+- `version` — free-form string (semver or date-based). Displayed on the public page as "Version 1.2.0".
+- `effectiveDate` — when the current revision became effective. Public page shows "Effective <Month Day, Year>".
+- `updatedAt`, `createdAt` — timestamps.
+
+**API:**
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/api/legal/:slug` | public | Fetch a single document (used by `/privacy` and `/terms`) |
+| `GET` | `/api/admin/legal` | admin | List all editable documents |
+| `GET` | `/api/admin/legal/:slug` | admin | Fetch a single document (for the editor) |
+| `PATCH` | `/api/admin/legal/:slug` | admin | Update `title` / `content` / `version` / `effectiveDate` (partial body) |
+
+**Admin editor** (`/admin/legal/:slug`):
+- Sidebar entry: **Admin Panel → Legal**.
+- List page: two rows (Privacy, Terms) with version, effective date, last-updated, Edit button.
+- Edit page: metadata row (Title / Version / Effective date) + **split view** (markdown textarea on the left, live preview on the right on desktop; tab switcher on mobile). Save button invalidates both the admin and public query caches so the next `/privacy` or `/terms` page load reflects the new content immediately.
+
+**Public page** (`/privacy`, `/terms`):
+- Breadcrumb → title → "Effective <date> · Version <x.y.z>" header.
+- Markdown rendered with sensible long-form typography (760px reading column, 1.75 line-height, GFM tables, fenced code with syntax highlighting, autolinks).
+- Sticky right-side **"On this page"** TOC auto-generated from `##` and `###` headings, with active-section highlight via `IntersectionObserver`. Hidden on mobile.
+- Anchor IDs auto-generated on every heading (slug + collision counter) so `#section-name` links work.
+
+**Key files:**
+- `server/src/db/schema/legal-documents.ts` — Drizzle schema.
+- `server/drizzle/0027_legal_documents.sql` — idempotent migration + hand-written seed content (describes AuroraCraft's actual product — Argon2id hashes, AES-256-GCM key encryption, per-user Linux isolation, LiteLLM multi-key routing, Graphify AST-only build, the 18 server platforms, Delaware governing law).
+- `server/src/routes/legal.ts` — public + admin endpoints with Zod validation.
+- `client/src/hooks/use-legal.ts` — TanStack Query hooks.
+- `client/src/components/legal/legal-document-page.tsx` — shared public renderer.
+- `client/src/pages/admin/legal.tsx` + `legal-edit.tsx` — admin list + editor.
+
+### Pricing Page
+
+The `/pricing` page is a single-page experience centered on a tactile **roll-ball interaction** — a draggable ball (with squash-and-stretch physics, a one-time "roll me" hint nudge, full keyboard accessibility via `←` / `→` / `Space` / `Enter`, and a click-to-flip flourish) drives a morphing **plan card** that cross-fades between Free and Pro states (tier name, price, tokens-included line, CTA, and per-feature check/x icons that rotate into place).
+
+Above the ball: a **monthly / yearly** billing toggle (yearly saves 20%) implemented as a measured segmented control with a spring-animated slider. The morph card's price cell reflects the chosen cycle (`/mo` for monthly, the discounted per-month value for yearly). Real prices + the feature matrix are read from `/api/plan-settings` (admin-editable from **Admin Panel → Plans**).
+
+Below the hero: a **feature comparison table** (grouped by Workspace / AI Models / Quality) with a sticky header and a Pro column tinted brand-blue, a **token top-up** panel showing three concrete "what does $X buy you" tiers, a native-`<details>` FAQ, and a footer CTA. No decorative background meshes, no animations outside the ball — solid dark surface, real type, calm hierarchy.
+
+**Key files:**
+- `client/src/pages/pricing.tsx` — page, roll-ball physics, BillingToggle, FeatureGroupRows.
+- `client/src/components/ui/...` and `client/src/index.css` — the `.spec-card`, `.billing-toggle`, `.compare-table`, `details.faq`, `.topup-card`, and `.legal-prose` styles.
+
 ### Token Pricing System
 
 AuroraCraft uses a precise token-based pricing system with **per-provider pricing differentiation** and **cached-input discounts**.
@@ -1164,6 +1228,18 @@ The workspace remembers your chosen AI model and speed per project across page r
 - Selection is saved to `localStorage` under key `auroracraft:model:{projectId}`
 - On page load, the saved model is validated against the available model list; if it is no longer available it falls back to the default
 - Each project has its own independent selection
+
+### Animated Login / Register Scene
+
+The `/login` and `/register` pages share one interactive SVG scene (`client/src/components/auth/auth-scene.tsx` — the page files are thin wrappers): a ceiling-hung lamp with a frog perched on top.
+
+- **Lamp color = mode** — green for registration, blue for sign-in; the glow, light cone, bead, and form accents all retint when the mode changes
+- **Pull-rope switches modes** — clicking the rope (or the "Pull the rope" link under the form) elastically stretches the cord, swings the lamp, and startles the frog into a full choreographed jump (crouch → leg-kick launch → airborne apex with hands off the rim → landing squash → rebound). Switching is React state, not navigation, so typed form values survive the toggle
+- **The frog watches you type** — while passwords are hidden it looks at the form: **right** on desktop (form beside the lamp), **down** on mobile (form below). Reveal the password and it politely looks away: **left** on desktop, **up** on mobile. The layout is detected with the same `lg` (1024px) breakpoint the page grid uses
+- **Disapproval** — a failed login/registration (or client-side validation error) makes the frog shake its head
+- **Accessibility** — the rope is keyboard-operable (Tab + Enter/Space, with a ring focus indicator on the bead instead of the default outline); under `prefers-reduced-motion`, ambient loops (blinking, glow pulse, bead bob) stop while the brief user-triggered feedback stays
+
+All animation pivots are baked into the CSS keyframes as `translate(p) … translate(-p)` sandwiches (no `transform-box`/`transform-origin`), which is required for correct rendering on mobile WebKit. The keyframes live in `client/src/index.css` under "Auth: hanging lamp + frog scene".
 
 ### Shared Caches
 

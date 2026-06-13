@@ -498,3 +498,322 @@
   .pull-bead,
   .frog-eyes { animation: none; }
 }
+
+/* ── Pricing page ────────────────────────────────────────────────── */
+
+/* Small mono uppercase label, used as a section eyebrow / spec cell key.
+   Quiet on purpose — it labels, it doesn't shout. */
+.spec-label {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+}
+
+.spec-value {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-feature-settings: 'tnum' 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.display-num {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* The "spec card" the roll-ball morphs between Free and Pro.
+   Plain — just a panel with a border. No ruler, no corner dot, no
+   pseudo-document flourishes. The interaction is the design. */
+.spec-card {
+  position: relative;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  transition: border-color 500ms ease, box-shadow 500ms ease, background-color 500ms ease;
+}
+.spec-card.featured {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+/* Monthly/Yearly segmented toggle. The slider animates with a small
+   spring when the user picks a side — a real interaction deserves a
+   real response. */
+.billing-toggle {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  position: relative;
+}
+.billing-toggle button {
+  position: relative;
+  z-index: 1;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-dim);
+  border-radius: 6px;
+  transition: color 200ms ease;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.billing-toggle button.is-active {
+  color: var(--color-text);
+}
+.billing-toggle .slider {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border-radius: 6px;
+  background: var(--color-surface-hover);
+  border: 1px solid var(--color-border-bright);
+  transition: transform 320ms cubic-bezier(0.34, 1.2, 0.64, 1), width 320ms cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+.billing-toggle .save-chip {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(34, 197, 94, 0.12);
+  color: rgb(134, 239, 172);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+/* Comparison table — sticky header, hover row highlight, Pro column tinted.
+   Nothing fancy, just a readable table. */
+.compare-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14px;
+}
+.compare-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--color-background);
+  text-align: left;
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--color-border);
+}
+.compare-table thead th.col-pro {
+  color: var(--color-primary);
+}
+.compare-table thead th.text-center { text-align: center; }
+.compare-table tbody td {
+  padding: 14px 20px;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  vertical-align: middle;
+}
+.compare-table tbody tr:hover td {
+  background: var(--color-surface-hover);
+}
+.compare-table tbody td:first-child {
+  color: var(--color-text);
+  font-weight: 500;
+}
+.compare-table tbody td.col-pro {
+  background: rgba(59, 130, 246, 0.04);
+}
+.compare-table tbody tr:hover td.col-pro {
+  background: rgba(59, 130, 246, 0.08);
+}
+.compare-table .group-row td {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+  padding: 10px 20px;
+  font-weight: 500;
+  background: var(--color-background);
+  border-top: 1px solid var(--color-border);
+}
+
+/* FAQ — native <details>, custom chevron rotation on open. The only
+   motion is the chevron turning from + to × as the panel expands. */
+details.faq {
+  border-top: 1px solid var(--color-border);
+  padding: 0;
+}
+details.faq:last-of-type {
+  border-bottom: 1px solid var(--color-border);
+}
+details.faq summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 20px 4px 20px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-text);
+  user-select: none;
+}
+details.faq summary::-webkit-details-marker { display: none; }
+details.faq summary .chev {
+  flex-shrink: 0;
+  width: 24px; height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  transition: transform 240ms cubic-bezier(0.34, 1.2, 0.64, 1), color 200ms ease;
+}
+details.faq[open] summary .chev {
+  transform: rotate(45deg);
+  color: var(--color-primary);
+}
+details.faq .answer {
+  padding: 0 0 20px 0;
+  color: var(--color-text-muted);
+  font-size: 14.5px;
+  line-height: 1.65;
+  max-width: 65ch;
+}
+details.faq .answer code {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.85em;
+  background: var(--color-surface-hover);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: var(--color-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spec-card,
+  .billing-toggle .slider,
+  details.faq summary .chev { transition: none; }
+}
+
+/* ── Legal document prose ─────────────────────────────────────────
+   Long-form markdown reading. The base .markdown-content class already
+   handles lists, code, blockquotes, tables, etc.; this layer tightens
+   the typography for the /privacy and /terms pages (generous line-
+   height, anchor-id hover affordance, tighter H1 spacing). */
+.legal-prose {
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--color-text-muted);
+}
+.legal-prose > :first-child { margin-top: 0; }
+.legal-prose > :last-child { margin-bottom: 0; }
+
+.legal-prose h2 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--color-text);
+  margin-top: 2.5rem;
+  margin-bottom: 0.75rem;
+  scroll-margin-top: 5rem;
+  position: relative;
+}
+.legal-prose h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  margin-top: 1.75rem;
+  margin-bottom: 0.5rem;
+  scroll-margin-top: 5rem;
+}
+.legal-prose p {
+  margin-top: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+.legal-prose ul,
+.legal-prose ol {
+  margin-top: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+.legal-prose li { margin: 0.4rem 0; }
+.legal-prose li > p { margin: 0.4rem 0; }
+.legal-prose strong { color: var(--color-text); font-weight: 600; }
+.legal-prose em { font-style: italic; }
+.legal-prose a {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-decoration-color: rgba(59, 130, 246, 0.3);
+  text-underline-offset: 2px;
+  transition: text-decoration-color 150ms ease;
+}
+.legal-prose a:hover { text-decoration-color: var(--color-primary); }
+.legal-prose hr {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 2rem 0;
+}
+.legal-prose table {
+  width: 100%;
+  font-size: 0.9em;
+  margin: 1.25rem 0;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.legal-prose th {
+  background: var(--color-surface-hover);
+  font-weight: 600;
+  text-align: left;
+  padding: 0.65rem 0.9rem;
+  border-bottom: 1px solid var(--color-border);
+}
+.legal-prose td {
+  padding: 0.65rem 0.9rem;
+  border-top: 1px solid var(--color-border);
+  vertical-align: top;
+}
+.legal-prose tbody tr:first-child td { border-top: none; }
+.legal-prose blockquote {
+  border-left: 3px solid var(--color-primary);
+  padding: 0.25rem 0 0.25rem 1rem;
+  margin: 1.25rem 0;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+.legal-prose code {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.85em;
+  background: var(--color-surface-hover);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  color: var(--color-text);
+}
+.legal-prose pre {
+  margin: 1.25rem 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+  overflow-x: auto;
+}
+.legal-prose pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.8rem;
+  line-height: 1.6;
+}

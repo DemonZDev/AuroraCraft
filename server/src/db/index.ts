@@ -16,11 +16,12 @@ import * as aiProviders from './schema/ai-providers.js'
 import * as aiModels from './schema/ai-models.js'
 import * as mcps from './schema/mcps.js'
 import * as planSettings from './schema/plan-settings.js'
+import * as legalDocuments from './schema/legal-documents.js'
 
 const client = postgres(env.DATABASE_URL)
 
 export const db = drizzle(client, {
-  schema: { ...users, ...sessions, ...projects, ...agentSessions, ...agentMessages, ...agentLogs, ...codeReviews, ...providerApiKeys, ...projectLikes, ...projectViews, ...promptToolJobs, ...aiProviders, ...aiModels, ...mcps, ...planSettings },
+  schema: { ...users, ...sessions, ...projects, ...agentSessions, ...agentMessages, ...agentLogs, ...codeReviews, ...providerApiKeys, ...projectLikes, ...projectViews, ...promptToolJobs, ...aiProviders, ...aiModels, ...mcps, ...planSettings, ...legalDocuments },
 })
 
 export type Database = typeof db
